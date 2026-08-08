@@ -446,7 +446,7 @@ function renderHome(){
   const todaySchedule = state.schedule.filter(s=>s.date===homeDate).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
   const ym=homeDate.slice(0,7);
   const monthBudget = state.budget.filter(b=>b.date.startsWith(ym)).reduce((s,b)=>s+Number(b.amount||0),0);
-  const upcomingEvent = state.events.map(ev=>({...ev,d:ddayFromDate(eventOccurrence(ev))})).filter(e=>e.d>=0).sort((a,b)=>a.d-b.d)[0];
+  const upcomingEvent = state.events.filter(ev=>!(ev.hiddenFromDaughter && effectiveRole()==='daughter')).map(ev=>({...ev,d:ddayFromDate(eventOccurrence(ev))})).filter(e=>e.d>=0).sort((a,b)=>a.d-b.d)[0];
   const upcomingRenew = state.vehicle.renewals.map(r=>({...r,d:dday(r.date)})).filter(r=>r.d>=0).sort((a,b)=>a.d-b.d)[0];
 
   el.innerHTML = `
@@ -623,7 +623,7 @@ function renderSchedule(){
   const totalCells=Math.ceil((firstDow+daysInMonth)/7)*7;
   const allowedFilters=getAllowedScheduleFilters();
   if(!allowedFilters.includes(scheduleFilter)) scheduleFilter = allowedFilters.includes('common') ? 'common' : allowedFilters[0];
-  const virtualEventItems=state.events.map(ev=>({id:'evt-'+ev.id, date:fmtDate(eventOccurrence(ev)), time:'', title:'🎉 '+ev.name, memo:ev.memo, owner:'common', virtual:true}));
+  const virtualEventItems=state.events.filter(ev=>!(ev.hiddenFromDaughter && effectiveRole()==='daughter')).map(ev=>({id:'evt-'+ev.id, date:fmtDate(eventOccurrence(ev)), time:'', title:'🎉 '+ev.name, memo:ev.memo, owner:'common', virtual:true}));
   const allItems=state.schedule.map(s=>({...s, owner:s.owner||'common'})).concat(virtualEventItems);
   const filtered = scheduleFilter==='all' ? allItems : allItems.filter(s=>s.owner===scheduleFilter);
   const eventsByDate={};
@@ -1207,11 +1207,15 @@ function renderEvents(){
   const upcoming = withD.filter(e=>e.d>=0).sort((a,b)=>a.d-b.d);
   const past = withD.filter(e=>e.d<0).sort((a,b)=>b.d-a.d);
   const row = ev => `
-    <div class="list-item">
-      <div><div>${escapeHtml(ev.name)}</div>
-      <div class="meta">${ev.lunar?`음력 ${ev.lunarMonth}/${ev.lunarDay}${ev.lunarLeap?'(윤)':''}`:ev.date}${ev.recurring?' (매년)':''}${ev.memo?' · '+escapeHtml(ev.memo):''}</div></div>
-      <div class="row"><span class="pill ${ddayPillClass(ev.d)}">${ddayLabel(ev.d)}</span>
-        <button class="btn small" data-edit="${ev.id}">수정</button><button class="btn small danger" data-del="${ev.id}">삭제</button></div>
+    <div class="list-item" style="align-items:center;">
+      <div style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+        <b>${escapeHtml(ev.name)}</b>
+        <span class="meta">${ev.lunar?`음력 ${ev.lunarMonth}/${ev.lunarDay}${ev.lunarLeap?'(윤)':''}`:ev.date}${ev.recurring?' (매년)':''}${ev.hiddenFromDaughter?' 🙈':''}${ev.memo?' · '+escapeHtml(ev.memo):''}</span>
+      </div>
+      <div class="row" style="flex-wrap:nowrap;flex-shrink:0;">
+        <span class="pill ${ddayPillClass(ev.d)}">${ddayLabel(ev.d)}</span>
+        <button class="btn small" data-edit="${ev.id}">수정</button><button class="btn small danger" data-del="${ev.id}">삭제</button>
+      </div>
     </div>`;
   el.innerHTML=`
     <div class="card">
@@ -1227,7 +1231,7 @@ function renderEvents(){
   });
 }
 function openEventModal(existing){
-  const ev=existing||{id:null,name:'',date:todayStr(),recurring:true,memo:'',lunar:false,lunarYear:new Date().getFullYear(),lunarMonth:'',lunarDay:'',lunarLeap:false};
+  const ev=existing||{id:null,name:'',date:todayStr(),recurring:true,memo:'',lunar:false,lunarYear:new Date().getFullYear(),lunarMonth:'',lunarDay:'',lunarLeap:false,hiddenFromDaughter:false};
   openModal(`
     <h3>${existing?'경조사 수정':'경조사 추가'}</h3>
     <div class="field"><label>이름</label><input id="mName" value="${escapeHtml(ev.name)}"></div>
@@ -1246,6 +1250,7 @@ function openEventModal(existing){
       </div>
     </div>
     <label class="pill" style="cursor:pointer;display:inline-block;margin:6px 0;"><input type="checkbox" id="mRecurring" ${ev.recurring?'checked':''} style="margin-right:4px;">매년 반복 (생일/기념일)</label>
+    <label class="pill" style="cursor:pointer;display:inline-block;margin:6px 0 6px 6px;"><input type="checkbox" id="mHideDaughter" ${ev.hiddenFromDaughter?'checked':''} style="margin-right:4px;">🙈 딸에게 비공개</label>
     <div class="field"><label>메모</label><input id="mMemo" value="${escapeHtml(ev.memo)}"></div>
     <div class="modal-actions"><button class="btn" id="mCancel">취소</button><button class="btn primary" id="mSave">저장</button></div>
   `);
@@ -1272,7 +1277,7 @@ function openEventModal(existing){
       date=document.getElementById('mDate').value;
       if(!name||!date){ showToast('이름과 날짜를 입력해주세요'); return; }
     }
-    const rec={id:ev.id||uid(),name,date,lunar:isLunar,lunarYear,lunarMonth,lunarDay,lunarLeap,recurring:document.getElementById('mRecurring').checked,memo:document.getElementById('mMemo').value};
+    const rec={id:ev.id||uid(),name,date,lunar:isLunar,lunarYear,lunarMonth,lunarDay,lunarLeap,recurring:document.getElementById('mRecurring').checked,hiddenFromDaughter:document.getElementById('mHideDaughter').checked,memo:document.getElementById('mMemo').value};
     if(ev.id){ const idx=state.events.findIndex(x=>x.id===ev.id); state.events[idx]=rec; }
     else state.events.push(rec);
     queueSave(); closeModal(); renderEvents(); renderHome(); renderSchedule();
