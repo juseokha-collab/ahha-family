@@ -370,10 +370,12 @@ function renderHome(){
       <div class="field" style="margin-top:10px;">
         <div class="row" style="justify-content:space-between;align-items:center;">
           <label style="margin:0;">한 줄 일기</label>
-          <button class="btn small primary" id="diarySaveBtn">저장</button>
+          <div class="row" style="gap:8px;">
+            <span class="meta" id="diarySaveStatus">${mine.diary?'✓ 저장됨':''}</span>
+            <button class="btn small primary" id="diarySaveBtn">저장</button>
+          </div>
         </div>
         <textarea id="diaryInput" placeholder="오늘 하루는 어땠나요?">${escapeHtml(mine.diary)}</textarea>
-        <div class="meta" id="diarySaveStatus" style="min-height:14px;">${mine.diary?'✓ 저장됨':''}</div>
       </div>
     </div>
 
