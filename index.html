@@ -72,9 +72,23 @@ nav.tabs button.active{background:var(--panel2);color:var(--text);border-color:v
 .cal-cell.other{opacity:.3;}
 .cal-cell .day-num{align-self:center;color:var(--muted);}
 .cal-cell.today .day-num{color:var(--accent);font-weight:700;}
+.cal-grid>.cal-head:nth-child(7n+1),.cal-grid>.cal-cell:nth-child(7n+1) .day-num{color:#ff9494;}
+.cal-grid>.cal-head:nth-child(7n),.cal-grid>.cal-cell:nth-child(7n) .day-num{color:#8ab4ff;}
+.cal-cell.holiday .day-num{color:#ff9494;}
+.cal-cell.today .day-num{color:var(--accent)!important;}
+.cal-holiday{align-self:center;font-size:9px;color:#ff9494;width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center;}
 .cal-evt{font-size:10px;background:var(--panel);border-radius:4px;padding:1px 4px;width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text);}
 .cal-evt.more{color:var(--muted);background:none;padding:0 4px;}
 @media(max-width:600px){.cal-cell{min-height:52px;}.cal-evt{font-size:9px;}}
+.maint-table{width:100%;border-collapse:collapse;font-size:12px;}
+.maint-table th{text-align:left;color:var(--muted);font-weight:600;font-size:11px;padding:6px 8px;border-bottom:1px solid var(--border);white-space:nowrap;}
+.maint-table td{padding:8px;border-bottom:1px solid var(--border);white-space:nowrap;}
+.maint-table td.wrap{white-space:normal;}
+.maint-table tr:last-child td{border-bottom:none;}
+.maint-table tr.empty-row td{color:var(--muted);}
+.icon-btn{background:none;border:none;color:var(--muted);font-size:15px;cursor:pointer;padding:2px 8px;border-radius:6px;}
+.icon-btn:hover{color:var(--accent);background:var(--panel2);}
+.link-btn{background:none;border:none;color:var(--accent2);font-size:12px;cursor:pointer;padding:0;text-decoration:underline;}
 .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;z-index:50;padding:16px;}
 .modal-bg.show{display:flex;}
 .modal{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:18px;width:100%;max-width:420px;max-height:88vh;overflow-y:auto;}

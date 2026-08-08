@@ -2,6 +2,7 @@
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
 function pad2(n){ return String(n).padStart(2,'0'); }
 function fmtDate(d){ return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`; }
+function shortDate(s){ const [y,m,d]=s.split('-'); return y.slice(2)+'.'+m+'.'+d; }
 function todayStr(){ return fmtDate(new Date()); }
 function parseDate(s){ const [y,m,d]=s.split('-').map(Number); return new Date(y,m-1,d); }
 function addDays(d,n){ const r=new Date(d); r.setDate(r.getDate()+n); return r; }
@@ -85,6 +86,31 @@ function nextLunarOccurrence(lMonth,lDay,isLeap){
 function eventOccurrence(ev){
   if(ev.lunar && ev.recurring) return nextLunarOccurrence(ev.lunarMonth, ev.lunarDay, ev.lunarLeap);
   return nextOccurrence(ev.date, ev.recurring);
+}
+
+/* ---------- holidays (KR) ---------- */
+const FIXED_HOLIDAYS=[[1,1,'신정'],[3,1,'삼일절'],[5,5,'어린이날'],[6,6,'현충일'],[8,15,'광복절'],[10,3,'개천절'],[10,9,'한글날'],[12,25,'크리스마스']];
+function getHolidaysForYear(year){
+  const map={};
+  FIXED_HOLIDAYS.forEach(([m,d,name])=>{ map[fmtDate(new Date(year,m-1,d))]=name; });
+  const seollal=lunar2solar(year,1,1,false);
+  if(seollal){
+    map[fmtDate(addDays(seollal,-1))]='설날 연휴';
+    map[fmtDate(seollal)]='설날';
+    map[fmtDate(addDays(seollal,1))]='설날 연휴';
+  }
+  const chuseok=lunar2solar(year,8,15,false);
+  if(chuseok){
+    map[fmtDate(addDays(chuseok,-1))]='추석 연휴';
+    map[fmtDate(chuseok)]='추석';
+    map[fmtDate(addDays(chuseok,1))]='추석 연휴';
+  }
+  const buddha=lunar2solar(year,4,8,false);
+  if(buddha) map[fmtDate(buddha)]='부처님오신날';
+  return map;
+}
+function getHolidaysAround(year){
+  return Object.assign({}, getHolidaysForYear(year-1), getHolidaysForYear(year), getHolidaysForYear(year+1));
 }
 
 /* ---------- state ---------- */
@@ -379,6 +405,7 @@ function renderSchedule(){
   const eventsByDate={};
   state.schedule.forEach(s=>{ (eventsByDate[s.date]=eventsByDate[s.date]||[]).push(s); });
   Object.values(eventsByDate).forEach(list=>list.sort((a,b)=>(a.time||'').localeCompare(b.time||'')));
+  const holidays=getHolidaysAround(y);
   const todayS=todayStr();
   const MAX_SHOWN=3;
   let grid='';
@@ -388,10 +415,11 @@ function renderSchedule(){
     const dateStr=fmtDate(dateObj);
     const inMonth = dayNum>=1 && dayNum<=daysInMonth;
     const dayEvents=eventsByDate[dateStr]||[];
+    const holidayName=holidays[dateStr];
     const shown=dayEvents.slice(0,MAX_SHOWN).map(s=>`<span class="cal-evt">${s.time?escapeHtml(s.time)+' ':''}${escapeHtml(s.title)}</span>`).join('');
     const more = dayEvents.length>MAX_SHOWN ? `<span class="cal-evt more">+${dayEvents.length-MAX_SHOWN}개 더</span>` : '';
-    grid += `<div class="cal-cell ${inMonth?'':'other'} ${dateStr===todayS?'today':''} ${dateStr===scheduleSel?'sel':''}" data-date="${dateStr}">
-      <span class="day-num">${dateObj.getDate()}</span>${shown}${more}
+    grid += `<div class="cal-cell ${inMonth?'':'other'} ${dateStr===todayS?'today':''} ${dateStr===scheduleSel?'sel':''} ${holidayName?'holiday':''}" data-date="${dateStr}">
+      <span class="day-num">${dateObj.getDate()}</span>${holidayName?`<span class="cal-holiday">${escapeHtml(holidayName)}</span>`:''}${shown}${more}
     </div>`;
   }
   const dayItems = state.schedule.filter(s=>s.date===scheduleSel).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
@@ -401,7 +429,7 @@ function renderSchedule(){
       <div class="cal-grid">${['일','월','화','수','목','금','토'].map(d=>`<div class="cal-head">${d}</div>`).join('')}${grid}</div>
     </div>
     <div class="card">
-      <div class="row" style="justify-content:space-between;"><h3 style="margin:0;">${scheduleSel} 일정</h3><button class="btn primary small" id="addSchedBtn">+ 일정 추가</button></div>
+      <div class="row" style="justify-content:space-between;"><h3 style="margin:0;">${scheduleSel} 일정${holidays[scheduleSel]?` <span class="pill">${escapeHtml(holidays[scheduleSel])}</span>`:''}</h3><button class="btn primary small" id="addSchedBtn">+ 일정 추가</button></div>
       ${dayItems.length? dayItems.map(s=>`
         <div class="list-item">
           <div><div>${s.time?`<b>${s.time}</b> `:''}${escapeHtml(s.title)}</div>${s.memo?`<div class="meta">${escapeHtml(s.memo)}</div>`:''}</div>
@@ -587,12 +615,17 @@ function openBudgetModal(existing){
 }
 
 /* ---------- VEHICLE ---------- */
+let maintHistoryOpen=false;
 function renderVehicle(){
   const el=document.getElementById('tab-vehicle');
   const v=state.vehicle;
   const renewals=v.renewals.map(r=>({...r,d:dday(r.date)})).sort((a,b)=>a.d-b.d);
   const fuelSorted=[...v.fuel].sort((a,b)=>b.date.localeCompare(a.date));
   const maintSorted=[...v.maint].sort((a,b)=>b.date.localeCompare(a.date));
+  const maintRows=MAINT_ITEMS.map(item=>{
+    const records=v.maint.filter(mt=>mt.item===item).sort((a,b)=>b.date.localeCompare(a.date));
+    return {item, latest:records[0]};
+  });
   const fuelTotal=v.fuel.reduce((s,f)=>s+Number(f.cost||0),0);
   el.innerHTML=`
     <div class="card">
@@ -625,11 +658,28 @@ function renderVehicle(){
     </div>
     <div class="card">
       <div class="row" style="justify-content:space-between;"><h3 style="margin:0;">🔧 정비 기록</h3><button class="btn primary small" id="addMaintBtn">+ 추가</button></div>
-      ${maintSorted.length? maintSorted.map(mt=>`
+      <div style="overflow-x:auto;">
+        <table class="maint-table">
+          <thead><tr><th>점검항목</th><th>점검일시</th><th>주행거리</th><th>비용</th><th>비고</th><th></th></tr></thead>
+          <tbody>
+            ${maintRows.map(({item,latest})=>`
+              <tr>
+                <td>${escapeHtml(item)}</td>
+                <td>${latest?shortDate(latest.date):'-'}</td>
+                <td>${latest&&latest.odo?Number(latest.odo).toLocaleString()+'km':'-'}</td>
+                <td>${latest&&latest.cost?Number(latest.cost).toLocaleString()+'원':'-'}</td>
+                <td class="wrap">${latest?(escapeHtml([latest.place,latest.memo].filter(Boolean).join(' · '))||'-'):'-'}</td>
+                <td><button class="icon-btn" data-maint-item="${escapeHtml(item)}" title="기록 추가/수정">✏️</button></td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+      ${maintSorted.length?`<button class="link-btn" id="toggleMaintHistory" style="margin-top:10px;">${maintHistoryOpen?'전체 이력 접기':`전체 이력 보기 (${maintSorted.length}건)`}</button>`:''}
+      ${maintHistoryOpen? maintSorted.map(mt=>`
         <div class="list-item">
           <div><div>${escapeHtml(mt.item)}${mt.cost?' · '+Number(mt.cost).toLocaleString()+'원':''}</div><div class="meta">${mt.date}${mt.odo?' · '+Number(mt.odo).toLocaleString()+'km':''}${mt.place?' · '+escapeHtml(mt.place):''}${mt.memo?' · '+escapeHtml(mt.memo):''}</div></div>
           <div class="row"><button class="btn small" data-edit-maint="${mt.id}">수정</button><button class="btn small danger" data-del-maint="${mt.id}">삭제</button></div>
-        </div>`).join('') : `<div class="empty">정비 기록이 없어요</div>`}
+        </div>`).join('') : ''}
     </div>
   `;
   document.getElementById('vModel').addEventListener('change',e=>{ state.vehicle.model=e.target.value; queueSave(); });
@@ -645,6 +695,14 @@ function renderVehicle(){
   document.getElementById('addMaintBtn').onclick=()=>openMaintModal();
   el.querySelectorAll('[data-edit-maint]').forEach(b=>b.onclick=()=>openMaintModal(v.maint.find(x=>x.id===b.dataset.editMaint)));
   el.querySelectorAll('[data-del-maint]').forEach(b=>b.onclick=()=>{ if(confirm('삭제할까요?')){ state.vehicle.maint=v.maint.filter(x=>x.id!==b.dataset.delMaint); queueSave(); renderVehicle(); } });
+  const toggleBtn=document.getElementById('toggleMaintHistory');
+  if(toggleBtn) toggleBtn.onclick=()=>{ maintHistoryOpen=!maintHistoryOpen; renderVehicle(); };
+  el.querySelectorAll('[data-maint-item]').forEach(b=>b.onclick=()=>{
+    const item=b.dataset.maintItem;
+    const records=v.maint.filter(mt=>mt.item===item).sort((a,b)=>b.date.localeCompare(a.date));
+    if(records.length) openMaintModal(records[0]);
+    else openMaintModal({id:null,date:todayStr(),item,place:'',cost:'',odo:'',memo:''});
+  });
 }
 function openRenewModal(existing){
   const r=existing||{id:null,name:'',date:todayStr(),memo:''};
