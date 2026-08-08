@@ -33,6 +33,7 @@ header.top{display:flex;align-items:center;justify-content:space-between;padding
 :root[data-theme="light"] .btn.primary{background:var(--accent);color:#ffffff;}
 .btn.small{padding:5px 9px;font-size:12px;border-radius:8px;}
 .btn.danger{color:var(--bad);}
+.btn.active{border-color:var(--accent);color:var(--accent);font-weight:700;}
 nav.tabs{display:flex;gap:6px;overflow-x:auto;padding:4px 2px 14px;}
 nav.tabs button{flex:0 0 auto;background:transparent;border:1px solid var(--border);color:var(--muted);padding:8px 14px;border-radius:999px;font-size:13px;font-weight:600;}
 nav.tabs button.active{background:var(--panel2);color:var(--text);border-color:var(--accent);}
@@ -133,6 +134,8 @@ nav.tabs button.active{background:var(--panel2);color:var(--text);border-color:v
         <button class="btn small" id="loginBtn">구글 로그인</button>
       </div>
       <button class="btn small" id="themeToggle" title="테마 전환">🌙</button>
+      <button class="btn small" id="viewAsMomBtn" data-role="mom" title="아내가 보는 화면 미리보기">아내</button>
+      <button class="btn small" id="viewAsDaughterBtn" data-role="daughter" title="딸이 보는 화면 미리보기">딸</button>
     </div>
   </header>
 
@@ -159,7 +162,7 @@ nav.tabs button.active{background:var(--panel2);color:var(--text);border-color:v
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-<script src="firebase-config.js?v=20260808o"></script>
-<script src="app.js?v=20260808o"></script>
+<script src="firebase-config.js?v=20260808p"></script>
+<script src="app.js?v=20260808p"></script>
 </body>
 </html>

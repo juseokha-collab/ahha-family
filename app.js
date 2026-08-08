@@ -248,7 +248,14 @@ function queueSave(){
   }, 800);
 }
 function ensureDay(d){ if(!state.daily[d]) state.daily[d]={}; if(!state.daily[d].entries) state.daily[d].entries={}; if(!state.daily[d].health) state.daily[d].health={}; }
-function currentAuthorKey(){ return user ? user.email : 'local'; }
+let viewAsOverride=null; // null | 'mom' | 'daughter'
+const VIEW_AS_EMAIL={ mom:'jinahkim2023@gmail.com' };
+function effectiveRole(){ return viewAsOverride || EMAIL_ROLE[user&&user.email] || null; }
+function currentAuthorKey(){
+  if(viewAsOverride==='mom') return VIEW_AS_EMAIL.mom;
+  if(viewAsOverride==='daughter') return 'daughter';
+  return user ? user.email : 'local';
+}
 function authorLabel(entry, key){ return (entry&&entry.name) ? entry.name : (key==='local' ? '나' : key); }
 function setSyncStatus(s){
   const el=document.getElementById('syncStatus');
@@ -571,7 +578,7 @@ let scheduleFilter = 'all';
 function getScheduleOwners(){ return [{key:'common',label:'공통'}].concat(FAMILY_MEMBERS); }
 function ownerLabel(key){ if(!key||key==='common') return '공통'; const m=FAMILY_MEMBERS.find(x=>x.key===key); return m?m.label:key; }
 function getAllowedScheduleFilters(){
-  const myRole=EMAIL_ROLE[user&&user.email];
+  const myRole=effectiveRole();
   if(myRole==='dad') return ['all','common'].concat(FAMILY_MEMBERS.map(m=>m.key));
   if(myRole) return ['common', myRole];
   return ['common'];
@@ -688,7 +695,7 @@ let healthDate = todayStr();
 let healthPerson = null;
 function memberLabel(key){ const m=FAMILY_MEMBERS.find(x=>x.key===key); return m?m.label:key; }
 function renderHealth(){
-  if(!healthPerson) healthPerson = EMAIL_ROLE[user&&user.email] || 'mom';
+  if(!healthPerson) healthPerson = effectiveRole() || 'mom';
   const day=state.daily[healthDate]||{};
   const rec=(day.health&&day.health[healthPerson])||{};
   const el=document.getElementById('tab-health');
@@ -1206,10 +1213,30 @@ function initTheme(){
   });
 }
 
+/* ---------- view-as (dev preview) ---------- */
+function updateViewAsButtons(){
+  const momBtn=document.getElementById('viewAsMomBtn');
+  const daughterBtn=document.getElementById('viewAsDaughterBtn');
+  if(momBtn) momBtn.classList.toggle('active', viewAsOverride==='mom');
+  if(daughterBtn) daughterBtn.classList.toggle('active', viewAsOverride==='daughter');
+}
+function setViewAs(role){
+  viewAsOverride = viewAsOverride===role ? null : role;
+  healthPerson=null;
+  scheduleFilter='all';
+  updateViewAsButtons();
+  renderAll();
+}
+function initViewAs(){
+  document.getElementById('viewAsMomBtn').addEventListener('click', ()=>setViewAs('mom'));
+  document.getElementById('viewAsDaughterBtn').addEventListener('click', ()=>setViewAs('daughter'));
+}
+
 /* ---------- init ---------- */
 function renderAll(){
   renderHome(); renderSchedule(); renderHealth(); renderBudget(); renderVehicle(); renderEvents();
 }
 initTheme();
+initViewAs();
 initAuth();
 renderAll();
