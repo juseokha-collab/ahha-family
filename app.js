@@ -148,7 +148,8 @@ function defaultState(){
     budget:[],
     vehicle:{plate:'',model:'',regDate:'',tireSize:'',fuel:[],maint:[],renewals:[],maintCycle:{}},
     events:[],
-    healthSchedule:{dad:[],mom:[],daughter:[]}
+    healthSchedule:{dad:[],mom:[],daughter:[]},
+    budgetCategories:{}
   };
 }
 const MAINT_ITEMS=['엔진오일 및 필터','에어컨필터','미션오일','구동벨트','타이어','와이퍼','브레이크오일','배터리','점화플러그','기타'];
@@ -669,6 +670,12 @@ function renderFamilyWeightTable(){
 /* ---------- BUDGET ---------- */
 let budgetMonth = todayStr().slice(0,7);
 const BUDGET_CATS=['식비','생활용품','의료/건강','쇼핑','문화/여가','교통','기타'];
+function myBudgetCategories(){
+  const key=currentAuthorKey();
+  if(!state.budgetCategories) state.budgetCategories={};
+  if(!state.budgetCategories[key]) state.budgetCategories[key]=[...BUDGET_CATS];
+  return state.budgetCategories[key];
+}
 function renderBudget(){
   const el=document.getElementById('tab-budget');
   const items=state.budget.filter(b=>b.date.startsWith(budgetMonth)).sort((a,b)=>b.date.localeCompare(a.date));
@@ -688,7 +695,9 @@ function renderBudget(){
       `).join('') : `<div class="empty">지출 내역이 없어요</div>`}
     </div>
     <div class="card">
-      <div class="row" style="justify-content:space-between;"><h3 style="margin:0;">내역</h3><button class="btn primary small" id="addBudgetBtn">+ 지출 추가</button></div>
+      <div class="row" style="justify-content:space-between;"><h3 style="margin:0;">내역</h3>
+        <div class="row"><button class="btn small" id="manageCatBtn">카테고리 관리</button><button class="btn primary small" id="addBudgetBtn">+ 지출 추가</button></div>
+      </div>
       ${items.length? items.map(b=>`
         <div class="list-item">
           <div><div><span class="pill">${b.category}</span> ${escapeHtml(b.memo)}</div><div class="meta">${b.date}</div></div>
@@ -700,9 +709,45 @@ function renderBudget(){
   document.getElementById('bPrev').onclick=()=>{ budgetMonth=shiftMonth(budgetMonth,-1); renderBudget(); };
   document.getElementById('bNext').onclick=()=>{ budgetMonth=shiftMonth(budgetMonth,1); renderBudget(); };
   document.getElementById('addBudgetBtn').onclick=()=>openBudgetModal();
+  document.getElementById('manageCatBtn').onclick=()=>openCategoryManageModal();
   el.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>openBudgetModal(state.budget.find(x=>x.id===b.dataset.edit)));
   el.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{
     if(confirm('삭제할까요?')){ state.budget=state.budget.filter(x=>x.id!==b.dataset.del); queueSave(); renderBudget(); renderHome(); }
+  });
+}
+function openCategoryManageModal(){
+  const cats=myBudgetCategories();
+  openModal(`
+    <h3>내 카테고리 관리</h3>
+    <div class="meta" style="margin-bottom:10px;">여기서 관리하는 카테고리는 지금 로그인한 계정에만 적용돼요.</div>
+    ${cats.map(c=>{
+      const cnt=state.budget.filter(x=>x.category===c).length;
+      return `<div class="list-item"><div>${escapeHtml(c)}${cnt?` <span class="meta">(${cnt}건 사용중)</span>`:''}</div><button class="btn small danger" data-del-cat="${escapeHtml(c)}">삭제</button></div>`;
+    }).join('')}
+    <div class="row" style="margin-top:12px;">
+      <div class="field" style="margin:0;"><input id="newCatInput" placeholder="새 카테고리 이름"></div>
+      <button class="btn primary small" id="addCatBtn">추가</button>
+    </div>
+    <div class="modal-actions"><button class="btn" id="mCancel">닫기</button></div>
+  `);
+  document.getElementById('mCancel').onclick=closeModal;
+  document.getElementById('addCatBtn').onclick=()=>{
+    const v=document.getElementById('newCatInput').value.trim();
+    if(!v) return;
+    const list=myBudgetCategories();
+    if(list.includes(v)){ showToast('이미 있는 카테고리예요'); return; }
+    list.push(v);
+    queueSave(); openCategoryManageModal();
+  };
+  document.querySelectorAll('[data-del-cat]').forEach(b=>b.onclick=()=>{
+    const cat=b.dataset.delCat;
+    const cnt=state.budget.filter(x=>x.category===cat).length;
+    const msg = cnt>0 ? `"${cat}" 카테고리를 사용한 지출 내역이 ${cnt}건 있어요. 그래도 내 카테고리 목록에서 삭제할까요? (기존 지출 내역은 그대로 유지돼요)` : `"${cat}" 카테고리를 삭제할까요?`;
+    if(!confirm(msg)) return;
+    const list=myBudgetCategories();
+    const idx=list.indexOf(cat);
+    if(idx>=0) list.splice(idx,1);
+    queueSave(); openCategoryManageModal();
   });
 }
 function shiftMonth(ym, delta){
@@ -712,11 +757,13 @@ function shiftMonth(ym, delta){
   return `${y}-${pad2(m)}`;
 }
 function openBudgetModal(existing){
-  const b=existing||{id:null,date:budgetMonth+'-'+pad2(new Date().getDate()),category:BUDGET_CATS[0],amount:'',memo:''};
+  const myCats=myBudgetCategories();
+  const b=existing||{id:null,date:budgetMonth+'-'+pad2(new Date().getDate()),category:myCats[0]||'기타',amount:'',memo:''};
+  const catOptions = myCats.includes(b.category) ? myCats : myCats.concat([b.category]);
   openModal(`
     <h3>${existing?'지출 수정':'지출 추가'}</h3>
     <div class="field"><label>날짜</label><input type="date" id="mDate" value="${b.date}"></div>
-    <div class="field"><label>카테고리</label><select id="mCat">${BUDGET_CATS.map(c=>`<option ${c===b.category?'selected':''}>${c}</option>`).join('')}</select></div>
+    <div class="field"><label>카테고리</label><select id="mCat">${catOptions.map(c=>`<option ${c===b.category?'selected':''}>${escapeHtml(c)}</option>`).join('')}</select></div>
     <div class="field"><label>금액</label><input type="number" id="mAmount" value="${b.amount}"></div>
     <div class="field"><label>메모</label><input id="mMemo" value="${escapeHtml(b.memo)}"></div>
     <div class="modal-actions"><button class="btn" id="mCancel">취소</button><button class="btn primary" id="mSave">저장</button></div>
