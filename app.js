@@ -315,8 +315,69 @@ function openModal(html){
   document.getElementById('modalBody').innerHTML=html;
   document.getElementById('modalBg').classList.add('show');
 }
-function closeModal(){ document.getElementById('modalBg').classList.remove('show'); }
+function closeModal(){ document.getElementById('modalBg').classList.remove('show'); closeDatePicker(); }
 document.getElementById('modalCloseBtn').addEventListener('click', closeModal);
+
+/* ---------- date picker ---------- */
+let activeDatePicker=null;
+function outsideDatePickerClick(e){
+  if(activeDatePicker && !activeDatePicker.contains(e.target)) closeDatePicker();
+}
+function closeDatePicker(){
+  if(activeDatePicker){ activeDatePicker.remove(); activeDatePicker=null; document.removeEventListener('mousedown', outsideDatePickerClick); }
+}
+function openDatePicker(inputEl){
+  closeDatePicker();
+  const initial = inputEl.value ? parseDate(inputEl.value) : new Date();
+  let viewMonth = new Date(initial.getFullYear(), initial.getMonth(), 1);
+  const pop=document.createElement('div');
+  pop.className='datepicker-pop';
+  document.body.appendChild(pop);
+  activeDatePicker=pop;
+  function render(){
+    const y=viewMonth.getFullYear(), m=viewMonth.getMonth();
+    const firstDow=new Date(y,m,1).getDay();
+    const daysInMonth=new Date(y,m+1,0).getDate();
+    const totalCells=Math.ceil((firstDow+daysInMonth)/7)*7;
+    const selStr=inputEl.value;
+    let grid='';
+    for(let i=0;i<totalCells;i++){
+      const dayNum=i-firstDow+1;
+      const dateObj=new Date(y,m,dayNum);
+      const dateStr=fmtDate(dateObj);
+      const inMonth=dayNum>=1 && dayNum<=daysInMonth;
+      grid+=`<div class="cal-cell ${inMonth?'':'other'} ${dateStr===todayStr()?'today':''} ${dateStr===selStr?'sel':''}" data-date="${dateStr}"><div class="day-row"><span class="day-num">${dateObj.getDate()}</span></div></div>`;
+    }
+    pop.innerHTML=`
+      <div class="datebar"><button class="iconbtn" id="dpPrev">‹</button><div class="d">${y}년 ${m+1}월</div><button class="iconbtn" id="dpNext">›</button></div>
+      <div class="cal-grid">${['일','월','화','수','목','금','토'].map(d=>`<div class="cal-head">${d}</div>`).join('')}${grid}</div>
+    `;
+    pop.querySelector('#dpPrev').onclick=(e)=>{ e.stopPropagation(); viewMonth=new Date(y,m-1,1); render(); };
+    pop.querySelector('#dpNext').onclick=(e)=>{ e.stopPropagation(); viewMonth=new Date(y,m+1,1); render(); };
+    pop.querySelectorAll('.cal-cell').forEach(c=>c.onclick=(e)=>{
+      e.stopPropagation();
+      inputEl.value=c.dataset.date;
+      inputEl.dispatchEvent(new Event('change',{bubbles:true}));
+      closeDatePicker();
+    });
+  }
+  render();
+  const rect=inputEl.getBoundingClientRect();
+  let left=rect.left, top=rect.bottom+4;
+  if(left+250>window.innerWidth-8) left=window.innerWidth-258;
+  if(left<8) left=8;
+  if(top+300>window.innerHeight-8) top=Math.max(8, rect.top-304);
+  pop.style.left=left+'px';
+  pop.style.top=top+'px';
+  setTimeout(()=>document.addEventListener('mousedown', outsideDatePickerClick), 0);
+}
+function attachDatePicker(id){
+  const el=document.getElementById(id);
+  if(!el) return;
+  el.readOnly=true;
+  el.classList.add('date-input');
+  el.addEventListener('click', (e)=>{ e.stopPropagation(); openDatePicker(el); });
+}
 function showToast(msg){
   const t=document.getElementById('toast');
   t.textContent=msg;
@@ -598,7 +659,7 @@ function openScheduleModal(existing){
       </div>
     </div>
     <div class="grid2">
-      <div class="field"><label>날짜</label><input type="date" id="mDate" value="${s.date}"></div>
+      <div class="field"><label>날짜</label><input type="text" readonly class="date-input" placeholder="YYYY-MM-DD" id="mDate" value="${s.date}"></div>
       <div class="field"><label>시간 (선택)</label><input type="time" id="mTime" value="${s.time||''}"></div>
     </div>
     <div class="field"><label>제목</label><input id="mTitle" value="${escapeHtml(s.title)}"></div>
@@ -606,6 +667,7 @@ function openScheduleModal(existing){
     <div class="modal-actions"><button class="btn" id="mCancel">취소</button><button class="btn primary" id="mSave">저장</button></div>
   `);
   document.getElementById('mCancel').onclick=closeModal;
+  attachDatePicker('mDate');
   document.getElementById('mSave').onclick=()=>{
     const date=document.getElementById('mDate').value;
     const title=document.getElementById('mTitle').value.trim();
@@ -699,7 +761,7 @@ function openHealthSchedModal(existing){
   openModal(`
     <h3>${existing?'검진 일정 수정':'검진 일정 추가'}</h3>
     <div class="field"><label>검진명 (예: 건강검진, 치과 정기검진)</label><input id="mName" value="${escapeHtml(it.name)}"></div>
-    <div class="field"><label>날짜</label><input type="date" id="mDate" value="${it.date}"></div>
+    <div class="field"><label>날짜</label><input type="text" readonly class="date-input" placeholder="YYYY-MM-DD" id="mDate" value="${it.date}"></div>
     <div class="field"><label>메모</label><input id="mMemo" value="${escapeHtml(it.memo)}"></div>
     ${!existing?`
     <div class="field">
@@ -711,6 +773,7 @@ function openHealthSchedModal(existing){
     <div class="modal-actions"><button class="btn" id="mCancel">취소</button><button class="btn primary" id="mSave">저장</button></div>
   `);
   document.getElementById('mCancel').onclick=closeModal;
+  attachDatePicker('mDate');
   document.getElementById('mSave').onclick=()=>{
     const name=document.getElementById('mName').value.trim();
     const date=document.getElementById('mDate').value;
@@ -854,13 +917,14 @@ function openBudgetModal(existing){
   const catOptions = myCats.includes(b.category) ? myCats : myCats.concat([b.category]);
   openModal(`
     <h3>${existing?'지출 수정':'지출 추가'}</h3>
-    <div class="field"><label>날짜</label><input type="date" id="mDate" value="${b.date}"></div>
+    <div class="field"><label>날짜</label><input type="text" readonly class="date-input" placeholder="YYYY-MM-DD" id="mDate" value="${b.date}"></div>
     <div class="field"><label>카테고리</label><select id="mCat">${catOptions.map(c=>`<option ${c===b.category?'selected':''}>${escapeHtml(c)}</option>`).join('')}</select></div>
     <div class="field"><label>금액</label><input type="number" id="mAmount" value="${b.amount}"></div>
     <div class="field"><label>메모</label><input id="mMemo" value="${escapeHtml(b.memo)}"></div>
     <div class="modal-actions"><button class="btn" id="mCancel">취소</button><button class="btn primary" id="mSave">저장</button></div>
   `);
   document.getElementById('mCancel').onclick=closeModal;
+  attachDatePicker('mDate');
   document.getElementById('mSave').onclick=()=>{
     const date=document.getElementById('mDate').value;
     const amount=Number(document.getElementById('mAmount').value||0);
@@ -894,7 +958,7 @@ function renderVehicle(){
         <div class="field"><label>번호판</label><input id="vPlate" value="${escapeHtml(v.plate)}"></div>
       </div>
       <div class="grid2" style="margin-top:10px;">
-        <div class="field"><label>차량등록일</label><input type="date" id="vRegDate" value="${v.regDate||''}"></div>
+        <div class="field"><label>차량등록일</label><input type="text" readonly class="date-input" placeholder="YYYY-MM-DD" id="vRegDate" value="${v.regDate||''}"></div>
         <div class="field"><label>타이어 사이즈</label><input id="vTireSize" value="${escapeHtml(v.tireSize)}" placeholder="예: 225/55R18"></div>
       </div>
     </div>
@@ -944,7 +1008,8 @@ function renderVehicle(){
   `;
   document.getElementById('vModel').addEventListener('change',e=>{ state.vehicle.model=e.target.value; queueSave(); });
   document.getElementById('vPlate').addEventListener('change',e=>{ state.vehicle.plate=e.target.value; queueSave(); });
-  document.getElementById('vRegDate').addEventListener('change',e=>{ state.vehicle.regDate=e.target.value; queueSave(); });
+  document.getElementById('vRegDate').addEventListener('change',e=>{ state.vehicle.regDate=e.target.value; queueSave(); renderVehicle(); });
+  attachDatePicker('vRegDate');
   document.getElementById('vTireSize').addEventListener('change',e=>{ state.vehicle.tireSize=e.target.value; queueSave(); });
   document.getElementById('addRenewBtn').onclick=()=>openRenewModal();
   el.querySelectorAll('[data-edit-renew]').forEach(b=>b.onclick=()=>openRenewModal(v.renewals.find(x=>x.id===b.dataset.editRenew)));
@@ -974,11 +1039,12 @@ function openRenewModal(existing){
   openModal(`
     <h3>${existing?'만기 알림 수정':'만기 알림 추가'}</h3>
     <div class="field"><label>항목명 (예: 자동차보험, 자동차세, 정기검사)</label><input id="mName" value="${escapeHtml(r.name)}"></div>
-    <div class="field"><label>만기일</label><input type="date" id="mDate" value="${r.date}"></div>
+    <div class="field"><label>만기일</label><input type="text" readonly class="date-input" placeholder="YYYY-MM-DD" id="mDate" value="${r.date}"></div>
     <div class="field"><label>메모</label><input id="mMemo" value="${escapeHtml(r.memo)}"></div>
     <div class="modal-actions"><button class="btn" id="mCancel">취소</button><button class="btn primary" id="mSave">저장</button></div>
   `);
   document.getElementById('mCancel').onclick=closeModal;
+  attachDatePicker('mDate');
   document.getElementById('mSave').onclick=()=>{
     const name=document.getElementById('mName').value.trim();
     const date=document.getElementById('mDate').value;
@@ -993,7 +1059,7 @@ function openFuelModal(existing){
   const f=existing||{id:null,date:todayStr(),liters:'',cost:'',odo:''};
   openModal(`
     <h3>${existing?'주유 기록 수정':'주유 기록 추가'}</h3>
-    <div class="field"><label>날짜</label><input type="date" id="mDate" value="${f.date}"></div>
+    <div class="field"><label>날짜</label><input type="text" readonly class="date-input" placeholder="YYYY-MM-DD" id="mDate" value="${f.date}"></div>
     <div class="grid2">
       <div class="field"><label>주유량 (L)</label><input type="number" step="0.1" id="mLiters" value="${f.liters}"></div>
       <div class="field"><label>금액 (원)</label><input type="number" id="mCost" value="${f.cost}"></div>
@@ -1002,6 +1068,7 @@ function openFuelModal(existing){
     <div class="modal-actions"><button class="btn" id="mCancel">취소</button><button class="btn primary" id="mSave">저장</button></div>
   `);
   document.getElementById('mCancel').onclick=closeModal;
+  attachDatePicker('mDate');
   document.getElementById('mSave').onclick=()=>{
     const date=document.getElementById('mDate').value;
     const cost=Number(document.getElementById('mCost').value||0);
@@ -1018,7 +1085,7 @@ function openMaintModal(existing){
     <h3>${existing?'정비 기록 수정':'정비 기록 추가'}</h3>
     <div class="field"><label>점검 항목</label><select id="mItem">${MAINT_ITEMS.map(i=>`<option ${i===mt.item?'selected':''}>${i}</option>`).join('')}</select></div>
     <div class="grid2">
-      <div class="field"><label>날짜</label><input type="date" id="mDate" value="${mt.date}"></div>
+      <div class="field"><label>날짜</label><input type="text" readonly class="date-input" placeholder="YYYY-MM-DD" id="mDate" value="${mt.date}"></div>
       <div class="field"><label>주행거리 (km, 선택)</label><input type="number" id="mOdo" value="${mt.odo}"></div>
     </div>
     <div class="grid2">
@@ -1029,6 +1096,7 @@ function openMaintModal(existing){
     <div class="modal-actions"><button class="btn" id="mCancel">취소</button><button class="btn primary" id="mSave">저장</button></div>
   `);
   document.getElementById('mCancel').onclick=closeModal;
+  attachDatePicker('mDate');
   document.getElementById('mSave').onclick=()=>{
     const date=document.getElementById('mDate').value;
     const item=document.getElementById('mItem').value;
@@ -1073,7 +1141,7 @@ function openEventModal(existing){
     <div class="field"><label>이름</label><input id="mName" value="${escapeHtml(ev.name)}"></div>
     <label class="pill" style="cursor:pointer;display:inline-block;margin:6px 0;"><input type="checkbox" id="mLunar" ${ev.lunar?'checked':''} style="margin-right:4px;">음력 날짜</label>
     <div class="field" id="solarDateWrap" style="${ev.lunar?'display:none':''}">
-      <label>날짜</label><input type="date" id="mDate" value="${ev.date}">
+      <label>날짜</label><input type="text" readonly class="date-input" placeholder="YYYY-MM-DD" id="mDate" value="${ev.date}">
     </div>
     <div id="lunarDateWrap" style="${ev.lunar?'':'display:none'}">
       <div class="grid2">
@@ -1090,6 +1158,7 @@ function openEventModal(existing){
     <div class="modal-actions"><button class="btn" id="mCancel">취소</button><button class="btn primary" id="mSave">저장</button></div>
   `);
   document.getElementById('mCancel').onclick=closeModal;
+  attachDatePicker('mDate');
   document.getElementById('mLunar').addEventListener('change', e=>{
     document.getElementById('solarDateWrap').style.display = e.target.checked ? 'none' : '';
     document.getElementById('lunarDateWrap').style.display = e.target.checked ? '' : 'none';

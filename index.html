@@ -100,6 +100,12 @@ nav.tabs button.active{background:var(--panel2);color:var(--text);border-color:v
 .icon-btn{background:none;border:none;color:var(--muted);font-size:15px;cursor:pointer;padding:2px 8px;border-radius:6px;}
 .icon-btn:hover{color:var(--accent);background:var(--panel2);}
 .link-btn{background:none;border:none;color:var(--accent2);font-size:12px;cursor:pointer;padding:0;text-decoration:underline;}
+.field input.date-input{cursor:pointer;background:var(--panel2) url('data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%239a97ab%22 stroke-width=%222%22><rect x=%223%22 y=%224%22 width=%2218%22 height=%2218%22 rx=%222%22/><line x1=%2216%22 y1=%222%22 x2=%2216%22 y2=%226%22/><line x1=%228%22 y1=%222%22 x2=%228%22 y2=%226%22/><line x1=%223%22 y1=%2210%22 x2=%2221%22 y2=%2210%22/></svg>') no-repeat right 10px center/16px 16px;padding-right:34px;}
+.datepicker-pop{position:fixed;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:10px;box-shadow:0 8px 24px rgba(0,0,0,.4);width:250px;z-index:200;}
+.datepicker-pop .cal-grid{gap:2px;}
+.datepicker-pop .cal-cell{min-height:30px;padding:2px;font-size:11px;cursor:pointer;}
+.datepicker-pop .cal-cell .day-row{justify-content:center;}
+.datepicker-pop .datebar{margin-bottom:6px;}
 .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;z-index:50;padding:16px;}
 .modal-bg.show{display:flex;}
 .modal{position:relative;background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:18px;width:100%;max-width:420px;max-height:88vh;overflow-y:auto;}
@@ -153,7 +159,7 @@ nav.tabs button.active{background:var(--panel2);color:var(--text);border-color:v
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-<script src="firebase-config.js?v=20260808n"></script>
-<script src="app.js?v=20260808n"></script>
+<script src="firebase-config.js?v=20260808o"></script>
+<script src="app.js?v=20260808o"></script>
 </body>
 </html>
