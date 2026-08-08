@@ -38,6 +38,19 @@ function defaultState(){
     events:[]
   };
 }
+function migrateDaily(st){
+  Object.keys(st.daily||{}).forEach(d=>{
+    const day=st.daily[d];
+    if(!day.entries){
+      day.entries={};
+      if(day.mood||day.diary){
+        day.entries['legacy']={mood:day.mood||'',diary:day.diary||'',name:'이전 기록'};
+      }
+      delete day.mood; delete day.diary;
+    }
+  });
+  return st;
+}
 function loadLocal(){
   try{
     const raw=localStorage.getItem(LS_KEY);
@@ -45,7 +58,7 @@ function loadLocal(){
       const parsed=JSON.parse(raw);
       const base=defaultState();
       base.vehicle=Object.assign(base.vehicle, parsed.vehicle||{});
-      return Object.assign(base, parsed, {vehicle:base.vehicle});
+      return migrateDaily(Object.assign(base, parsed, {vehicle:base.vehicle}));
     }
   }catch(e){}
   return defaultState();
@@ -65,7 +78,9 @@ function queueSave(){
     }
   }, 800);
 }
-function ensureDay(d){ if(!state.daily[d]) state.daily[d]={}; }
+function ensureDay(d){ if(!state.daily[d]) state.daily[d]={}; if(!state.daily[d].entries) state.daily[d].entries={}; }
+function currentAuthorKey(){ return user ? user.email : 'local'; }
+function authorLabel(entry, key){ return (entry&&entry.name) ? entry.name : (key==='local' ? '나' : key); }
 function setSyncStatus(s){
   const el=document.getElementById('syncStatus');
   if(!el) return;
@@ -96,7 +111,7 @@ function initAuth(){
           const data=doc.data();
           const base=defaultState();
           base.vehicle=Object.assign(base.vehicle, data.vehicle||{});
-          state=Object.assign(base, data, {vehicle:base.vehicle});
+          state=migrateDaily(Object.assign(base, data, {vehicle:base.vehicle}));
         } else {
           await familyDocRef().set(state);
         }
@@ -156,6 +171,10 @@ let homeDate = todayStr();
 const MOODS=['😊','🥰','🙂','😐','😫','😢','😠','🤒'];
 function renderHome(){
   const day = state.daily[homeDate] || {};
+  const entries = day.entries || {};
+  const myKey = currentAuthorKey();
+  const mine = entries[myKey] || {};
+  const others = Object.keys(entries).filter(k=>k!==myKey && (entries[k].mood||entries[k].diary));
   const el=document.getElementById('tab-home');
   const dLabel = parseDate(homeDate).toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'});
   const todaySchedule = state.schedule.filter(s=>s.date===homeDate).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
@@ -172,14 +191,24 @@ function renderHome(){
         <button id="homeNext">›</button>
         ${homeDate!==todayStr()?`<button class="btn small" id="homeToday">오늘</button>`:''}
       </div>
+      <div class="meta" style="margin-bottom:6px;">${escapeHtml(authorLabel(mine,myKey))}의 기록</div>
       <div class="mood-row" id="moodRow">
-        ${MOODS.map(m=>`<button data-m="${m}" class="${day.mood===m?'sel':''}">${m}</button>`).join('')}
+        ${MOODS.map(m=>`<button data-m="${m}" class="${mine.mood===m?'sel':''}">${m}</button>`).join('')}
       </div>
       <div class="field" style="margin-top:10px;">
         <label>한 줄 일기</label>
-        <textarea id="diaryInput" placeholder="오늘 하루는 어땠나요?">${escapeHtml(day.diary)}</textarea>
+        <textarea id="diaryInput" placeholder="오늘 하루는 어땠나요?">${escapeHtml(mine.diary)}</textarea>
       </div>
     </div>
+
+    ${others.length?`
+    <div class="card">
+      <h3>💌 가족 기록</h3>
+      ${others.map(k=>`
+        <div class="list-item">
+          <div><div>${entries[k].mood?entries[k].mood+' ':''}<b>${escapeHtml(authorLabel(entries[k],k))}</b></div>${entries[k].diary?`<div class="meta">${escapeHtml(entries[k].diary)}</div>`:''}</div>
+        </div>`).join('')}
+    </div>`:''}
 
     <div class="stat-grid">
       <div class="stat"><div class="v">${todaySchedule.length}</div><div class="l">오늘 일정</div></div>
@@ -199,11 +228,21 @@ function renderHome(){
   document.getElementById('moodRow').addEventListener('click', e=>{
     const b=e.target.closest('button[data-m]'); if(!b) return;
     ensureDay(homeDate);
-    state.daily[homeDate].mood = state.daily[homeDate].mood===b.dataset.m ? '' : b.dataset.m;
+    const cur=state.daily[homeDate].entries[myKey]||{};
+    cur.mood = cur.mood===b.dataset.m ? '' : b.dataset.m;
+    cur.name = user ? (user.displayName||user.email) : '나';
+    cur.updatedAt = Date.now();
+    state.daily[homeDate].entries[myKey]=cur;
     queueSave(); renderHome();
   });
   document.getElementById('diaryInput').addEventListener('change', e=>{
-    ensureDay(homeDate); state.daily[homeDate].diary=e.target.value; queueSave();
+    ensureDay(homeDate);
+    const cur=state.daily[homeDate].entries[myKey]||{};
+    cur.diary = e.target.value;
+    cur.name = user ? (user.displayName||user.email) : '나';
+    cur.updatedAt = Date.now();
+    state.daily[homeDate].entries[myKey]=cur;
+    queueSave();
   });
 }
 
