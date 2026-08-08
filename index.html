@@ -9,9 +9,15 @@
 :root{
   --bg:#12121a; --panel:#1b1b26; --panel2:#232331; --text:#eeeef2; --muted:#9a97ab;
   --accent:#ff7a94; --accent2:#8b7cf6; --border:#2b2b3a; --good:#4ade80; --warn:#fbbf24; --bad:#f87171;
+  --weekend-sun:#ff9494; --weekend-sat:#8ab4ff;
+}
+:root[data-theme="light"]{
+  --bg:#f6f5fa; --panel:#ffffff; --panel2:#f1eef8; --text:#201f2b; --muted:#726f82;
+  --accent:#e0507a; --accent2:#7c5fd6; --border:#e3e0ee; --good:#1f9d55; --warn:#b8790a; --bad:#d63c3c;
+  --weekend-sun:#c73a5c; --weekend-sat:#3b6fd4;
 }
 *{box-sizing:border-box;}
-body{margin:0;background:var(--bg);color:var(--text);font-family:'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif;}
+body{margin:0;background:var(--bg);color:var(--text);font-family:'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif;transition:background .2s,color .2s;}
 button{font-family:inherit;cursor:pointer;}
 input,textarea,select{font-family:inherit;}
 .wrap{max-width:920px;margin:0 auto;padding:16px 14px 80px;}
@@ -19,6 +25,7 @@ header.top{display:flex;align-items:center;justify-content:space-between;padding
 .brand{display:flex;flex-direction:column;}
 .brand .name{font-size:22px;font-weight:800;letter-spacing:.5px;background:linear-gradient(90deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;color:transparent;}
 .brand .sub{font-size:12px;color:var(--muted);margin-top:2px;}
+.header-right{display:flex;align-items:center;gap:8px;}
 .auth-area{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);}
 .btn{background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:8px 12px;font-size:13px;transition:.15s;}
 .btn:hover{border-color:var(--accent);}
@@ -73,11 +80,11 @@ nav.tabs button.active{background:var(--panel2);color:var(--text);border-color:v
 .day-row{display:flex;align-items:baseline;gap:4px;width:100%;overflow:hidden;}
 .cal-cell .day-num{color:var(--muted);flex-shrink:0;}
 .cal-cell.today .day-num{color:var(--accent);font-weight:700;}
-.cal-grid>.cal-head:nth-child(7n+1),.cal-grid>.cal-cell:nth-child(7n+1) .day-num{color:#ff9494;}
-.cal-grid>.cal-head:nth-child(7n),.cal-grid>.cal-cell:nth-child(7n) .day-num{color:#8ab4ff;}
-.cal-cell.holiday .day-num{color:#ff9494;}
+.cal-grid>.cal-head:nth-child(7n+1),.cal-grid>.cal-cell:nth-child(7n+1) .day-num{color:var(--weekend-sun);}
+.cal-grid>.cal-head:nth-child(7n),.cal-grid>.cal-cell:nth-child(7n) .day-num{color:var(--weekend-sat);}
+.cal-cell.holiday .day-num{color:var(--weekend-sun);}
 .cal-cell.today .day-num{color:var(--accent)!important;}
-.cal-holiday{font-size:9px;color:#ff9494;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.cal-holiday{font-size:9px;color:var(--weekend-sun);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .cal-evt{font-size:10px;background:var(--panel);border-radius:4px;padding:1px 4px;width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text);}
 .cal-evt.more{color:var(--muted);background:none;padding:0 4px;}
 @media(max-width:600px){.cal-cell{min-height:52px;}.cal-evt{font-size:9px;}}
@@ -113,8 +120,11 @@ nav.tabs button.active{background:var(--panel2);color:var(--text);border-color:v
       <div class="name">AHHA Family 💗</div>
       <div class="sub">우리 가족의 하루하루를 담다</div>
     </div>
-    <div class="auth-area" id="authArea">
-      <button class="btn small" id="loginBtn">구글 로그인</button>
+    <div class="header-right">
+      <div class="auth-area" id="authArea">
+        <button class="btn small" id="loginBtn">구글 로그인</button>
+      </div>
+      <button class="btn small" id="themeToggle" title="테마 전환">🌙</button>
     </div>
   </header>
 
@@ -141,7 +151,7 @@ nav.tabs button.active{background:var(--panel2);color:var(--text);border-color:v
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-<script src="firebase-config.js?v=20260808b"></script>
-<script src="app.js?v=20260808b"></script>
+<script src="firebase-config.js?v=20260808c"></script>
+<script src="app.js?v=20260808c"></script>
 </body>
 </html>

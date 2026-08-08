@@ -927,9 +927,29 @@ function openEventModal(existing){
   };
 }
 
+/* ---------- theme ---------- */
+const THEME_KEY='ahha-family-theme';
+function applyTheme(theme){
+  if(theme==='light') document.documentElement.setAttribute('data-theme','light');
+  else document.documentElement.removeAttribute('data-theme');
+  const btn=document.getElementById('themeToggle');
+  if(btn) btn.textContent = theme==='light' ? '🌙' : '☀️';
+}
+function initTheme(){
+  const saved=localStorage.getItem(THEME_KEY) || 'dark';
+  applyTheme(saved);
+  document.getElementById('themeToggle').addEventListener('click', ()=>{
+    const cur=document.documentElement.getAttribute('data-theme')==='light' ? 'light' : 'dark';
+    const next = cur==='light' ? 'dark' : 'light';
+    localStorage.setItem(THEME_KEY, next);
+    applyTheme(next);
+  });
+}
+
 /* ---------- init ---------- */
 function renderAll(){
   renderHome(); renderSchedule(); renderHealth(); renderBudget(); renderVehicle(); renderEvents();
 }
+initTheme();
 initAuth();
 renderAll();
