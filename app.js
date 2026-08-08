@@ -435,6 +435,11 @@ function renderHome(){
     document.querySelectorAll('[data-jump]').forEach(row=>row.onclick=()=>{
       homeDate=row.dataset.jump; diaryArchiveOpen=false; renderHome();
     });
+    document.querySelectorAll('[data-edit-diary]').forEach(btn=>btn.onclick=(ev)=>{
+      ev.stopPropagation();
+      const [d,k]=btn.dataset.editDiary.split('|');
+      openDiaryEntryEditModal(d,k);
+    });
   }
 }
 function diaryArchiveRowsHtml(){
@@ -453,7 +458,48 @@ function diaryArchiveRowsHtml(){
         <div><b>${r.date}</b> ${r.mood||''} <span class="pill">${escapeHtml(authorLabel(r,r.key))}</span></div>
         ${r.diary?`<div class="meta">${escapeHtml(r.diary)}</div>`:''}
       </div>
+      <button class="icon-btn" data-edit-diary="${escapeHtml(r.date)}|${escapeHtml(r.key)}" title="수정">✏️</button>
     </div>`).join('');
+}
+function openDiaryEntryEditModal(date, key){
+  const day=state.daily[date]||{};
+  const e=(day.entries&&day.entries[key])||{};
+  openModal(`
+    <h3>${date} · ${escapeHtml(authorLabel(e,key))} 일기 수정</h3>
+    <div class="mood-row" id="editMoodRow">
+      ${MOODS.map(m=>`<button data-m="${m}" class="${e.mood===m?'sel':''}">${m}</button>`).join('')}
+    </div>
+    <div class="field" style="margin-top:10px;">
+      <label>한 줄 일기</label>
+      <textarea id="editDiaryInput">${escapeHtml(e.diary)}</textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn danger" id="mDelete">삭제</button>
+      <button class="btn" id="mCancel">취소</button>
+      <button class="btn primary" id="mSave">저장</button>
+    </div>
+  `);
+  let curMood=e.mood||'';
+  document.getElementById('editMoodRow').addEventListener('click', ev=>{
+    const b=ev.target.closest('button[data-m]'); if(!b) return;
+    curMood = curMood===b.dataset.m ? '' : b.dataset.m;
+    document.querySelectorAll('#editMoodRow button').forEach(x=>x.classList.toggle('sel', x.dataset.m===curMood));
+  });
+  document.getElementById('mCancel').onclick=closeModal;
+  document.getElementById('mSave').onclick=()=>{
+    ensureDay(date);
+    const rec=state.daily[date].entries[key]||{};
+    rec.mood=curMood;
+    rec.diary=document.getElementById('editDiaryInput').value;
+    rec.updatedAt=Date.now();
+    state.daily[date].entries[key]=rec;
+    queueSave(); closeModal(); renderHome();
+  };
+  document.getElementById('mDelete').onclick=()=>{
+    if(!confirm('이 기록을 삭제할까요?')) return;
+    delete state.daily[date].entries[key];
+    queueSave(); closeModal(); renderHome();
+  };
 }
 
 /* ---------- SCHEDULE ---------- */
