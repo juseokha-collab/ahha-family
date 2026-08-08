@@ -509,12 +509,24 @@ let scheduleSel = todayStr();
 let scheduleFilter = 'all';
 function getScheduleOwners(){ return [{key:'common',label:'공통'}].concat(FAMILY_MEMBERS); }
 function ownerLabel(key){ if(!key||key==='common') return '공통'; const m=FAMILY_MEMBERS.find(x=>x.key===key); return m?m.label:key; }
+function getAllowedScheduleFilters(){
+  const myRole=EMAIL_ROLE[user&&user.email];
+  if(myRole==='dad') return ['all','common'].concat(FAMILY_MEMBERS.map(m=>m.key));
+  if(myRole) return ['common', myRole];
+  return ['common'];
+}
+function getAllowedOwners(){
+  const allowed=getAllowedScheduleFilters().filter(f=>f!=='all');
+  return getScheduleOwners().filter(o=>allowed.includes(o.key));
+}
 function renderSchedule(){
   const el=document.getElementById('tab-schedule');
   const y=scheduleMonth.getFullYear(), m=scheduleMonth.getMonth();
   const firstDow=new Date(y,m,1).getDay();
   const daysInMonth=new Date(y,m+1,0).getDate();
   const totalCells=Math.ceil((firstDow+daysInMonth)/7)*7;
+  const allowedFilters=getAllowedScheduleFilters();
+  if(!allowedFilters.includes(scheduleFilter)) scheduleFilter = allowedFilters.includes('common') ? 'common' : allowedFilters[0];
   const virtualEventItems=state.events.map(ev=>({id:'evt-'+ev.id, date:fmtDate(eventOccurrence(ev)), time:'', title:'🎉 '+ev.name, memo:ev.memo, owner:'common', virtual:true}));
   const allItems=state.schedule.map(s=>({...s, owner:s.owner||'common'})).concat(virtualEventItems);
   const filtered = scheduleFilter==='all' ? allItems : allItems.filter(s=>s.owner===scheduleFilter);
@@ -541,8 +553,7 @@ function renderSchedule(){
   const dayItems = filtered.filter(s=>s.date===scheduleSel).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
   el.innerHTML=`
     <div class="member-row" id="schedFilterRow">
-      <button data-owner="all" class="${scheduleFilter==='all'?'active':''}">전체</button>
-      ${getScheduleOwners().map(o=>`<button data-owner="${o.key}" class="${scheduleFilter===o.key?'active':''}">${o.label}</button>`).join('')}
+      ${allowedFilters.map(f=>`<button data-owner="${f}" class="${scheduleFilter===f?'active':''}">${f==='all'?'전체':ownerLabel(f)}</button>`).join('')}
     </div>
     <div class="card">
       <div class="datebar"><button class="iconbtn" id="sPrev">‹</button><div class="d">${y}년 ${m+1}월</div><button class="iconbtn" id="sNext">›</button></div>
@@ -574,14 +585,16 @@ function renderSchedule(){
   });
 }
 function openScheduleModal(existing){
-  const defaultOwner = scheduleFilter!=='all' ? scheduleFilter : 'common';
+  const myOwners=getAllowedOwners();
+  const defaultOwner = (scheduleFilter!=='all' && myOwners.some(o=>o.key===scheduleFilter)) ? scheduleFilter : (myOwners[0]?myOwners[0].key:'common');
   const s=existing||{id:null,date:scheduleSel,time:'',title:'',memo:'',owner:defaultOwner};
+  const ownerOptions = myOwners.some(o=>o.key===(s.owner||'common')) ? myOwners : myOwners.concat([{key:s.owner||'common',label:ownerLabel(s.owner)}]);
   openModal(`
     <h3>${existing?'일정 수정':'일정 추가'}</h3>
     <div class="field">
       <label>공통 / 개인</label>
       <div class="row">
-        ${getScheduleOwners().map(o=>`<label class="pill" style="cursor:pointer;"><input type="radio" name="mOwner" value="${o.key}" ${(s.owner||'common')===o.key?'checked':''} style="margin-right:4px;">${o.label}</label>`).join('')}
+        ${ownerOptions.map(o=>`<label class="pill" style="cursor:pointer;"><input type="radio" name="mOwner" value="${o.key}" ${(s.owner||'common')===o.key?'checked':''} style="margin-right:4px;">${o.label}</label>`).join('')}
       </div>
     </div>
     <div class="grid2">
