@@ -516,9 +516,6 @@ function renderHealth(){
   const rec=(day.health&&day.health[healthPerson])||{};
   const el=document.getElementById('tab-health');
   const dLabel = parseDate(healthDate).toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'});
-  const trend = Object.entries(state.daily)
-    .filter(([,v])=>v.health && v.health[healthPerson] && v.health[healthPerson].weight)
-    .sort((a,b)=>a[0].localeCompare(b[0])).slice(-14);
   const schedList = ((state.healthSchedule&&state.healthSchedule[healthPerson])||[]).map(it=>({...it,d:dday(it.date)})).sort((a,b)=>a.d-b.d);
   el.innerHTML=`
     <div class="member-row" id="memberRow">
@@ -552,8 +549,8 @@ function renderHealth(){
       </div>
     </div>
     <div class="card">
-      <h3>📈 ${memberLabel(healthPerson)} 최근 체중 흐름</h3>
-      ${trend.length? renderTrendBars(trend) : `<div class="empty">체중 기록이 아직 없어요</div>`}
+      <h3>📈 가족 체중 흐름</h3>
+      ${renderFamilyWeightTable()}
     </div>
   `;
   document.getElementById('memberRow').addEventListener('click', e=>{
@@ -621,15 +618,30 @@ function openHealthSchedModal(existing){
     queueSave(); closeModal(); renderHealth();
   };
 }
-function renderTrendBars(trend){
-  const weights=trend.map(([,v])=>Number(v.health[healthPerson].weight));
-  const max=Math.max(...weights), min=Math.min(...weights);
-  const range=(max-min)||1;
-  return trend.map(([d,v])=>{
-    const w=v.health[healthPerson].weight;
-    const pct=20+((w-min)/range)*80;
-    return `<div class="bar-row"><span style="width:44px;color:var(--muted);">${d.slice(5)}</span><div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div><span style="width:52px;text-align:right;">${w}kg</span></div>`;
-  }).join('');
+function renderFamilyWeightTable(){
+  const dateSet=new Set();
+  Object.entries(state.daily).forEach(([d,v])=>{
+    FAMILY_MEMBERS.forEach(m=>{ if(v.health && v.health[m.key] && v.health[m.key].weight) dateSet.add(d); });
+  });
+  const dates=Array.from(dateSet).sort().slice(-14);
+  if(!dates.length) return `<div class="empty">체중 기록이 아직 없어요</div>`;
+  return `
+    <div style="overflow-x:auto;">
+      <table class="maint-table">
+        <thead><tr><th>날짜</th>${FAMILY_MEMBERS.map(m=>`<th>${m.label}</th>`).join('')}</tr></thead>
+        <tbody>
+          ${dates.slice().reverse().map(d=>`
+            <tr>
+              <td>${d.slice(5)}</td>
+              ${FAMILY_MEMBERS.map(m=>{
+                const w=state.daily[d] && state.daily[d].health && state.daily[d].health[m.key] && state.daily[d].health[m.key].weight;
+                return `<td>${w?w+'kg':'-'}</td>`;
+              }).join('')}
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
 }
 
 /* ---------- BUDGET ---------- */
