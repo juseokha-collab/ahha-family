@@ -90,27 +90,53 @@ function eventOccurrence(ev){
 
 /* ---------- holidays (KR) ---------- */
 const FIXED_HOLIDAYS=[[1,1,'신정'],[3,1,'삼일절'],[5,5,'어린이날'],[6,6,'현충일'],[8,15,'광복절'],[10,3,'개천절'],[10,9,'한글날'],[12,25,'크리스마스']];
-function getHolidaysForYear(year){
+const SUBSTITUTE_ELIGIBLE=['삼일절','광복절','개천절','한글날','어린이날','부처님오신날','설날','추석'];
+function buildHolidayData(year){
   const map={};
-  FIXED_HOLIDAYS.forEach(([m,d,name])=>{ map[fmtDate(new Date(year,m-1,d))]=name; });
+  const clusters=[];
+  FIXED_HOLIDAYS.forEach(([m,d,name])=>{
+    const ds=fmtDate(new Date(year,m-1,d));
+    map[ds]=name;
+    clusters.push({name, dates:[ds]});
+  });
   const seollal=lunar2solar(year,1,1,false);
   if(seollal){
-    map[fmtDate(addDays(seollal,-1))]='설날 연휴';
-    map[fmtDate(seollal)]='설날';
-    map[fmtDate(addDays(seollal,1))]='설날 연휴';
+    const ds=[fmtDate(addDays(seollal,-1)), fmtDate(seollal), fmtDate(addDays(seollal,1))];
+    map[ds[0]]='설날 연휴'; map[ds[1]]='설날'; map[ds[2]]='설날 연휴';
+    clusters.push({name:'설날', dates:ds});
   }
   const chuseok=lunar2solar(year,8,15,false);
   if(chuseok){
-    map[fmtDate(addDays(chuseok,-1))]='추석 연휴';
-    map[fmtDate(chuseok)]='추석';
-    map[fmtDate(addDays(chuseok,1))]='추석 연휴';
+    const ds=[fmtDate(addDays(chuseok,-1)), fmtDate(chuseok), fmtDate(addDays(chuseok,1))];
+    map[ds[0]]='추석 연휴'; map[ds[1]]='추석'; map[ds[2]]='추석 연휴';
+    clusters.push({name:'추석', dates:ds});
   }
   const buddha=lunar2solar(year,4,8,false);
-  if(buddha) map[fmtDate(buddha)]='부처님오신날';
-  return map;
+  if(buddha){ const ds=fmtDate(buddha); map[ds]='부처님오신날'; clusters.push({name:'부처님오신날', dates:[ds]}); }
+  return {map, clusters};
+}
+function computeSubstitutes(map, clusters){
+  const subs={};
+  clusters.forEach(c=>{
+    if(!SUBSTITUTE_ELIGIBLE.includes(c.name)) return;
+    const hasWeekend = c.dates.some(ds=>{ const dow=parseDate(ds).getDay(); return dow===0||dow===6; });
+    if(!hasWeekend) return;
+    let next=addDays(parseDate(c.dates[c.dates.length-1]),1);
+    for(let guard=0; guard<10; guard++){
+      const ns=fmtDate(next);
+      const dow=next.getDay();
+      if(dow!==0 && dow!==6 && !map[ns] && !subs[ns]){ subs[ns]='대체공휴일'; break; }
+      next=addDays(next,1);
+    }
+  });
+  return subs;
+}
+function getHolidayMapForYear(year){
+  const {map, clusters}=buildHolidayData(year);
+  return Object.assign({}, map, computeSubstitutes(map, clusters));
 }
 function getHolidaysAround(year){
-  return Object.assign({}, getHolidaysForYear(year-1), getHolidaysForYear(year), getHolidaysForYear(year+1));
+  return Object.assign({}, getHolidayMapForYear(year-1), getHolidayMapForYear(year), getHolidayMapForYear(year+1));
 }
 
 /* ---------- state ---------- */
@@ -289,7 +315,7 @@ function openModal(html){
   document.getElementById('modalBg').classList.add('show');
 }
 function closeModal(){ document.getElementById('modalBg').classList.remove('show'); }
-document.getElementById('modalBg').addEventListener('click', e=>{ if(e.target.id==='modalBg') closeModal(); });
+document.getElementById('modalCloseBtn').addEventListener('click', closeModal);
 function showToast(msg){
   const t=document.getElementById('toast');
   t.textContent=msg;
@@ -423,7 +449,7 @@ function renderSchedule(){
     const shown=dayEvents.slice(0,MAX_SHOWN).map(s=>`<span class="cal-evt">${s.time?escapeHtml(s.time)+' ':''}${escapeHtml(s.title)}</span>`).join('');
     const more = dayEvents.length>MAX_SHOWN ? `<span class="cal-evt more">+${dayEvents.length-MAX_SHOWN}개 더</span>` : '';
     grid += `<div class="cal-cell ${inMonth?'':'other'} ${dateStr===todayS?'today':''} ${dateStr===scheduleSel?'sel':''} ${holidayName?'holiday':''}" data-date="${dateStr}">
-      <span class="day-num">${dateObj.getDate()}</span>${holidayName?`<span class="cal-holiday">${escapeHtml(holidayName)}</span>`:''}${shown}${more}
+      <div class="day-row"><span class="day-num">${dateObj.getDate()}</span>${holidayName?`<span class="cal-holiday">${escapeHtml(holidayName)}</span>`:''}</div>${shown}${more}
     </div>`;
   }
   const dayItems = state.schedule.filter(s=>s.date===scheduleSel).sort((a,b)=>(a.time||'').localeCompare(b.time||''));

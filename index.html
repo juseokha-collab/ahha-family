@@ -70,13 +70,14 @@ nav.tabs button.active{background:var(--panel2);color:var(--text);border-color:v
 .cal-cell.today{border-color:var(--accent);}
 .cal-cell.sel{background:#2a2130;border-color:var(--accent2);}
 .cal-cell.other{opacity:.3;}
-.cal-cell .day-num{align-self:center;color:var(--muted);}
+.day-row{display:flex;align-items:baseline;gap:4px;width:100%;overflow:hidden;}
+.cal-cell .day-num{color:var(--muted);flex-shrink:0;}
 .cal-cell.today .day-num{color:var(--accent);font-weight:700;}
 .cal-grid>.cal-head:nth-child(7n+1),.cal-grid>.cal-cell:nth-child(7n+1) .day-num{color:#ff9494;}
 .cal-grid>.cal-head:nth-child(7n),.cal-grid>.cal-cell:nth-child(7n) .day-num{color:#8ab4ff;}
 .cal-cell.holiday .day-num{color:#ff9494;}
 .cal-cell.today .day-num{color:var(--accent)!important;}
-.cal-holiday{align-self:center;font-size:9px;color:#ff9494;width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center;}
+.cal-holiday{font-size:9px;color:#ff9494;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .cal-evt{font-size:10px;background:var(--panel);border-radius:4px;padding:1px 4px;width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text);}
 .cal-evt.more{color:var(--muted);background:none;padding:0 4px;}
 @media(max-width:600px){.cal-cell{min-height:52px;}.cal-evt{font-size:9px;}}
@@ -92,8 +93,10 @@ nav.tabs button.active{background:var(--panel2);color:var(--text);border-color:v
 .link-btn{background:none;border:none;color:var(--accent2);font-size:12px;cursor:pointer;padding:0;text-decoration:underline;}
 .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;z-index:50;padding:16px;}
 .modal-bg.show{display:flex;}
-.modal{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:18px;width:100%;max-width:420px;max-height:88vh;overflow-y:auto;}
+.modal{position:relative;background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:18px;width:100%;max-width:420px;max-height:88vh;overflow-y:auto;}
 .modal h3{margin-top:0;}
+.modal-close{position:absolute;top:12px;right:12px;background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer;padding:4px 9px;border-radius:8px;line-height:1;}
+.modal-close:hover{color:var(--text);background:var(--panel2);}
 .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px;}
 .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--panel2);border:1px solid var(--accent);padding:10px 16px;border-radius:10px;font-size:13px;z-index:60;opacity:0;transition:.25s;pointer-events:none;}
 .toast.show{opacity:1;}
@@ -132,13 +135,13 @@ nav.tabs button.active{background:var(--panel2);color:var(--text);border-color:v
   <div id="tab-events" style="display:none"></div>
 </div>
 
-<div class="modal-bg" id="modalBg"><div class="modal" id="modalBody"></div></div>
+<div class="modal-bg" id="modalBg"><div class="modal"><button class="modal-close" id="modalCloseBtn" title="닫기">✕</button><div id="modalBody"></div></div></div>
 <div class="toast" id="toast"></div>
 
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-<script src="firebase-config.js?v=20260808a"></script>
-<script src="app.js?v=20260808a"></script>
+<script src="firebase-config.js?v=20260808b"></script>
+<script src="app.js?v=20260808b"></script>
 </body>
 </html>
