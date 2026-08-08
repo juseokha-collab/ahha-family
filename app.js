@@ -120,8 +120,9 @@ function defaultState(){
     schedule:[],
     daily:{},
     budget:[],
-    vehicle:{plate:'',model:'',regDate:'',tireSize:'',fuel:[],maint:[],renewals:[]},
-    events:[]
+    vehicle:{plate:'',model:'',regDate:'',tireSize:'',fuel:[],maint:[],renewals:[],maintCycle:{}},
+    events:[],
+    healthSchedule:{dad:[],mom:[],daughter:[]}
   };
 }
 const MAINT_ITEMS=['엔진오일 및 필터','에어컨필터','미션오일','구동벨트','타이어','와이퍼','브레이크오일','배터리','점화플러그','기타'];
@@ -151,6 +152,9 @@ function migrateVehicle(st){
   const v=st.vehicle;
   if(v.regDate===undefined) v.regDate='';
   if(v.tireSize===undefined) v.tireSize='';
+  if(!v.maintCycle) v.maintCycle={};
+  if(!st.healthSchedule) st.healthSchedule={dad:[],mom:[],daughter:[]};
+  ['dad','mom','daughter'].forEach(k=>{ if(!st.healthSchedule[k]) st.healthSchedule[k]=[]; });
   if(!v.regDate && !v.tireSize && v.model){
     let model=v.model;
     const tireMatch=model.match(/\(([^)]*\d{3}\/\d{2}R\d{2}[^)]*)\)/);
@@ -489,9 +493,20 @@ function renderHealth(){
   const trend = Object.entries(state.daily)
     .filter(([,v])=>v.health && v.health[healthPerson] && v.health[healthPerson].weight)
     .sort((a,b)=>a[0].localeCompare(b[0])).slice(-14);
+  const schedList = ((state.healthSchedule&&state.healthSchedule[healthPerson])||[]).map(it=>({...it,d:dday(it.date)})).sort((a,b)=>a.d-b.d);
   el.innerHTML=`
     <div class="member-row" id="memberRow">
       ${FAMILY_MEMBERS.map(m=>`<button data-member="${m.key}" class="${healthPerson===m.key?'active':''}">${m.label}</button>`).join('')}
+    </div>
+    <div class="card">
+      <div class="row" style="justify-content:space-between;"><h3 style="margin:0;">🩺 ${memberLabel(healthPerson)} 주요 검진 일정</h3><button class="btn primary small" id="addHealthSchedBtn">+ 추가</button></div>
+      ${schedList.length? schedList.map(it=>`
+        <div class="list-item">
+          <div><div>${escapeHtml(it.name)}</div><div class="meta">${it.date}${it.memo?' · '+escapeHtml(it.memo):''}</div></div>
+          <div class="row"><span class="pill ${ddayPillClass(it.d)}">${ddayLabel(it.d)}</span>
+            <button class="icon-btn" data-edit-hsched="${it.id}" title="수정">✏️</button>
+            <button class="btn small danger" data-del-hsched="${it.id}">삭제</button></div>
+        </div>`).join('') : `<div class="empty">건강검진, 정기검사 등 예정된 일정을 등록해보세요</div>`}
     </div>
     <div class="card">
       <div class="datebar"><button class="iconbtn" id="hPrev">‹</button><div class="d">${dLabel}</div><button class="iconbtn" id="hNext">›</button>
@@ -534,6 +549,33 @@ function renderHealth(){
   document.getElementById('hExercise').addEventListener('change',e=>save('exercise', e.target.checked));
   document.getElementById('hMeds').addEventListener('change',e=>save('meds', e.target.checked));
   document.getElementById('hSymptom').addEventListener('change',e=>save('symptom', e.target.value));
+  document.getElementById('addHealthSchedBtn').onclick=()=>openHealthSchedModal();
+  el.querySelectorAll('[data-edit-hsched]').forEach(b=>b.onclick=()=>openHealthSchedModal((state.healthSchedule[healthPerson]||[]).find(x=>x.id===b.dataset.editHsched)));
+  el.querySelectorAll('[data-del-hsched]').forEach(b=>b.onclick=()=>{
+    if(confirm('삭제할까요?')){ state.healthSchedule[healthPerson]=(state.healthSchedule[healthPerson]||[]).filter(x=>x.id!==b.dataset.delHsched); queueSave(); renderHealth(); }
+  });
+}
+function openHealthSchedModal(existing){
+  const it=existing||{id:null,date:todayStr(),name:'',memo:''};
+  openModal(`
+    <h3>${existing?'검진 일정 수정':'검진 일정 추가'}</h3>
+    <div class="field"><label>검진명 (예: 건강검진, 치과 정기검진)</label><input id="mName" value="${escapeHtml(it.name)}"></div>
+    <div class="field"><label>날짜</label><input type="date" id="mDate" value="${it.date}"></div>
+    <div class="field"><label>메모</label><input id="mMemo" value="${escapeHtml(it.memo)}"></div>
+    <div class="modal-actions"><button class="btn" id="mCancel">취소</button><button class="btn primary" id="mSave">저장</button></div>
+  `);
+  document.getElementById('mCancel').onclick=closeModal;
+  document.getElementById('mSave').onclick=()=>{
+    const name=document.getElementById('mName').value.trim();
+    const date=document.getElementById('mDate').value;
+    if(!name||!date){ showToast('검진명과 날짜를 입력해주세요'); return; }
+    const rec={id:it.id||uid(),name,date,memo:document.getElementById('mMemo').value};
+    if(!state.healthSchedule) state.healthSchedule={dad:[],mom:[],daughter:[]};
+    if(!state.healthSchedule[healthPerson]) state.healthSchedule[healthPerson]=[];
+    if(it.id){ const idx=state.healthSchedule[healthPerson].findIndex(x=>x.id===it.id); state.healthSchedule[healthPerson][idx]=rec; }
+    else state.healthSchedule[healthPerson].push(rec);
+    queueSave(); closeModal(); renderHealth();
+  };
 }
 function renderTrendBars(trend){
   const weights=trend.map(([,v])=>Number(v.health[healthPerson].weight));
@@ -660,7 +702,7 @@ function renderVehicle(){
       <div class="row" style="justify-content:space-between;"><h3 style="margin:0;">🔧 정비 기록</h3><button class="btn primary small" id="addMaintBtn">+ 추가</button></div>
       <div style="overflow-x:auto;">
         <table class="maint-table">
-          <thead><tr><th>점검항목</th><th>점검일시</th><th>주행거리</th><th>비용</th><th>비고</th><th></th></tr></thead>
+          <thead><tr><th>점검항목</th><th>점검일시</th><th>주행거리</th><th>비용</th><th>비고</th><th>점검주기</th><th></th></tr></thead>
           <tbody>
             ${maintRows.map(({item,latest})=>`
               <tr>
@@ -669,6 +711,7 @@ function renderVehicle(){
                 <td>${latest&&latest.odo?Number(latest.odo).toLocaleString()+'km':'-'}</td>
                 <td>${latest&&latest.cost?Number(latest.cost).toLocaleString()+'원':'-'}</td>
                 <td class="wrap">${latest?(escapeHtml([latest.place,latest.memo].filter(Boolean).join(' · '))||'-'):'-'}</td>
+                <td><input class="cycle-input" data-cycle-item="${escapeHtml(item)}" value="${escapeHtml((v.maintCycle||{})[item]||'')}" placeholder="예: 6개월"></td>
                 <td><button class="icon-btn" data-maint-item="${escapeHtml(item)}" title="기록 추가/수정">✏️</button></td>
               </tr>`).join('')}
           </tbody>
@@ -703,6 +746,11 @@ function renderVehicle(){
     if(records.length) openMaintModal(records[0]);
     else openMaintModal({id:null,date:todayStr(),item,place:'',cost:'',odo:'',memo:''});
   });
+  el.querySelectorAll('[data-cycle-item]').forEach(inp=>inp.addEventListener('change',e=>{
+    if(!state.vehicle.maintCycle) state.vehicle.maintCycle={};
+    state.vehicle.maintCycle[e.target.dataset.cycleItem]=e.target.value;
+    queueSave();
+  }));
 }
 function openRenewModal(existing){
   const r=existing||{id:null,name:'',date:todayStr(),memo:''};
