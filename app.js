@@ -426,14 +426,20 @@ function renderHome(){
 /* ---------- SCHEDULE ---------- */
 let scheduleMonth = new Date(); scheduleMonth.setDate(1);
 let scheduleSel = todayStr();
+let scheduleFilter = 'all';
+function getScheduleOwners(){ return [{key:'common',label:'공통'}].concat(FAMILY_MEMBERS); }
+function ownerLabel(key){ if(!key||key==='common') return '공통'; const m=FAMILY_MEMBERS.find(x=>x.key===key); return m?m.label:key; }
 function renderSchedule(){
   const el=document.getElementById('tab-schedule');
   const y=scheduleMonth.getFullYear(), m=scheduleMonth.getMonth();
   const firstDow=new Date(y,m,1).getDay();
   const daysInMonth=new Date(y,m+1,0).getDate();
   const totalCells=Math.ceil((firstDow+daysInMonth)/7)*7;
+  const virtualEventItems=state.events.map(ev=>({id:'evt-'+ev.id, date:fmtDate(eventOccurrence(ev)), time:'', title:'🎉 '+ev.name, memo:ev.memo, owner:'common', virtual:true}));
+  const allItems=state.schedule.map(s=>({...s, owner:s.owner||'common'})).concat(virtualEventItems);
+  const filtered = scheduleFilter==='all' ? allItems : allItems.filter(s=>s.owner===scheduleFilter);
   const eventsByDate={};
-  state.schedule.forEach(s=>{ (eventsByDate[s.date]=eventsByDate[s.date]||[]).push(s); });
+  filtered.forEach(s=>{ (eventsByDate[s.date]=eventsByDate[s.date]||[]).push(s); });
   Object.values(eventsByDate).forEach(list=>list.sort((a,b)=>(a.time||'').localeCompare(b.time||'')));
   const holidays=getHolidaysAround(y);
   const todayS=todayStr();
@@ -452,8 +458,12 @@ function renderSchedule(){
       <div class="day-row"><span class="day-num">${dateObj.getDate()}</span>${holidayName?`<span class="cal-holiday">${escapeHtml(holidayName)}</span>`:''}</div>${shown}${more}
     </div>`;
   }
-  const dayItems = state.schedule.filter(s=>s.date===scheduleSel).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+  const dayItems = filtered.filter(s=>s.date===scheduleSel).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
   el.innerHTML=`
+    <div class="member-row" id="schedFilterRow">
+      <button data-owner="all" class="${scheduleFilter==='all'?'active':''}">전체</button>
+      ${getScheduleOwners().map(o=>`<button data-owner="${o.key}" class="${scheduleFilter===o.key?'active':''}">${o.label}</button>`).join('')}
+    </div>
     <div class="card">
       <div class="datebar"><button class="iconbtn" id="sPrev">‹</button><div class="d">${y}년 ${m+1}월</div><button class="iconbtn" id="sNext">›</button></div>
       <div class="cal-grid">${['일','월','화','수','목','금','토'].map(d=>`<div class="cal-head">${d}</div>`).join('')}${grid}</div>
@@ -462,13 +472,17 @@ function renderSchedule(){
       <div class="row" style="justify-content:space-between;"><h3 style="margin:0;">${scheduleSel} 일정${holidays[scheduleSel]?` <span class="pill">${escapeHtml(holidays[scheduleSel])}</span>`:''}</h3><button class="btn primary small" id="addSchedBtn">+ 일정 추가</button></div>
       ${dayItems.length? dayItems.map(s=>`
         <div class="list-item">
-          <div><div>${s.time?`<b>${s.time}</b> `:''}${escapeHtml(s.title)}</div>${s.memo?`<div class="meta">${escapeHtml(s.memo)}</div>`:''}</div>
-          <div class="row"><button class="btn small" data-edit="${s.id}">수정</button><button class="btn small danger" data-del="${s.id}">삭제</button></div>
+          <div><div>${s.time?`<b>${s.time}</b> `:''}${escapeHtml(s.title)} <span class="pill">${ownerLabel(s.owner)}</span></div>${s.memo?`<div class="meta">${escapeHtml(s.memo)}</div>`:''}</div>
+          <div class="row">${s.virtual? `<span class="meta">경조사 탭에서 수정</span>` : `<button class="btn small" data-edit="${s.id}">수정</button><button class="btn small danger" data-del="${s.id}">삭제</button>`}</div>
         </div>`).join('') : `<div class="empty">일정이 없어요</div>`}
     </div>
   `;
   document.getElementById('sPrev').onclick=()=>{ scheduleMonth=new Date(y,m-1,1); renderSchedule(); };
   document.getElementById('sNext').onclick=()=>{ scheduleMonth=new Date(y,m+1,1); renderSchedule(); };
+  document.getElementById('schedFilterRow').addEventListener('click', e=>{
+    const b=e.target.closest('button[data-owner]'); if(!b) return;
+    scheduleFilter=b.dataset.owner; renderSchedule();
+  });
   el.querySelector('.cal-grid').addEventListener('click', e=>{
     const c=e.target.closest('.cal-cell'); if(!c) return;
     scheduleSel=c.dataset.date; renderSchedule();
@@ -480,9 +494,16 @@ function renderSchedule(){
   });
 }
 function openScheduleModal(existing){
-  const s=existing||{id:null,date:scheduleSel,time:'',title:'',memo:''};
+  const defaultOwner = scheduleFilter!=='all' ? scheduleFilter : 'common';
+  const s=existing||{id:null,date:scheduleSel,time:'',title:'',memo:'',owner:defaultOwner};
   openModal(`
     <h3>${existing?'일정 수정':'일정 추가'}</h3>
+    <div class="field">
+      <label>공통 / 개인</label>
+      <div class="row">
+        ${getScheduleOwners().map(o=>`<label class="pill" style="cursor:pointer;"><input type="radio" name="mOwner" value="${o.key}" ${(s.owner||'common')===o.key?'checked':''} style="margin-right:4px;">${o.label}</label>`).join('')}
+      </div>
+    </div>
     <div class="grid2">
       <div class="field"><label>날짜</label><input type="date" id="mDate" value="${s.date}"></div>
       <div class="field"><label>시간 (선택)</label><input type="time" id="mTime" value="${s.time||''}"></div>
@@ -496,7 +517,8 @@ function openScheduleModal(existing){
     const date=document.getElementById('mDate').value;
     const title=document.getElementById('mTitle').value.trim();
     if(!date||!title){ showToast('날짜와 제목을 입력해주세요'); return; }
-    const rec={id:s.id||uid(),date,time:document.getElementById('mTime').value,title,memo:document.getElementById('mMemo').value};
+    const owner=(document.querySelector('input[name="mOwner"]:checked')||{}).value || 'common';
+    const rec={id:s.id||uid(),date,time:document.getElementById('mTime').value,title,memo:document.getElementById('mMemo').value,owner};
     if(s.id){ const idx=state.schedule.findIndex(x=>x.id===s.id); state.schedule[idx]=rec; }
     else state.schedule.push(rec);
     scheduleSel=date;
@@ -902,7 +924,7 @@ function renderEvents(){
   document.getElementById('addEventBtn').onclick=()=>openEventModal();
   el.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>openEventModal(state.events.find(x=>x.id===b.dataset.edit)));
   el.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{
-    if(confirm('삭제할까요?')){ state.events=state.events.filter(x=>x.id!==b.dataset.del); queueSave(); renderEvents(); renderHome(); }
+    if(confirm('삭제할까요?')){ state.events=state.events.filter(x=>x.id!==b.dataset.del); queueSave(); renderEvents(); renderHome(); renderSchedule(); }
   });
 }
 function openEventModal(existing){
@@ -953,7 +975,7 @@ function openEventModal(existing){
     const rec={id:ev.id||uid(),name,date,lunar:isLunar,lunarYear,lunarMonth,lunarDay,lunarLeap,recurring:document.getElementById('mRecurring').checked,memo:document.getElementById('mMemo').value};
     if(ev.id){ const idx=state.events.findIndex(x=>x.id===ev.id); state.events[idx]=rec; }
     else state.events.push(rec);
-    queueSave(); closeModal(); renderEvents(); renderHome();
+    queueSave(); closeModal(); renderEvents(); renderHome(); renderSchedule();
   };
 }
 
