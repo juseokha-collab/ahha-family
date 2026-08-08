@@ -94,9 +94,54 @@ function defaultState(){
     schedule:[],
     daily:{},
     budget:[],
-    vehicle:{plate:'',model:'',fuel:[],maint:[],renewals:[]},
+    vehicle:{plate:'',model:'',regDate:'',tireSize:'',fuel:[],maint:[],renewals:[]},
     events:[]
   };
+}
+const MAINT_ITEMS=['엔진오일 및 필터','에어컨필터','미션오일','구동벨트','타이어','와이퍼','브레이크오일','배터리','점화플러그','기타'];
+function matchMaintItem(text){
+  const t=(text||'').toLowerCase();
+  const rules=[
+    ['엔진오일 및 필터', ['엔진오일','오일필터','엔진 오일']],
+    ['에어컨필터', ['에어컨필터','에어컨 필터','캐빈필터','캐빈 필터']],
+    ['미션오일', ['미션오일','미션 오일','변속기오일']],
+    ['구동벨트', ['구동벨트','구동 벨트','벨트']],
+    ['타이어', ['타이어']],
+    ['와이퍼', ['와이퍼']],
+    ['브레이크오일', ['브레이크오일','브레이크 오일','브레이크액']],
+    ['배터리', ['배터리','베터리']],
+    ['점화플러그', ['점화플러그','점화 플러그','플러그']]
+  ];
+  for(const [item,keys] of rules){ if(keys.some(k=>t.includes(k.toLowerCase()))) return item; }
+  return null;
+}
+function extractPlace(memo){
+  if(!memo) return {place:'', memo:''};
+  const m=memo.match(/@(\S+)\s*$/);
+  if(m) return {place:m[1], memo:memo.slice(0,m.index).trim()};
+  return {place:'', memo};
+}
+function migrateVehicle(st){
+  const v=st.vehicle;
+  if(v.regDate===undefined) v.regDate='';
+  if(v.tireSize===undefined) v.tireSize='';
+  if(!v.regDate && !v.tireSize && v.model){
+    let model=v.model;
+    const tireMatch=model.match(/\(([^)]*\d{3}\/\d{2}R\d{2}[^)]*)\)/);
+    if(tireMatch){ v.tireSize=tireMatch[1].trim(); model=model.replace(tireMatch[0],''); }
+    const dateMatch=model.match(/등록일\s*(\d{4})[.\-\/](\d{1,2})[.\-\/](\d{1,2})/);
+    if(dateMatch){ v.regDate=`${dateMatch[1]}-${pad2(dateMatch[2])}-${pad2(dateMatch[3])}`; model=model.replace(dateMatch[0],''); }
+    model=model.replace(/★/g,'').replace(/\s{2,}/g,' ').trim();
+    v.model=model;
+  }
+  v.maint=(v.maint||[]).map(mt=>{
+    if(mt.item) return mt;
+    const {place,memo}=extractPlace(mt.memo);
+    const item=matchMaintItem(mt.type)||'기타';
+    const extraMemo = (!matchMaintItem(mt.type) && mt.type) ? (mt.type+(memo?' · '+memo:'')) : memo;
+    return {id:mt.id,date:mt.date,item,place,cost:mt.cost||'',odo:mt.odo||'',memo:extraMemo};
+  });
+  return st;
 }
 function migrateDaily(st){
   Object.keys(st.daily||{}).forEach(d=>{
@@ -125,7 +170,7 @@ function loadLocal(){
       const parsed=JSON.parse(raw);
       const base=defaultState();
       base.vehicle=Object.assign(base.vehicle, parsed.vehicle||{});
-      return migrateDaily(Object.assign(base, parsed, {vehicle:base.vehicle}));
+      return migrateVehicle(migrateDaily(Object.assign(base, parsed, {vehicle:base.vehicle})));
     }
   }catch(e){}
   return defaultState();
@@ -178,7 +223,7 @@ function initAuth(){
           const data=doc.data();
           const base=defaultState();
           base.vehicle=Object.assign(base.vehicle, data.vehicle||{});
-          state=migrateDaily(Object.assign(base, data, {vehicle:base.vehicle}));
+          state=migrateVehicle(migrateDaily(Object.assign(base, data, {vehicle:base.vehicle})));
         } else {
           await familyDocRef().set(state);
         }
@@ -556,6 +601,10 @@ function renderVehicle(){
         <div class="field"><label>차종/모델</label><input id="vModel" value="${escapeHtml(v.model)}"></div>
         <div class="field"><label>번호판</label><input id="vPlate" value="${escapeHtml(v.plate)}"></div>
       </div>
+      <div class="grid2" style="margin-top:10px;">
+        <div class="field"><label>차량등록일</label><input type="date" id="vRegDate" value="${v.regDate||''}"></div>
+        <div class="field"><label>타이어 사이즈</label><input id="vTireSize" value="${escapeHtml(v.tireSize)}" placeholder="예: 225/55R18"></div>
+      </div>
     </div>
     <div class="card">
       <div class="row" style="justify-content:space-between;"><h3 style="margin:0;">⏰ 갱신·만기 알림</h3><button class="btn primary small" id="addRenewBtn">+ 추가</button></div>
@@ -578,13 +627,15 @@ function renderVehicle(){
       <div class="row" style="justify-content:space-between;"><h3 style="margin:0;">🔧 정비 기록</h3><button class="btn primary small" id="addMaintBtn">+ 추가</button></div>
       ${maintSorted.length? maintSorted.map(mt=>`
         <div class="list-item">
-          <div><div>${escapeHtml(mt.type)}${mt.cost?' · '+Number(mt.cost).toLocaleString()+'원':''}</div><div class="meta">${mt.date}${mt.odo?' · '+Number(mt.odo).toLocaleString()+'km':''}${mt.memo?' · '+escapeHtml(mt.memo):''}</div></div>
+          <div><div>${escapeHtml(mt.item)}${mt.cost?' · '+Number(mt.cost).toLocaleString()+'원':''}</div><div class="meta">${mt.date}${mt.odo?' · '+Number(mt.odo).toLocaleString()+'km':''}${mt.place?' · '+escapeHtml(mt.place):''}${mt.memo?' · '+escapeHtml(mt.memo):''}</div></div>
           <div class="row"><button class="btn small" data-edit-maint="${mt.id}">수정</button><button class="btn small danger" data-del-maint="${mt.id}">삭제</button></div>
         </div>`).join('') : `<div class="empty">정비 기록이 없어요</div>`}
     </div>
   `;
   document.getElementById('vModel').addEventListener('change',e=>{ state.vehicle.model=e.target.value; queueSave(); });
   document.getElementById('vPlate').addEventListener('change',e=>{ state.vehicle.plate=e.target.value; queueSave(); });
+  document.getElementById('vRegDate').addEventListener('change',e=>{ state.vehicle.regDate=e.target.value; queueSave(); });
+  document.getElementById('vTireSize').addEventListener('change',e=>{ state.vehicle.tireSize=e.target.value; queueSave(); });
   document.getElementById('addRenewBtn').onclick=()=>openRenewModal();
   el.querySelectorAll('[data-edit-renew]').forEach(b=>b.onclick=()=>openRenewModal(v.renewals.find(x=>x.id===b.dataset.editRenew)));
   el.querySelectorAll('[data-del-renew]').forEach(b=>b.onclick=()=>{ if(confirm('삭제할까요?')){ state.vehicle.renewals=v.renewals.filter(x=>x.id!==b.dataset.delRenew); queueSave(); renderVehicle(); renderHome(); } });
@@ -639,14 +690,17 @@ function openFuelModal(existing){
   };
 }
 function openMaintModal(existing){
-  const mt=existing||{id:null,date:todayStr(),type:'',cost:'',odo:'',memo:''};
+  const mt=existing||{id:null,date:todayStr(),item:MAINT_ITEMS[0],place:'',cost:'',odo:'',memo:''};
   openModal(`
     <h3>${existing?'정비 기록 수정':'정비 기록 추가'}</h3>
-    <div class="field"><label>날짜</label><input type="date" id="mDate" value="${mt.date}"></div>
-    <div class="field"><label>정비 항목 (예: 엔진오일 교체)</label><input id="mType" value="${escapeHtml(mt.type)}"></div>
+    <div class="field"><label>점검 항목</label><select id="mItem">${MAINT_ITEMS.map(i=>`<option ${i===mt.item?'selected':''}>${i}</option>`).join('')}</select></div>
     <div class="grid2">
-      <div class="field"><label>비용 (선택)</label><input type="number" id="mCost" value="${mt.cost}"></div>
+      <div class="field"><label>날짜</label><input type="date" id="mDate" value="${mt.date}"></div>
       <div class="field"><label>주행거리 (km, 선택)</label><input type="number" id="mOdo" value="${mt.odo}"></div>
+    </div>
+    <div class="grid2">
+      <div class="field"><label>점검 장소 (선택)</label><input id="mPlace" value="${escapeHtml(mt.place)}" placeholder="예: 형주카센터"></div>
+      <div class="field"><label>비용 (선택)</label><input type="number" id="mCost" value="${mt.cost}"></div>
     </div>
     <div class="field"><label>메모</label><input id="mMemo" value="${escapeHtml(mt.memo)}"></div>
     <div class="modal-actions"><button class="btn" id="mCancel">취소</button><button class="btn primary" id="mSave">저장</button></div>
@@ -654,9 +708,9 @@ function openMaintModal(existing){
   document.getElementById('mCancel').onclick=closeModal;
   document.getElementById('mSave').onclick=()=>{
     const date=document.getElementById('mDate').value;
-    const type=document.getElementById('mType').value.trim();
-    if(!date||!type){ showToast('날짜와 정비 항목을 입력해주세요'); return; }
-    const rec={id:mt.id||uid(),date,type,cost:document.getElementById('mCost').value,odo:document.getElementById('mOdo').value,memo:document.getElementById('mMemo').value};
+    const item=document.getElementById('mItem').value;
+    if(!date||!item){ showToast('날짜와 점검 항목을 입력해주세요'); return; }
+    const rec={id:mt.id||uid(),date,item,place:document.getElementById('mPlace').value,cost:document.getElementById('mCost').value,odo:document.getElementById('mOdo').value,memo:document.getElementById('mMemo').value};
     if(mt.id){ const idx=state.vehicle.maint.findIndex(x=>x.id===mt.id); state.vehicle.maint[idx]=rec; }
     else state.vehicle.maint.push(rec);
     queueSave(); closeModal(); renderVehicle();
