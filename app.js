@@ -480,7 +480,7 @@ function renderVehicle(){
       <div class="row" style="justify-content:space-between;"><h3 style="margin:0;">🔧 정비 기록</h3><button class="btn primary small" id="addMaintBtn">+ 추가</button></div>
       ${maintSorted.length? maintSorted.map(mt=>`
         <div class="list-item">
-          <div><div>${escapeHtml(mt.type)}${mt.cost?' · '+Number(mt.cost).toLocaleString()+'원':''}</div><div class="meta">${mt.date}${mt.memo?' · '+escapeHtml(mt.memo):''}</div></div>
+          <div><div>${escapeHtml(mt.type)}${mt.cost?' · '+Number(mt.cost).toLocaleString()+'원':''}</div><div class="meta">${mt.date}${mt.odo?' · '+Number(mt.odo).toLocaleString()+'km':''}${mt.memo?' · '+escapeHtml(mt.memo):''}</div></div>
           <div class="row"><button class="btn small" data-edit-maint="${mt.id}">수정</button><button class="btn small danger" data-del-maint="${mt.id}">삭제</button></div>
         </div>`).join('') : `<div class="empty">정비 기록이 없어요</div>`}
     </div>
@@ -541,12 +541,15 @@ function openFuelModal(existing){
   };
 }
 function openMaintModal(existing){
-  const mt=existing||{id:null,date:todayStr(),type:'',cost:'',memo:''};
+  const mt=existing||{id:null,date:todayStr(),type:'',cost:'',odo:'',memo:''};
   openModal(`
     <h3>${existing?'정비 기록 수정':'정비 기록 추가'}</h3>
     <div class="field"><label>날짜</label><input type="date" id="mDate" value="${mt.date}"></div>
     <div class="field"><label>정비 항목 (예: 엔진오일 교체)</label><input id="mType" value="${escapeHtml(mt.type)}"></div>
-    <div class="field"><label>비용 (선택)</label><input type="number" id="mCost" value="${mt.cost}"></div>
+    <div class="grid2">
+      <div class="field"><label>비용 (선택)</label><input type="number" id="mCost" value="${mt.cost}"></div>
+      <div class="field"><label>주행거리 (km, 선택)</label><input type="number" id="mOdo" value="${mt.odo}"></div>
+    </div>
     <div class="field"><label>메모</label><input id="mMemo" value="${escapeHtml(mt.memo)}"></div>
     <div class="modal-actions"><button class="btn" id="mCancel">취소</button><button class="btn primary" id="mSave">저장</button></div>
   `);
@@ -555,7 +558,7 @@ function openMaintModal(existing){
     const date=document.getElementById('mDate').value;
     const type=document.getElementById('mType').value.trim();
     if(!date||!type){ showToast('날짜와 정비 항목을 입력해주세요'); return; }
-    const rec={id:mt.id||uid(),date,type,cost:document.getElementById('mCost').value,memo:document.getElementById('mMemo').value};
+    const rec={id:mt.id||uid(),date,type,cost:document.getElementById('mCost').value,odo:document.getElementById('mOdo').value,memo:document.getElementById('mMemo').value};
     if(mt.id){ const idx=state.vehicle.maint.findIndex(x=>x.id===mt.id); state.vehicle.maint[idx]=rec; }
     else state.vehicle.maint.push(rec);
     queueSave(); closeModal(); renderVehicle();
