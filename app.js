@@ -824,7 +824,6 @@ function openMaintModal(existing){
 }
 
 /* ---------- EVENTS (경조사) ---------- */
-const EVENT_TYPES=['생일','기념일','결혼식','돌잔치','장례식','병문안','기타'];
 function renderEvents(){
   const el=document.getElementById('tab-events');
   const withD = state.events.map(ev=>({...ev, d: ddayFromDate(eventOccurrence(ev))}));
@@ -832,8 +831,8 @@ function renderEvents(){
   const past = withD.filter(e=>e.d<0).sort((a,b)=>b.d-a.d);
   const row = ev => `
     <div class="list-item">
-      <div><div>${escapeHtml(ev.name)} <span class="pill">${ev.type}</span>${ev.relation?` <span class="pill">${escapeHtml(ev.relation)}</span>`:''}</div>
-      <div class="meta">${ev.lunar?`음력 ${ev.lunarMonth}/${ev.lunarDay}${ev.lunarLeap?'(윤)':''}`:ev.date}${ev.recurring?' (매년)':''}${ev.amount?' · '+Number(ev.amount).toLocaleString()+'원':''}${ev.memo?' · '+escapeHtml(ev.memo):''}</div></div>
+      <div><div>${escapeHtml(ev.name)}</div>
+      <div class="meta">${ev.lunar?`음력 ${ev.lunarMonth}/${ev.lunarDay}${ev.lunarLeap?'(윤)':''}`:ev.date}${ev.recurring?' (매년)':''}${ev.memo?' · '+escapeHtml(ev.memo):''}</div></div>
       <div class="row"><span class="pill ${ddayPillClass(ev.d)}">${ddayLabel(ev.d)}</span>
         <button class="btn small" data-edit="${ev.id}">수정</button><button class="btn small danger" data-del="${ev.id}">삭제</button></div>
     </div>`;
@@ -851,14 +850,10 @@ function renderEvents(){
   });
 }
 function openEventModal(existing){
-  const ev=existing||{id:null,name:'',relation:'',type:EVENT_TYPES[0],date:todayStr(),recurring:true,amount:'',memo:'',lunar:false,lunarYear:new Date().getFullYear(),lunarMonth:'',lunarDay:'',lunarLeap:false};
+  const ev=existing||{id:null,name:'',date:todayStr(),recurring:true,memo:'',lunar:false,lunarYear:new Date().getFullYear(),lunarMonth:'',lunarDay:'',lunarLeap:false};
   openModal(`
     <h3>${existing?'경조사 수정':'경조사 추가'}</h3>
     <div class="field"><label>이름</label><input id="mName" value="${escapeHtml(ev.name)}"></div>
-    <div class="grid2">
-      <div class="field"><label>관계</label><input id="mRel" value="${escapeHtml(ev.relation)}" placeholder="예: 시댁, 친정, 친구"></div>
-      <div class="field"><label>종류</label><select id="mType">${EVENT_TYPES.map(t=>`<option ${t===ev.type?'selected':''}>${t}</option>`).join('')}</select></div>
-    </div>
     <label class="pill" style="cursor:pointer;display:inline-block;margin:6px 0;"><input type="checkbox" id="mLunar" ${ev.lunar?'checked':''} style="margin-right:4px;">음력 날짜</label>
     <div class="field" id="solarDateWrap" style="${ev.lunar?'display:none':''}">
       <label>날짜</label><input type="date" id="mDate" value="${ev.date}">
@@ -873,7 +868,6 @@ function openEventModal(existing){
         <div class="field"><label>&nbsp;</label><label class="pill" style="cursor:pointer;"><input type="checkbox" id="mLeap" ${ev.lunarLeap?'checked':''} style="margin-right:4px;">윤달</label></div>
       </div>
     </div>
-    <div class="field"><label>금액 (선택)</label><input type="number" id="mAmount" value="${ev.amount}"></div>
     <label class="pill" style="cursor:pointer;display:inline-block;margin:6px 0;"><input type="checkbox" id="mRecurring" ${ev.recurring?'checked':''} style="margin-right:4px;">매년 반복 (생일/기념일)</label>
     <div class="field"><label>메모</label><input id="mMemo" value="${escapeHtml(ev.memo)}"></div>
     <div class="modal-actions"><button class="btn" id="mCancel">취소</button><button class="btn primary" id="mSave">저장</button></div>
@@ -900,7 +894,7 @@ function openEventModal(existing){
       date=document.getElementById('mDate').value;
       if(!name||!date){ showToast('이름과 날짜를 입력해주세요'); return; }
     }
-    const rec={id:ev.id||uid(),name,relation:document.getElementById('mRel').value,type:document.getElementById('mType').value,date,lunar:isLunar,lunarYear,lunarMonth,lunarDay,lunarLeap,recurring:document.getElementById('mRecurring').checked,amount:document.getElementById('mAmount').value,memo:document.getElementById('mMemo').value};
+    const rec={id:ev.id||uid(),name,date,lunar:isLunar,lunarYear,lunarMonth,lunarDay,lunarLeap,recurring:document.getElementById('mRecurring').checked,memo:document.getElementById('mMemo').value};
     if(ev.id){ const idx=state.events.findIndex(x=>x.id===ev.id); state.events[idx]=rec; }
     else state.events.push(rec);
     queueSave(); closeModal(); renderEvents(); renderHome();
