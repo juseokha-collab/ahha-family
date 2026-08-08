@@ -13,7 +13,7 @@
 }
 :root[data-theme="light"]{
   --bg:#f6f5fa; --panel:#ffffff; --panel2:#f1eef8; --text:#201f2b; --muted:#726f82;
-  --accent:#e0507a; --accent2:#7c5fd6; --border:#e3e0ee; --good:#1f9d55; --warn:#b8790a; --bad:#d63c3c;
+  --accent:#b25a78; --accent2:#7a70a8; --border:#e3e0ee; --good:#1f9d55; --warn:#b8790a; --bad:#d63c3c;
   --weekend-sun:#c73a5c; --weekend-sat:#3b6fd4;
 }
 *{box-sizing:border-box;}
@@ -30,6 +30,7 @@ header.top{display:flex;align-items:center;justify-content:space-between;padding
 .btn{background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:8px 12px;font-size:13px;transition:.15s;}
 .btn:hover{border-color:var(--accent);}
 .btn.primary{background:linear-gradient(90deg,var(--accent),var(--accent2));border:none;color:#181820;font-weight:700;}
+:root[data-theme="light"] .btn.primary{background:var(--accent);color:#ffffff;}
 .btn.small{padding:5px 9px;font-size:12px;border-radius:8px;}
 .btn.danger{color:var(--bad);}
 nav.tabs{display:flex;gap:6px;overflow-x:auto;padding:4px 2px 14px;}
@@ -151,7 +152,7 @@ nav.tabs button.active{background:var(--panel2);color:var(--text);border-color:v
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-<script src="firebase-config.js?v=20260808c"></script>
-<script src="app.js?v=20260808c"></script>
+<script src="firebase-config.js?v=20260808d"></script>
+<script src="app.js?v=20260808d"></script>
 </body>
 </html>
