@@ -45,9 +45,13 @@ nav.tabs button.active{background:var(--panel2);color:var(--text);border-color:v
 .pill.d-soon{color:var(--warn);border-color:var(--warn);}
 .pill.d-far{color:var(--good);border-color:var(--good);}
 .empty{color:var(--muted);font-size:13px;text-align:center;padding:24px 0;}
-.mood-row{display:flex;gap:8px;flex-wrap:wrap;}
-.mood-row button{font-size:22px;background:var(--panel2);border:1px solid var(--border);border-radius:10px;width:44px;height:44px;}
+.mood-row{display:flex;gap:8px;flex-wrap:nowrap;}
+.mood-row button{flex:1;min-width:0;font-size:22px;background:var(--panel2);border:1px solid var(--border);border-radius:10px;width:44px;height:44px;padding:0;}
 .mood-row button.sel{border-color:var(--accent);background:#2a2130;}
+@media(max-width:420px){
+  .mood-row{gap:4px;}
+  .mood-row button{height:36px;font-size:16px;border-radius:8px;}
+}
 .datebar{display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:10px;}
 .datebar .d{font-size:16px;font-weight:700;}
 .datebar button{background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:8px;width:32px;height:32px;}
@@ -58,11 +62,15 @@ nav.tabs button.active{background:var(--panel2);color:var(--text);border-color:v
 .stat .l{font-size:11px;color:var(--muted);margin-top:2px;}
 .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;}
 .cal-head{font-size:11px;color:var(--muted);text-align:center;padding:4px 0;}
-.cal-cell{aspect-ratio:1/1;border-radius:8px;background:var(--panel2);border:1px solid var(--border);font-size:12px;padding:4px;display:flex;flex-direction:column;align-items:center;position:relative;cursor:pointer;}
+.cal-cell{min-height:64px;border-radius:8px;background:var(--panel2);border:1px solid var(--border);font-size:12px;padding:4px;display:flex;flex-direction:column;align-items:flex-start;gap:2px;position:relative;cursor:pointer;overflow:hidden;}
 .cal-cell.today{border-color:var(--accent);}
 .cal-cell.sel{background:#2a2130;border-color:var(--accent2);}
 .cal-cell.other{opacity:.3;}
-.cal-dot{width:5px;height:5px;border-radius:50%;background:var(--accent);position:absolute;bottom:4px;}
+.cal-cell .day-num{align-self:center;color:var(--muted);}
+.cal-cell.today .day-num{color:var(--accent);font-weight:700;}
+.cal-evt{font-size:10px;background:var(--panel);border-radius:4px;padding:1px 4px;width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text);}
+.cal-evt.more{color:var(--muted);background:none;padding:0 4px;}
+@media(max-width:600px){.cal-cell{min-height:52px;}.cal-evt{font-size:9px;}}
 .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;z-index:50;padding:16px;}
 .modal-bg.show{display:flex;}
 .modal{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:18px;width:100%;max-width:420px;max-height:88vh;overflow-y:auto;}

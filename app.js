@@ -216,17 +216,22 @@ function renderSchedule(){
   const firstDow=new Date(y,m,1).getDay();
   const daysInMonth=new Date(y,m+1,0).getDate();
   const totalCells=Math.ceil((firstDow+daysInMonth)/7)*7;
-  const hasEvent={};
-  state.schedule.forEach(s=>{ hasEvent[s.date]=true; });
+  const eventsByDate={};
+  state.schedule.forEach(s=>{ (eventsByDate[s.date]=eventsByDate[s.date]||[]).push(s); });
+  Object.values(eventsByDate).forEach(list=>list.sort((a,b)=>(a.time||'').localeCompare(b.time||'')));
   const todayS=todayStr();
+  const MAX_SHOWN=3;
   let grid='';
   for(let i=0;i<totalCells;i++){
     const dayNum=i-firstDow+1;
     const dateObj=new Date(y,m,dayNum);
     const dateStr=fmtDate(dateObj);
     const inMonth = dayNum>=1 && dayNum<=daysInMonth;
+    const dayEvents=eventsByDate[dateStr]||[];
+    const shown=dayEvents.slice(0,MAX_SHOWN).map(s=>`<span class="cal-evt">${s.time?escapeHtml(s.time)+' ':''}${escapeHtml(s.title)}</span>`).join('');
+    const more = dayEvents.length>MAX_SHOWN ? `<span class="cal-evt more">+${dayEvents.length-MAX_SHOWN}개 더</span>` : '';
     grid += `<div class="cal-cell ${inMonth?'':'other'} ${dateStr===todayS?'today':''} ${dateStr===scheduleSel?'sel':''}" data-date="${dateStr}">
-      <span>${dateObj.getDate()}</span>${hasEvent[dateStr]?'<span class="cal-dot"></span>':''}
+      <span class="day-num">${dateObj.getDate()}</span>${shown}${more}
     </div>`;
   }
   const dayItems = state.schedule.filter(s=>s.date===scheduleSel).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
