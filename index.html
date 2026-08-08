@@ -9,12 +9,12 @@
 :root{
   --bg:#12121a; --panel:#1b1b26; --panel2:#232331; --text:#eeeef2; --muted:#9a97ab;
   --accent:#ff7a94; --accent2:#8b7cf6; --border:#2b2b3a; --good:#4ade80; --warn:#fbbf24; --bad:#f87171;
-  --weekend-sun:#ff9494; --weekend-sat:#8ab4ff;
+  --weekend-sun:#ff9494; --weekend-sat:#8ab4ff; --sel-bg:#2a2130;
 }
 :root[data-theme="light"]{
   --bg:#f6f5fa; --panel:#ffffff; --panel2:#f1eef8; --text:#201f2b; --muted:#726f82;
   --accent:#b25a78; --accent2:#7a70a8; --border:#e3e0ee; --good:#1f9d55; --warn:#b8790a; --bad:#d63c3c;
-  --weekend-sun:#c73a5c; --weekend-sat:#3b6fd4;
+  --weekend-sun:#c73a5c; --weekend-sat:#3b6fd4; --sel-bg:#ece4f3;
 }
 *{box-sizing:border-box;}
 body{margin:0;background:var(--bg);color:var(--text);font-family:'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif;transition:background .2s,color .2s;}
@@ -55,7 +55,7 @@ nav.tabs button.active{background:var(--panel2);color:var(--text);border-color:v
 .empty{color:var(--muted);font-size:13px;text-align:center;padding:24px 0;}
 .mood-row{display:flex;gap:8px;flex-wrap:nowrap;}
 .mood-row button{flex:1;min-width:0;font-size:22px;background:var(--panel2);border:1px solid var(--border);border-radius:10px;width:44px;height:44px;padding:0;}
-.mood-row button.sel{border-color:var(--accent);background:#2a2130;}
+.mood-row button.sel{border-color:var(--accent);background:var(--sel-bg);}
 @media(max-width:420px){
   .mood-row{gap:4px;}
   .mood-row button{height:36px;font-size:16px;border-radius:8px;}
@@ -66,7 +66,7 @@ nav.tabs button.active{background:var(--panel2);color:var(--text);border-color:v
 .datebar .btn.small{white-space:nowrap;flex-shrink:0;}
 .member-row{display:flex;gap:6px;margin-bottom:12px;}
 .member-row button{flex:1;background:var(--panel2);border:1px solid var(--border);color:var(--muted);padding:8px;border-radius:10px;font-size:13px;font-weight:600;white-space:nowrap;}
-.member-row button.active{color:var(--text);border-color:var(--accent);background:#2a2130;}
+.member-row button.active{color:var(--text);border-color:var(--accent);background:var(--sel-bg);}
 .stat-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;}
 @media(min-width:640px){.stat-grid{grid-template-columns:repeat(4,1fr);}}
 .stat{background:var(--panel2);border-radius:12px;padding:12px;text-align:center;}
@@ -76,7 +76,7 @@ nav.tabs button.active{background:var(--panel2);color:var(--text);border-color:v
 .cal-head{font-size:11px;color:var(--muted);text-align:center;padding:4px 0;}
 .cal-cell{min-height:64px;border-radius:8px;background:var(--panel2);border:1px solid var(--border);font-size:12px;padding:4px;display:flex;flex-direction:column;align-items:flex-start;gap:2px;position:relative;cursor:pointer;overflow:hidden;}
 .cal-cell.today{border-color:var(--accent);}
-.cal-cell.sel{background:#2a2130;border-color:var(--accent2);}
+.cal-cell.sel{background:var(--sel-bg);border-color:var(--accent2);}
 .cal-cell.other{opacity:.3;}
 .day-row{display:flex;align-items:baseline;gap:4px;width:100%;overflow:hidden;}
 .cal-cell .day-num{color:var(--muted);flex-shrink:0;}
@@ -152,7 +152,7 @@ nav.tabs button.active{background:var(--panel2);color:var(--text);border-color:v
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-<script src="firebase-config.js?v=20260808d"></script>
-<script src="app.js?v=20260808d"></script>
+<script src="firebase-config.js?v=20260808e"></script>
+<script src="app.js?v=20260808e"></script>
 </body>
 </html>

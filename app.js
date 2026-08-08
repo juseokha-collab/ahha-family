@@ -583,11 +583,19 @@ function renderHealth(){
 }
 function openHealthSchedModal(existing){
   const it=existing||{id:null,date:todayStr(),name:'',memo:''};
+  const others=FAMILY_MEMBERS.filter(m=>m.key!==healthPerson);
   openModal(`
     <h3>${existing?'검진 일정 수정':'검진 일정 추가'}</h3>
     <div class="field"><label>검진명 (예: 건강검진, 치과 정기검진)</label><input id="mName" value="${escapeHtml(it.name)}"></div>
     <div class="field"><label>날짜</label><input type="date" id="mDate" value="${it.date}"></div>
     <div class="field"><label>메모</label><input id="mMemo" value="${escapeHtml(it.memo)}"></div>
+    ${!existing?`
+    <div class="field">
+      <label>함께 기록할 구성원 (같이 받는 검진인 경우)</label>
+      <div class="row">
+        ${others.map(m=>`<label class="pill" style="cursor:pointer;"><input type="checkbox" class="mAlsoMember" value="${m.key}" style="margin-right:4px;">${m.label}</label>`).join('')}
+      </div>
+    </div>`:''}
     <div class="modal-actions"><button class="btn" id="mCancel">취소</button><button class="btn primary" id="mSave">저장</button></div>
   `);
   document.getElementById('mCancel').onclick=closeModal;
@@ -595,11 +603,21 @@ function openHealthSchedModal(existing){
     const name=document.getElementById('mName').value.trim();
     const date=document.getElementById('mDate').value;
     if(!name||!date){ showToast('검진명과 날짜를 입력해주세요'); return; }
-    const rec={id:it.id||uid(),name,date,memo:document.getElementById('mMemo').value};
+    const memo=document.getElementById('mMemo').value;
+    const rec={id:it.id||uid(),name,date,memo};
     if(!state.healthSchedule) state.healthSchedule={dad:[],mom:[],daughter:[]};
     if(!state.healthSchedule[healthPerson]) state.healthSchedule[healthPerson]=[];
-    if(it.id){ const idx=state.healthSchedule[healthPerson].findIndex(x=>x.id===it.id); state.healthSchedule[healthPerson][idx]=rec; }
-    else state.healthSchedule[healthPerson].push(rec);
+    if(it.id){
+      const idx=state.healthSchedule[healthPerson].findIndex(x=>x.id===it.id);
+      state.healthSchedule[healthPerson][idx]=rec;
+    } else {
+      state.healthSchedule[healthPerson].push(rec);
+      const also=Array.from(document.querySelectorAll('.mAlsoMember:checked')).map(cb=>cb.value);
+      also.forEach(k=>{
+        if(!state.healthSchedule[k]) state.healthSchedule[k]=[];
+        state.healthSchedule[k].push({id:uid(),name,date,memo});
+      });
+    }
     queueSave(); closeModal(); renderHealth();
   };
 }
