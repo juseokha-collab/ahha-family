@@ -149,7 +149,8 @@ function defaultState(){
     vehicle:{plate:'',model:'',regDate:'',tireSize:'',fuel:[],maint:[],renewals:[],maintCycle:{}},
     events:[],
     healthSchedule:{dad:[],mom:[],daughter:[]},
-    budgetCategories:{}
+    budgetCategories:{},
+    study:[]
   };
 }
 const MAINT_ITEMS=['엔진오일 및 필터','에어컨필터','미션오일','구동벨트','타이어','와이퍼','브레이크오일','배터리','점화플러그','기타'];
@@ -394,13 +395,40 @@ function showToast(msg){
 }
 
 /* ---------- tabs ---------- */
+const ALL_TAB_KEYS=['home','schedule','health','budget','vehicle','events','study'];
+let activeTab='home';
+function getVisibleTabs(){
+  if(effectiveRole()==='daughter'){
+    return [
+      {key:'home',label:'홈'},
+      {key:'schedule',label:'일정'},
+      {key:'health',label:'운동'},
+      {key:'budget',label:'가계부'},
+      {key:'study',label:'학습'}
+    ];
+  }
+  return [
+    {key:'home',label:'홈'},
+    {key:'schedule',label:'일정'},
+    {key:'health',label:'건강'},
+    {key:'budget',label:'가계부'},
+    {key:'vehicle',label:'차량'},
+    {key:'events',label:'경조사'}
+  ];
+}
+function renderTabs(){
+  const tabs=getVisibleTabs();
+  if(!tabs.some(t=>t.key===activeTab)) activeTab='home';
+  document.getElementById('tabs').innerHTML = tabs.map(t=>`<button data-tab="${t.key}" class="${t.key===activeTab?'active':''}">${t.label}</button>`).join('');
+  ALL_TAB_KEYS.forEach(k=>{
+    const el=document.getElementById('tab-'+k);
+    if(el) el.style.display = (k===activeTab) ? '' : 'none';
+  });
+}
 document.getElementById('tabs').addEventListener('click', e=>{
   const btn=e.target.closest('button[data-tab]'); if(!btn) return;
-  document.querySelectorAll('#tabs button').forEach(b=>b.classList.remove('active'));
-  btn.classList.add('active');
-  ['home','schedule','health','budget','vehicle','events'].forEach(t=>{
-    document.getElementById('tab-'+t).style.display = (t===btn.dataset.tab) ? '' : 'none';
-  });
+  activeTab=btn.dataset.tab;
+  renderTabs();
 });
 
 /* ---------- HOME ---------- */
@@ -944,6 +972,63 @@ function openBudgetModal(existing){
   };
 }
 
+/* ---------- STUDY ---------- */
+let studyMonth = todayStr().slice(0,7);
+function renderStudy(){
+  const el=document.getElementById('tab-study');
+  if(!el) return;
+  const items=(state.study||[]).filter(s=>s.date.startsWith(studyMonth)).sort((a,b)=>b.date.localeCompare(a.date));
+  const totalMin=items.reduce((s,x)=>s+Number(x.duration||0),0);
+  const [y,m]=studyMonth.split('-');
+  el.innerHTML=`
+    <div class="card">
+      <div class="datebar"><button class="iconbtn" id="stPrev">‹</button><div class="d">${y}년 ${Number(m)}월</div><button class="iconbtn" id="stNext">›</button></div>
+      <div class="stat-grid" style="grid-template-columns:1fr;"><div class="stat"><div class="v">${Math.floor(totalMin/60)}시간 ${totalMin%60}분</div><div class="l">이번달 학습시간</div></div></div>
+    </div>
+    <div class="card">
+      <div class="row" style="justify-content:space-between;"><h3 style="margin:0;">📚 학습 기록</h3><button class="btn primary small" id="addStudyBtn">+ 추가</button></div>
+      ${items.length? items.map(s=>`
+        <div class="list-item">
+          <div><div><span class="pill">${escapeHtml(s.subject)}</span>${s.duration?' '+s.duration+'분':''}</div><div class="meta">${s.date}${s.memo?' · '+escapeHtml(s.memo):''}</div></div>
+          <div class="row"><button class="btn small" data-edit="${s.id}">수정</button><button class="btn small danger" data-del="${s.id}">삭제</button></div>
+        </div>`).join('') : `<div class="empty">이번달 학습 기록이 없어요</div>`}
+    </div>
+  `;
+  document.getElementById('stPrev').onclick=()=>{ studyMonth=shiftMonth(studyMonth,-1); renderStudy(); };
+  document.getElementById('stNext').onclick=()=>{ studyMonth=shiftMonth(studyMonth,1); renderStudy(); };
+  document.getElementById('addStudyBtn').onclick=()=>openStudyModal();
+  el.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>openStudyModal((state.study||[]).find(x=>x.id===b.dataset.edit)));
+  el.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{
+    if(confirm('삭제할까요?')){ state.study=(state.study||[]).filter(x=>x.id!==b.dataset.del); queueSave(); renderStudy(); }
+  });
+}
+function openStudyModal(existing){
+  const s=existing||{id:null,date:studyMonth+'-'+pad2(new Date().getDate()),subject:'',duration:'',memo:''};
+  openModal(`
+    <h3>${existing?'학습 기록 수정':'학습 기록 추가'}</h3>
+    <div class="field"><label>날짜</label><input type="text" readonly class="date-input" placeholder="YYYY-MM-DD" id="mDate" value="${s.date}"></div>
+    <div class="grid2">
+      <div class="field"><label>과목</label><input id="mSubject" value="${escapeHtml(s.subject)}" placeholder="예: 수학, 영어, 독서"></div>
+      <div class="field"><label>시간 (분)</label><input type="number" id="mDuration" value="${s.duration}"></div>
+    </div>
+    <div class="field"><label>메모</label><input id="mMemo" value="${escapeHtml(s.memo)}"></div>
+    <div class="modal-actions"><button class="btn" id="mCancel">취소</button><button class="btn primary" id="mSave">저장</button></div>
+  `);
+  document.getElementById('mCancel').onclick=closeModal;
+  attachDatePicker('mDate');
+  document.getElementById('mSave').onclick=()=>{
+    const date=document.getElementById('mDate').value;
+    const subject=document.getElementById('mSubject').value.trim();
+    if(!date||!subject){ showToast('날짜와 과목을 입력해주세요'); return; }
+    const rec={id:s.id||uid(),date,subject,duration:document.getElementById('mDuration').value,memo:document.getElementById('mMemo').value};
+    if(!state.study) state.study=[];
+    if(s.id){ const idx=state.study.findIndex(x=>x.id===s.id); state.study[idx]=rec; }
+    else state.study.push(rec);
+    studyMonth=date.slice(0,7);
+    queueSave(); closeModal(); renderStudy();
+  };
+}
+
 /* ---------- VEHICLE ---------- */
 let maintHistoryOpen=false;
 function renderVehicle(){
@@ -1234,7 +1319,8 @@ function initViewAs(){
 
 /* ---------- init ---------- */
 function renderAll(){
-  renderHome(); renderSchedule(); renderHealth(); renderBudget(); renderVehicle(); renderEvents();
+  renderTabs();
+  renderHome(); renderSchedule(); renderHealth(); renderBudget(); renderVehicle(); renderEvents(); renderStudy();
 }
 initTheme();
 initViewAs();
