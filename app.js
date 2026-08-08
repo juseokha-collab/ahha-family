@@ -435,6 +435,57 @@ document.getElementById('tabs').addEventListener('click', e=>{
 let homeDate = todayStr();
 const MOODS=['😊','🥰','🙂','😐','😫','😢','😠','🤒'];
 let diaryArchiveOpen=false;
+function myVisibleScheduleItems(dateStr){
+  const allowed=getAllowedScheduleFilters();
+  const virtualEventItems=state.events
+    .filter(ev=>!(ev.hiddenFromDaughter && effectiveRole()==='daughter'))
+    .map(ev=>({id:'evt-'+ev.id, date:fmtDate(eventOccurrence(ev)), time:'', title:'🎉 '+ev.name, owner:'common'}));
+  const allItems=state.schedule.map(s=>({...s, owner:s.owner||'common'})).concat(virtualEventItems);
+  const visible = allowed.includes('all') ? allItems : allItems.filter(it=>allowed.includes(it.owner));
+  return visible.filter(it=>it.date===dateStr).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+}
+function classifyByTime(items){
+  const before=[], after=[], notime=[], grid={};
+  items.forEach(it=>{
+    if(!it.time){ notime.push(it); return; }
+    const [h,mi]=it.time.split(':').map(Number);
+    const mins=h*60+mi;
+    if(mins<360) before.push(it);
+    else if(mins>=1200) after.push(it);
+    else (grid[Math.floor((mins-360)/30)]=grid[Math.floor((mins-360)/30)]||[]).push(it);
+  });
+  return {before,after,notime,grid};
+}
+function renderDayPanel(dateStr, label){
+  const items=myVisibleScheduleItems(dateStr);
+  const {before,after,notime,grid}=classifyByTime(items);
+  const evtHtml=it=>`<span class="dt-evt">${it.time?escapeHtml(it.time)+' ':''}${escapeHtml(it.title)}</span>`;
+  let gridRows='';
+  for(let i=0;i<28;i++){
+    const totalMin=360+i*30;
+    const tlabel=pad2(Math.floor(totalMin/60))+':'+pad2(totalMin%60);
+    const list=grid[i]||[];
+    gridRows+=`<div class="dt-row"><div class="dt-time">${tlabel}</div><div class="dt-items">${list.map(evtHtml).join('')}</div></div>`;
+  }
+  const beforeItems=before.concat(notime);
+  return `
+    <div class="dt-panel">
+      <h4>${label}</h4>
+      <div class="dt-edge-label">06:00 이전</div>
+      <div class="dt-edge">${beforeItems.map(evtHtml).join(' ')}</div>
+      <div class="dt-grid">${gridRows}</div>
+      <div class="dt-edge-label" style="margin-top:4px;">20:00 이후</div>
+      <div class="dt-edge">${after.map(evtHtml).join(' ')}</div>
+    </div>
+  `;
+}
+function renderDayTimelines(){
+  const today=todayStr();
+  const tomorrow=fmtDate(addDays(new Date(),1));
+  const todayLabel=parseDate(today).toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'});
+  const tomorrowLabel=parseDate(tomorrow).toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'});
+  return renderDayPanel(today, '오늘 · '+todayLabel) + renderDayPanel(tomorrow, '내일 · '+tomorrowLabel);
+}
 function renderHome(){
   const day = state.daily[homeDate] || {};
   const entries = day.entries || {};
@@ -450,6 +501,7 @@ function renderHome(){
   const upcomingRenew = state.vehicle.renewals.map(r=>({...r,d:dday(r.date)})).filter(r=>r.d>=0).sort((a,b)=>a.d-b.d)[0];
 
   el.innerHTML = `
+    ${renderDayTimelines()}
     <div class="card">
       <div class="datebar">
         <button class="iconbtn" id="homePrev">‹</button>
