@@ -3,6 +3,7 @@ function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(
 function pad2(n){ return String(n).padStart(2,'0'); }
 function fmtDate(d){ return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`; }
 function shortDate(s){ const [y,m,d]=s.split('-'); return y.slice(2)+'.'+m+'.'+d; }
+function timeRangeLabel(s){ return s.time ? (s.time + (s.endTime?'~'+s.endTime:'')) : ''; }
 function todayStr(){ return fmtDate(new Date()); }
 function parseDate(s){ const [y,m,d]=s.split('-').map(Number); return new Date(y,m-1,d); }
 function addDays(d,n){ const r=new Date(d); r.setDate(r.getDate()+n); return r; }
@@ -444,47 +445,112 @@ function myVisibleScheduleItems(dateStr){
   const visible = allowed.includes('all') ? allItems : allItems.filter(it=>allowed.includes(it.owner));
   return visible.filter(it=>it.date===dateStr).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
 }
-function classifyByTime(items){
-  const before=[], after=[], notime=[], grid={};
+const DT_START_MIN=480; // 08:00
+const DT_END_MIN=1080;  // 18:00
+const DT_ROWS=(DT_END_MIN-DT_START_MIN)/30+1; // 21
+function computeDayLayout(dateStr){
+  const items=myVisibleScheduleItems(dateStr);
+  const before=[], after=[];
+  const mainStart={};
+  const skip=new Set();
   items.forEach(it=>{
-    if(!it.time){ notime.push(it); return; }
+    if(!it.time){ before.push(it); return; }
     const [h,mi]=it.time.split(':').map(Number);
     const mins=h*60+mi;
-    if(mins<360) before.push(it);
-    else if(mins>=1200) after.push(it);
-    else (grid[Math.floor((mins-360)/30)]=grid[Math.floor((mins-360)/30)]||[]).push(it);
+    if(mins<DT_START_MIN){ before.push(it); return; }
+    if(mins>DT_END_MIN){ after.push(it); return; }
+    const startIdx=Math.min(DT_ROWS-1, Math.floor((mins-DT_START_MIN)/30));
+    let span=1;
+    if(it.endTime){
+      const [eh,emi]=it.endTime.split(':').map(Number);
+      const endMins=Math.min(DT_END_MIN, eh*60+emi);
+      let endIdx=Math.ceil((endMins-DT_START_MIN)/30);
+      if(endIdx<=startIdx) endIdx=startIdx+1;
+      endIdx=Math.min(DT_ROWS, endIdx);
+      span=endIdx-startIdx;
+    }
+    if(!mainStart[startIdx]) mainStart[startIdx]={items:[],span:1};
+    mainStart[startIdx].items.push(it);
+    if(span>mainStart[startIdx].span) mainStart[startIdx].span=span;
   });
-  return {before,after,notime,grid};
+  Object.entries(mainStart).forEach(([idx,val])=>{
+    const s=Number(idx);
+    for(let r=s+1;r<s+val.span;r++) skip.add(r);
+  });
+  return {before, after, mainStart, skip};
 }
-function renderDayPanel(dateStr, label){
-  const items=myVisibleScheduleItems(dateStr);
-  const {before,after,notime,grid}=classifyByTime(items);
-  const evtHtml=it=>`<span class="dt-evt">${it.time?escapeHtml(it.time)+' ':''}${escapeHtml(it.title)}</span>`;
-  let gridRows='';
-  for(let i=0;i<28;i++){
-    const totalMin=360+i*30;
-    const tlabel=pad2(Math.floor(totalMin/60))+':'+pad2(totalMin%60);
-    const list=grid[i]||[];
-    gridRows+=`<div class="dt-row"><div class="dt-time">${tlabel}</div><div class="dt-items">${list.map(evtHtml).join('')}</div></div>`;
+function dtChip(it){
+  const isVirtual = typeof it.id==='string' && it.id.startsWith('evt-');
+  if(isVirtual) return `<div class="dt-evt" data-virtual="1">${escapeHtml(it.title)}</div>`;
+  return `<div class="dt-evt" data-item-id="${it.id}">${timeRangeLabel(it)?escapeHtml(timeRangeLabel(it))+' ':''}${escapeHtml(it.title)}</div>`;
+}
+function dtCell(dateStr, layout, rowIdx, slotTime){
+  if(layout.skip.has(rowIdx)) return '';
+  const cell=layout.mainStart[rowIdx];
+  if(cell){
+    return `<td class="dt-cell filled" rowspan="${cell.span}" data-add-date="${dateStr}" data-add-time="${slotTime}">${cell.items.map(dtChip).join('')}</td>`;
   }
-  const beforeItems=before.concat(notime);
-  return `
-    <div class="dt-panel">
-      <h4>${label}</h4>
-      <div class="dt-edge-label">06:00 이전</div>
-      <div class="dt-edge">${beforeItems.map(evtHtml).join(' ')}</div>
-      <div class="dt-grid">${gridRows}</div>
-      <div class="dt-edge-label" style="margin-top:4px;">20:00 이후</div>
-      <div class="dt-edge">${after.map(evtHtml).join(' ')}</div>
-    </div>
-  `;
+  return `<td class="dt-cell" data-add-date="${dateStr}" data-add-time="${slotTime}"></td>`;
 }
 function renderDayTimelines(){
   const today=todayStr();
   const tomorrow=fmtDate(addDays(new Date(),1));
   const todayLabel=parseDate(today).toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'});
   const tomorrowLabel=parseDate(tomorrow).toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'});
-  return renderDayPanel(today, '오늘 · '+todayLabel) + renderDayPanel(tomorrow, '내일 · '+tomorrowLabel);
+  const layoutToday=computeDayLayout(today);
+  const layoutTomorrow=computeDayLayout(tomorrow);
+  let rows='';
+  rows += `<tr class="dt-edge-row">
+    <td class="dt-time-col"><div>08:00</div><div>이전</div></td>
+    <td class="dt-cell dt-edge" data-add-date="${today}" data-add-time="07:00">${layoutToday.before.map(dtChip).join('')}</td>
+    <td class="dt-cell dt-edge" data-add-date="${tomorrow}" data-add-time="07:00">${layoutTomorrow.before.map(dtChip).join('')}</td>
+  </tr>`;
+  for(let i=0;i<DT_ROWS;i++){
+    const totalMin=DT_START_MIN+i*30;
+    const tlabel=pad2(Math.floor(totalMin/60))+':'+pad2(totalMin%60);
+    rows += `<tr>
+      <td class="dt-time-col">${tlabel}</td>
+      ${dtCell(today, layoutToday, i, tlabel)}
+      ${dtCell(tomorrow, layoutTomorrow, i, tlabel)}
+    </tr>`;
+  }
+  rows += `<tr class="dt-edge-row">
+    <td class="dt-time-col"><div>18:00</div><div>이후</div></td>
+    <td class="dt-cell dt-edge" data-add-date="${today}" data-add-time="19:00">${layoutToday.after.map(dtChip).join('')}</td>
+    <td class="dt-cell dt-edge" data-add-date="${tomorrow}" data-add-time="19:00">${layoutTomorrow.after.map(dtChip).join('')}</td>
+  </tr>`;
+  return `
+    <div class="dt-panel">
+      <div style="overflow-x:auto;">
+        <table class="dt-table">
+          <thead><tr><th class="dt-time-col"></th><th>오늘 · ${todayLabel}</th><th>내일 · ${tomorrowLabel}</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+function bindDayTimelineEvents(){
+  const el=document.getElementById('tab-home');
+  el.querySelectorAll('.dt-cell').forEach(td=>{
+    td.addEventListener('click', e=>{
+      if(e.target.closest('.dt-evt')) return;
+      openScheduleModal(null, {date:td.dataset.addDate, time:td.dataset.addTime});
+    });
+  });
+  el.querySelectorAll('.dt-evt[data-item-id]').forEach(chip=>{
+    chip.addEventListener('click', e=>{
+      e.stopPropagation();
+      const item=state.schedule.find(x=>x.id===chip.dataset.itemId);
+      if(item) openScheduleModal(item);
+    });
+  });
+  el.querySelectorAll('.dt-evt[data-virtual]').forEach(chip=>{
+    chip.addEventListener('click', e=>{
+      e.stopPropagation();
+      showToast('경조사 탭에서 수정할 수 있어요');
+    });
+  });
 }
 function renderHome(){
   const day = state.daily[homeDate] || {};
@@ -545,7 +611,7 @@ function renderHome(){
 
     <div class="card">
       <h3>📅 오늘 일정</h3>
-      ${todaySchedule.length? todaySchedule.map(s=>`<div class="list-item"><div><div>${s.time?`<b>${s.time}</b> `:''}${escapeHtml(s.title)}</div>${s.memo?`<div class="meta">${escapeHtml(s.memo)}</div>`:''}</div></div>`).join('') : `<div class="empty">등록된 일정이 없어요</div>`}
+      ${todaySchedule.length? todaySchedule.map(s=>`<div class="list-item"><div><div>${timeRangeLabel(s)?`<b>${timeRangeLabel(s)}</b> `:''}${escapeHtml(s.title)}</div>${s.memo?`<div class="meta">${escapeHtml(s.memo)}</div>`:''}</div></div>`).join('') : `<div class="empty">등록된 일정이 없어요</div>`}
     </div>
   `;
   document.getElementById('homePrev').onclick=()=>{ homeDate=fmtDate(addDays(parseDate(homeDate),-1)); renderHome(); };
@@ -589,6 +655,7 @@ function renderHome(){
       openDiaryEntryEditModal(d,k);
     });
   }
+  bindDayTimelineEvents();
 }
 function diaryArchiveRowsHtml(){
   const rows=[];
@@ -692,7 +759,7 @@ function renderSchedule(){
     const inMonth = dayNum>=1 && dayNum<=daysInMonth;
     const dayEvents=eventsByDate[dateStr]||[];
     const holidayName=holidays[dateStr];
-    const shown=dayEvents.slice(0,MAX_SHOWN).map(s=>`<span class="cal-evt">${s.time?escapeHtml(s.time)+' ':''}${escapeHtml(s.title)}</span>`).join('');
+    const shown=dayEvents.slice(0,MAX_SHOWN).map(s=>`<span class="cal-evt">${timeRangeLabel(s)?escapeHtml(timeRangeLabel(s))+' ':''}${escapeHtml(s.title)}</span>`).join('');
     const more = dayEvents.length>MAX_SHOWN ? `<span class="cal-evt more">+${dayEvents.length-MAX_SHOWN}개 더</span>` : '';
     grid += `<div class="cal-cell ${inMonth?'':'other'} ${dateStr===todayS?'today':''} ${dateStr===scheduleSel?'sel':''} ${holidayName?'holiday':''}" data-date="${dateStr}">
       <div class="day-row"><span class="day-num">${dateObj.getDate()}</span>${holidayName?`<span class="cal-holiday">${escapeHtml(holidayName)}</span>`:''}</div>${shown}${more}
@@ -711,7 +778,7 @@ function renderSchedule(){
       <div class="row" style="justify-content:space-between;"><h3 style="margin:0;">${scheduleSel} 일정${holidays[scheduleSel]?` <span class="pill">${escapeHtml(holidays[scheduleSel])}</span>`:''}</h3><button class="btn primary small" id="addSchedBtn">+ 일정 추가</button></div>
       ${dayItems.length? dayItems.map(s=>`
         <div class="list-item">
-          <div><div>${s.time?`<b>${s.time}</b> `:''}${escapeHtml(s.title)} <span class="pill">${ownerLabel(s.owner)}</span></div>${s.memo?`<div class="meta">${escapeHtml(s.memo)}</div>`:''}</div>
+          <div><div>${timeRangeLabel(s)?`<b>${timeRangeLabel(s)}</b> `:''}${escapeHtml(s.title)} <span class="pill">${ownerLabel(s.owner)}</span></div>${s.memo?`<div class="meta">${escapeHtml(s.memo)}</div>`:''}</div>
           <div class="row">${s.virtual? `<span class="meta">경조사 탭에서 수정</span>` : `<button class="btn small" data-edit="${s.id}">수정</button><button class="btn small danger" data-del="${s.id}">삭제</button>`}</div>
         </div>`).join('') : `<div class="empty">일정이 없어요</div>`}
     </div>
@@ -732,10 +799,10 @@ function renderSchedule(){
     if(confirm('일정을 삭제할까요?')){ state.schedule=state.schedule.filter(x=>x.id!==b.dataset.del); queueSave(); renderSchedule(); renderHome(); }
   });
 }
-function openScheduleModal(existing){
+function openScheduleModal(existing, prefill){
   const myOwners=getAllowedOwners();
-  const defaultOwner = (scheduleFilter!=='all' && myOwners.some(o=>o.key===scheduleFilter)) ? scheduleFilter : (myOwners[0]?myOwners[0].key:'common');
-  const s=existing||{id:null,date:scheduleSel,time:'',title:'',memo:'',owner:defaultOwner};
+  const defaultOwner = (prefill&&prefill.owner) ? prefill.owner : ((scheduleFilter!=='all' && myOwners.some(o=>o.key===scheduleFilter)) ? scheduleFilter : (myOwners[0]?myOwners[0].key:'common'));
+  const s=existing||{id:null,date:(prefill&&prefill.date)||scheduleSel,time:(prefill&&prefill.time)||'',endTime:(prefill&&prefill.endTime)||'',title:'',memo:'',owner:defaultOwner};
   const ownerOptions = myOwners.some(o=>o.key===(s.owner||'common')) ? myOwners : myOwners.concat([{key:s.owner||'common',label:ownerLabel(s.owner)}]);
   openModal(`
     <h3>${existing?'일정 수정':'일정 추가'}</h3>
@@ -747,8 +814,9 @@ function openScheduleModal(existing){
     </div>
     <div class="grid2">
       <div class="field"><label>날짜</label><input type="text" readonly class="date-input" placeholder="YYYY-MM-DD" id="mDate" value="${s.date}"></div>
-      <div class="field"><label>시간 (선택)</label><input type="time" id="mTime" value="${s.time||''}"></div>
+      <div class="field"><label>시작 시간 (선택)</label><input type="time" id="mTime" value="${s.time||''}"></div>
     </div>
+    <div class="field"><label>종료 시간 (선택, 시간표처럼 구간 표시)</label><input type="time" id="mEndTime" value="${s.endTime||''}"></div>
     <div class="field"><label>제목</label><input id="mTitle" value="${escapeHtml(s.title)}"></div>
     <div class="field"><label>메모</label><textarea id="mMemo">${escapeHtml(s.memo)}</textarea></div>
     <div class="modal-actions"><button class="btn" id="mCancel">취소</button><button class="btn primary" id="mSave">저장</button></div>
@@ -760,7 +828,7 @@ function openScheduleModal(existing){
     const title=document.getElementById('mTitle').value.trim();
     if(!date||!title){ showToast('날짜와 제목을 입력해주세요'); return; }
     const owner=(document.querySelector('input[name="mOwner"]:checked')||{}).value || 'common';
-    const rec={id:s.id||uid(),date,time:document.getElementById('mTime').value,title,memo:document.getElementById('mMemo').value,owner};
+    const rec={id:s.id||uid(),date,time:document.getElementById('mTime').value,endTime:document.getElementById('mEndTime').value,title,memo:document.getElementById('mMemo').value,owner};
     if(s.id){ const idx=state.schedule.findIndex(x=>x.id===s.id); state.schedule[idx]=rec; }
     else state.schedule.push(rec);
     scheduleSel=date;
