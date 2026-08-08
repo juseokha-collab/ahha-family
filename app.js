@@ -27,6 +27,66 @@ function ddayFromDate(target){
 function ddayPillClass(d){ if(d<0) return ''; if(d<=3) return 'd-urgent'; if(d<=14) return 'd-soon'; return 'd-far'; }
 function ddayLabel(d){ return d===0?'D-Day':(d>0?'D-'+d:'D+'+(-d)); }
 
+/* ---------- lunar calendar (1900-2100) ---------- */
+const LUNAR_INFO=[0x04bd8,0x04ae0,0x0a570,0x054d5,0x0d260,0x0d950,0x16554,0x056a0,0x09ad0,0x055d2,
+0x04ae0,0x0a5b6,0x0a4d0,0x0d250,0x1d255,0x0b540,0x0d6a0,0x0ada2,0x095b0,0x14977,
+0x04970,0x0a4b0,0x0b4b5,0x06a50,0x06d40,0x1ab54,0x02b60,0x09570,0x052f2,0x04970,
+0x06566,0x0d4a0,0x0ea50,0x06e95,0x05ad0,0x02b60,0x186e3,0x092e0,0x1c8d7,0x0c950,
+0x0d4a0,0x1d8a6,0x0b550,0x056a0,0x1a5b4,0x025d0,0x092d0,0x0d2b2,0x0a950,0x0b557,
+0x06ca0,0x0b550,0x15355,0x04da0,0x0a5d0,0x14573,0x052d0,0x0a9a8,0x0e950,0x06aa0,
+0x0aea6,0x0ab50,0x04b60,0x0aae4,0x0a570,0x05260,0x0f263,0x0d950,0x05b57,0x056a0,
+0x096d0,0x04dd5,0x04ad0,0x0a4d0,0x0d4d4,0x0d250,0x0d558,0x0b540,0x0b6a0,0x195a6,
+0x095b0,0x049b0,0x0a974,0x0a4b0,0x0b27a,0x06a50,0x06d40,0x0af46,0x0ab60,0x09570,
+0x04af5,0x04970,0x064b0,0x074a3,0x0ea50,0x06b58,0x055c0,0x0ab60,0x096d5,0x092e0,
+0x0c960,0x0d954,0x0d4a0,0x0da50,0x07552,0x056a0,0x0abb7,0x025d0,0x092d0,0x0cab5,
+0x0a950,0x0b4a0,0x0baa4,0x0ad50,0x055d9,0x04ba0,0x0a5b0,0x15176,0x052b0,0x0a930,
+0x07954,0x06aa0,0x0ad50,0x05b52,0x04b60,0x0a6e6,0x0a4e0,0x0d260,0x0ea65,0x0d530,
+0x05aa0,0x076a3,0x096d0,0x04afb,0x04ad0,0x0a4d0,0x1d0b6,0x0d250,0x0d520,0x0dd45,
+0x0b5a0,0x056d0,0x055b2,0x049b0,0x0a577,0x0a4b0,0x0aa50,0x1b255,0x06d20,0x0ada0,
+0x14b63,0x09370,0x049f8,0x04970,0x064b0,0x168a6,0x0ea50,0x06b20,0x1a6c4,0x0aae0,
+0x0a2e0,0x0d2e3,0x0c960,0x0d557,0x0d4a0,0x0da50,0x05d55,0x056a0,0x0a6d0,0x055d4,
+0x052d0,0x0a9b8,0x0a950,0x0b4a0,0x0b6a6,0x0ad50,0x055a0,0x0aba4,0x0a5b0,0x052b0,
+0x0b273,0x06930,0x07337,0x06aa0,0x0ad50,0x14b55,0x04b60,0x0a570,0x054e4,0x0d160,
+0x0e968,0x0d520,0x0daa0,0x16aa6,0x056d0,0x04ae0,0x0a9d4,0x0a2d0,0x0d150,0x0f252,
+0x0d520];
+function lunarLeapMonth(y){ return LUNAR_INFO[y-1900]&0xf; }
+function lunarLeapDays(y){ return lunarLeapMonth(y) ? ((LUNAR_INFO[y-1900]&0x10000)?30:29) : 0; }
+function lunarMonthDays(y,m){ return (LUNAR_INFO[y-1900]&(0x10000>>m))?30:29; }
+function lunarYearDays(y){
+  let sum=348;
+  for(let i=0x8000;i>0x8;i>>=1){ sum += (LUNAR_INFO[y-1900]&i)?1:0; }
+  return sum+lunarLeapDays(y);
+}
+function lunar2solar(lYear,lMonth,lDay,isLeapMonth){
+  if(!lYear||!lMonth||!lDay||lYear<1900||lYear>2100) return null;
+  let offset=0;
+  for(let y=1900;y<lYear;y++) offset+=lunarYearDays(y);
+  const leap=lunarLeapMonth(lYear);
+  const useLeap = !!isLeapMonth && leap===lMonth;
+  for(let m=1;m<lMonth;m++){ offset+=lunarMonthDays(lYear,m); if(leap===m) offset+=lunarLeapDays(lYear); }
+  if(useLeap) offset+=lunarMonthDays(lYear,lMonth);
+  offset += (lDay-1);
+  const base=Date.UTC(1900,0,31);
+  const d=new Date(base+offset*86400000);
+  return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+}
+function nextLunarOccurrence(lMonth,lDay,isLeap){
+  const now=new Date(); now.setHours(0,0,0,0);
+  for(let y=now.getFullYear(); y<=now.getFullYear()+1; y++){
+    const d=lunar2solar(y,lMonth,lDay,isLeap);
+    if(d && d>=now) return d;
+  }
+  for(let y=now.getFullYear(); y<=now.getFullYear()+1; y++){
+    const d=lunar2solar(y,lMonth,lDay,false);
+    if(d && d>=now) return d;
+  }
+  return now;
+}
+function eventOccurrence(ev){
+  if(ev.lunar && ev.recurring) return nextLunarOccurrence(ev.lunarMonth, ev.lunarDay, ev.lunarLeap);
+  return nextOccurrence(ev.date, ev.recurring);
+}
+
 /* ---------- state ---------- */
 const LS_KEY='damsom-state-v1';
 function defaultState(){
@@ -47,6 +107,13 @@ function migrateDaily(st){
         day.entries['legacy']={mood:day.mood||'',diary:day.diary||'',name:'이전 기록'};
       }
       delete day.mood; delete day.diary;
+    }
+    if(!day.health){
+      day.health={};
+      if(day.weight||day.sleep||day.exercise||day.meds||day.symptom){
+        day.health.mom={weight:day.weight||'',sleep:day.sleep||'',exercise:day.exercise||false,meds:day.meds||false,symptom:day.symptom||''};
+      }
+      delete day.weight; delete day.sleep; delete day.exercise; delete day.meds; delete day.symptom;
     }
   });
   return st;
@@ -78,7 +145,7 @@ function queueSave(){
     }
   }, 800);
 }
-function ensureDay(d){ if(!state.daily[d]) state.daily[d]={}; if(!state.daily[d].entries) state.daily[d].entries={}; }
+function ensureDay(d){ if(!state.daily[d]) state.daily[d]={}; if(!state.daily[d].entries) state.daily[d].entries={}; if(!state.daily[d].health) state.daily[d].health={}; }
 function currentAuthorKey(){ return user ? user.email : 'local'; }
 function authorLabel(entry, key){ return (entry&&entry.name) ? entry.name : (key==='local' ? '나' : key); }
 function setSyncStatus(s){
@@ -180,15 +247,15 @@ function renderHome(){
   const todaySchedule = state.schedule.filter(s=>s.date===homeDate).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
   const ym=homeDate.slice(0,7);
   const monthBudget = state.budget.filter(b=>b.date.startsWith(ym)).reduce((s,b)=>s+Number(b.amount||0),0);
-  const upcomingEvent = state.events.map(ev=>({...ev,d:ddayFromDate(nextOccurrence(ev.date,ev.recurring))})).filter(e=>e.d>=0).sort((a,b)=>a.d-b.d)[0];
+  const upcomingEvent = state.events.map(ev=>({...ev,d:ddayFromDate(eventOccurrence(ev))})).filter(e=>e.d>=0).sort((a,b)=>a.d-b.d)[0];
   const upcomingRenew = state.vehicle.renewals.map(r=>({...r,d:dday(r.date)})).filter(r=>r.d>=0).sort((a,b)=>a.d-b.d)[0];
 
   el.innerHTML = `
     <div class="card">
       <div class="datebar">
-        <button id="homePrev">‹</button>
+        <button class="iconbtn" id="homePrev">‹</button>
         <div class="d">${dLabel}</div>
-        <button id="homeNext">›</button>
+        <button class="iconbtn" id="homeNext">›</button>
         ${homeDate!==todayStr()?`<button class="btn small" id="homeToday">오늘</button>`:''}
       </div>
       <div class="meta" style="margin-bottom:6px;">${escapeHtml(authorLabel(mine,myKey))}의 기록</div>
@@ -196,8 +263,12 @@ function renderHome(){
         ${MOODS.map(m=>`<button data-m="${m}" class="${mine.mood===m?'sel':''}">${m}</button>`).join('')}
       </div>
       <div class="field" style="margin-top:10px;">
-        <label>한 줄 일기</label>
+        <div class="row" style="justify-content:space-between;align-items:center;">
+          <label style="margin:0;">한 줄 일기</label>
+          <button class="btn small primary" id="diarySaveBtn">저장</button>
+        </div>
         <textarea id="diaryInput" placeholder="오늘 하루는 어땠나요?">${escapeHtml(mine.diary)}</textarea>
+        <div class="meta" id="diarySaveStatus" style="min-height:14px;">${mine.diary?'✓ 저장됨':''}</div>
       </div>
     </div>
 
@@ -235,15 +306,20 @@ function renderHome(){
     state.daily[homeDate].entries[myKey]=cur;
     queueSave(); renderHome();
   });
-  document.getElementById('diaryInput').addEventListener('change', e=>{
+  document.getElementById('diaryInput').addEventListener('input', ()=>{
+    document.getElementById('diarySaveStatus').textContent='';
+  });
+  document.getElementById('diarySaveBtn').onclick=()=>{
     ensureDay(homeDate);
     const cur=state.daily[homeDate].entries[myKey]||{};
-    cur.diary = e.target.value;
+    cur.diary = document.getElementById('diaryInput').value;
     cur.name = user ? (user.displayName||user.email) : '나';
     cur.updatedAt = Date.now();
     state.daily[homeDate].entries[myKey]=cur;
     queueSave();
-  });
+    const now=new Date();
+    document.getElementById('diarySaveStatus').textContent = `✓ 저장됨 (${now.getHours()}:${pad2(now.getMinutes())})`;
+  };
 }
 
 /* ---------- SCHEDULE ---------- */
@@ -276,7 +352,7 @@ function renderSchedule(){
   const dayItems = state.schedule.filter(s=>s.date===scheduleSel).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
   el.innerHTML=`
     <div class="card">
-      <div class="datebar"><button id="sPrev">‹</button><div class="d">${y}년 ${m+1}월</div><button id="sNext">›</button></div>
+      <div class="datebar"><button class="iconbtn" id="sPrev">‹</button><div class="d">${y}년 ${m+1}월</div><button class="iconbtn" id="sNext">›</button></div>
       <div class="cal-grid">${['일','월','화','수','목','금','토'].map(d=>`<div class="cal-head">${d}</div>`).join('')}${grid}</div>
     </div>
     <div class="card">
@@ -326,39 +402,60 @@ function openScheduleModal(existing){
 }
 
 /* ---------- HEALTH ---------- */
+const FAMILY_MEMBERS=[{key:'dad',label:'아빠'},{key:'mom',label:'엄마'},{key:'daughter',label:'딸'}];
+const EMAIL_ROLE={'juseok.ha@gmail.com':'dad','jinahkim2023@gmail.com':'mom'};
 let healthDate = todayStr();
+let healthPerson = null;
+function memberLabel(key){ const m=FAMILY_MEMBERS.find(x=>x.key===key); return m?m.label:key; }
 function renderHealth(){
+  if(!healthPerson) healthPerson = EMAIL_ROLE[user&&user.email] || 'mom';
   const day=state.daily[healthDate]||{};
+  const rec=(day.health&&day.health[healthPerson])||{};
   const el=document.getElementById('tab-health');
   const dLabel = parseDate(healthDate).toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'});
-  const trend = Object.entries(state.daily).filter(([,v])=>v.weight).sort((a,b)=>a[0].localeCompare(b[0])).slice(-14);
+  const trend = Object.entries(state.daily)
+    .filter(([,v])=>v.health && v.health[healthPerson] && v.health[healthPerson].weight)
+    .sort((a,b)=>a[0].localeCompare(b[0])).slice(-14);
   el.innerHTML=`
+    <div class="member-row" id="memberRow">
+      ${FAMILY_MEMBERS.map(m=>`<button data-member="${m.key}" class="${healthPerson===m.key?'active':''}">${m.label}</button>`).join('')}
+    </div>
     <div class="card">
-      <div class="datebar"><button id="hPrev">‹</button><div class="d">${dLabel}</div><button id="hNext">›</button>
+      <div class="datebar"><button class="iconbtn" id="hPrev">‹</button><div class="d">${dLabel}</div><button class="iconbtn" id="hNext">›</button>
         ${healthDate!==todayStr()?`<button class="btn small" id="hToday">오늘</button>`:''}
       </div>
       <div class="grid2">
-        <div class="field"><label>체중 (kg)</label><input type="number" step="0.1" id="hWeight" value="${day.weight||''}"></div>
-        <div class="field"><label>수면 시간</label><input type="number" step="0.5" id="hSleep" value="${day.sleep||''}"></div>
+        <div class="field"><label>체중 (kg)</label><input type="number" step="0.1" id="hWeight" value="${rec.weight||''}"></div>
+        <div class="field"><label>수면 시간</label><input type="number" step="0.5" id="hSleep" value="${rec.sleep||''}"></div>
       </div>
       <div class="row" style="margin-top:8px;">
-        <label class="pill" style="cursor:pointer;"><input type="checkbox" id="hExercise" ${day.exercise?'checked':''} style="margin-right:4px;">운동</label>
-        <label class="pill" style="cursor:pointer;"><input type="checkbox" id="hMeds" ${day.meds?'checked':''} style="margin-right:4px;">복약</label>
+        <label class="pill" style="cursor:pointer;"><input type="checkbox" id="hExercise" ${rec.exercise?'checked':''} style="margin-right:4px;">운동</label>
+        <label class="pill" style="cursor:pointer;"><input type="checkbox" id="hMeds" ${rec.meds?'checked':''} style="margin-right:4px;">복약</label>
       </div>
       <div class="field" style="margin-top:8px;">
         <label>증상 / 컨디션 메모</label>
-        <textarea id="hSymptom" placeholder="컨디션, 증상 등을 기록해보세요">${escapeHtml(day.symptom)}</textarea>
+        <textarea id="hSymptom" placeholder="컨디션, 증상 등을 기록해보세요">${escapeHtml(rec.symptom)}</textarea>
       </div>
     </div>
     <div class="card">
-      <h3>📈 최근 체중 흐름</h3>
+      <h3>📈 ${memberLabel(healthPerson)} 최근 체중 흐름</h3>
       ${trend.length? renderTrendBars(trend) : `<div class="empty">체중 기록이 아직 없어요</div>`}
     </div>
   `;
+  document.getElementById('memberRow').addEventListener('click', e=>{
+    const b=e.target.closest('button[data-member]'); if(!b) return;
+    healthPerson=b.dataset.member; renderHealth();
+  });
   document.getElementById('hPrev').onclick=()=>{ healthDate=fmtDate(addDays(parseDate(healthDate),-1)); renderHealth(); };
   document.getElementById('hNext').onclick=()=>{ healthDate=fmtDate(addDays(parseDate(healthDate),1)); renderHealth(); };
   const tb=document.getElementById('hToday'); if(tb) tb.onclick=()=>{ healthDate=todayStr(); renderHealth(); };
-  const save=(k,v)=>{ ensureDay(healthDate); state.daily[healthDate][k]=v; queueSave(); };
+  const save=(k,v)=>{
+    ensureDay(healthDate);
+    if(!state.daily[healthDate].health) state.daily[healthDate].health={};
+    if(!state.daily[healthDate].health[healthPerson]) state.daily[healthDate].health[healthPerson]={};
+    state.daily[healthDate].health[healthPerson][k]=v;
+    queueSave();
+  };
   document.getElementById('hWeight').addEventListener('change',e=>{ save('weight', e.target.value?Number(e.target.value):''); renderHealth(); });
   document.getElementById('hSleep').addEventListener('change',e=>save('sleep', e.target.value?Number(e.target.value):''));
   document.getElementById('hExercise').addEventListener('change',e=>save('exercise', e.target.checked));
@@ -366,12 +463,13 @@ function renderHealth(){
   document.getElementById('hSymptom').addEventListener('change',e=>save('symptom', e.target.value));
 }
 function renderTrendBars(trend){
-  const weights=trend.map(([,v])=>Number(v.weight));
+  const weights=trend.map(([,v])=>Number(v.health[healthPerson].weight));
   const max=Math.max(...weights), min=Math.min(...weights);
   const range=(max-min)||1;
   return trend.map(([d,v])=>{
-    const pct=20+((v.weight-min)/range)*80;
-    return `<div class="bar-row"><span style="width:44px;color:var(--muted);">${d.slice(5)}</span><div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div><span style="width:52px;text-align:right;">${v.weight}kg</span></div>`;
+    const w=v.health[healthPerson].weight;
+    const pct=20+((w-min)/range)*80;
+    return `<div class="bar-row"><span style="width:44px;color:var(--muted);">${d.slice(5)}</span><div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div><span style="width:52px;text-align:right;">${w}kg</span></div>`;
   }).join('');
 }
 
@@ -387,7 +485,7 @@ function renderBudget(){
   const [y,m]=budgetMonth.split('-');
   el.innerHTML=`
     <div class="card">
-      <div class="datebar"><button id="bPrev">‹</button><div class="d">${y}년 ${Number(m)}월</div><button id="bNext">›</button></div>
+      <div class="datebar"><button class="iconbtn" id="bPrev">‹</button><div class="d">${y}년 ${Number(m)}월</div><button class="iconbtn" id="bNext">›</button></div>
       <div class="stat-grid" style="grid-template-columns:1fr;"><div class="stat"><div class="v">${total.toLocaleString()}원</div><div class="l">이번달 총 지출</div></div></div>
     </div>
     <div class="card">
@@ -569,13 +667,13 @@ function openMaintModal(existing){
 const EVENT_TYPES=['생일','기념일','결혼식','돌잔치','장례식','병문안','기타'];
 function renderEvents(){
   const el=document.getElementById('tab-events');
-  const withD = state.events.map(ev=>({...ev, d: ddayFromDate(nextOccurrence(ev.date, ev.recurring))}));
+  const withD = state.events.map(ev=>({...ev, d: ddayFromDate(eventOccurrence(ev))}));
   const upcoming = withD.filter(e=>e.d>=0).sort((a,b)=>a.d-b.d);
   const past = withD.filter(e=>e.d<0).sort((a,b)=>b.d-a.d);
   const row = ev => `
     <div class="list-item">
       <div><div>${escapeHtml(ev.name)} <span class="pill">${ev.type}</span>${ev.relation?` <span class="pill">${escapeHtml(ev.relation)}</span>`:''}</div>
-      <div class="meta">${ev.date}${ev.recurring?' (매년)':''}${ev.amount?' · '+Number(ev.amount).toLocaleString()+'원':''}${ev.memo?' · '+escapeHtml(ev.memo):''}</div></div>
+      <div class="meta">${ev.lunar?`음력 ${ev.lunarMonth}/${ev.lunarDay}${ev.lunarLeap?'(윤)':''}`:ev.date}${ev.recurring?' (매년)':''}${ev.amount?' · '+Number(ev.amount).toLocaleString()+'원':''}${ev.memo?' · '+escapeHtml(ev.memo):''}</div></div>
       <div class="row"><span class="pill ${ddayPillClass(ev.d)}">${ddayLabel(ev.d)}</span>
         <button class="btn small" data-edit="${ev.id}">수정</button><button class="btn small danger" data-del="${ev.id}">삭제</button></div>
     </div>`;
@@ -593,7 +691,7 @@ function renderEvents(){
   });
 }
 function openEventModal(existing){
-  const ev=existing||{id:null,name:'',relation:'',type:EVENT_TYPES[0],date:todayStr(),recurring:true,amount:'',memo:''};
+  const ev=existing||{id:null,name:'',relation:'',type:EVENT_TYPES[0],date:todayStr(),recurring:true,amount:'',memo:'',lunar:false,lunarYear:new Date().getFullYear(),lunarMonth:'',lunarDay:'',lunarLeap:false};
   openModal(`
     <h3>${existing?'경조사 수정':'경조사 추가'}</h3>
     <div class="field"><label>이름</label><input id="mName" value="${escapeHtml(ev.name)}"></div>
@@ -601,20 +699,48 @@ function openEventModal(existing){
       <div class="field"><label>관계</label><input id="mRel" value="${escapeHtml(ev.relation)}" placeholder="예: 시댁, 친정, 친구"></div>
       <div class="field"><label>종류</label><select id="mType">${EVENT_TYPES.map(t=>`<option ${t===ev.type?'selected':''}>${t}</option>`).join('')}</select></div>
     </div>
-    <div class="grid2">
-      <div class="field"><label>날짜</label><input type="date" id="mDate" value="${ev.date}"></div>
-      <div class="field"><label>금액 (선택)</label><input type="number" id="mAmount" value="${ev.amount}"></div>
+    <label class="pill" style="cursor:pointer;display:inline-block;margin:6px 0;"><input type="checkbox" id="mLunar" ${ev.lunar?'checked':''} style="margin-right:4px;">음력 날짜</label>
+    <div class="field" id="solarDateWrap" style="${ev.lunar?'display:none':''}">
+      <label>날짜</label><input type="date" id="mDate" value="${ev.date}">
     </div>
+    <div id="lunarDateWrap" style="${ev.lunar?'':'display:none'}">
+      <div class="grid2">
+        <div class="field"><label>음력 년</label><input type="number" id="mLYear" value="${ev.lunarYear||new Date().getFullYear()}"></div>
+        <div class="field"><label>음력 월</label><input type="number" id="mLMonth" min="1" max="12" value="${ev.lunarMonth||''}"></div>
+      </div>
+      <div class="grid2">
+        <div class="field"><label>음력 일</label><input type="number" id="mLDay" min="1" max="30" value="${ev.lunarDay||''}"></div>
+        <div class="field"><label>&nbsp;</label><label class="pill" style="cursor:pointer;"><input type="checkbox" id="mLeap" ${ev.lunarLeap?'checked':''} style="margin-right:4px;">윤달</label></div>
+      </div>
+    </div>
+    <div class="field"><label>금액 (선택)</label><input type="number" id="mAmount" value="${ev.amount}"></div>
     <label class="pill" style="cursor:pointer;display:inline-block;margin:6px 0;"><input type="checkbox" id="mRecurring" ${ev.recurring?'checked':''} style="margin-right:4px;">매년 반복 (생일/기념일)</label>
     <div class="field"><label>메모</label><input id="mMemo" value="${escapeHtml(ev.memo)}"></div>
     <div class="modal-actions"><button class="btn" id="mCancel">취소</button><button class="btn primary" id="mSave">저장</button></div>
   `);
   document.getElementById('mCancel').onclick=closeModal;
+  document.getElementById('mLunar').addEventListener('change', e=>{
+    document.getElementById('solarDateWrap').style.display = e.target.checked ? 'none' : '';
+    document.getElementById('lunarDateWrap').style.display = e.target.checked ? '' : 'none';
+  });
   document.getElementById('mSave').onclick=()=>{
     const name=document.getElementById('mName').value.trim();
-    const date=document.getElementById('mDate').value;
-    if(!name||!date){ showToast('이름과 날짜를 입력해주세요'); return; }
-    const rec={id:ev.id||uid(),name,relation:document.getElementById('mRel').value,type:document.getElementById('mType').value,date,recurring:document.getElementById('mRecurring').checked,amount:document.getElementById('mAmount').value,memo:document.getElementById('mMemo').value};
+    const isLunar=document.getElementById('mLunar').checked;
+    let date, lunarYear='', lunarMonth='', lunarDay='', lunarLeap=false;
+    if(isLunar){
+      lunarYear=Number(document.getElementById('mLYear').value);
+      lunarMonth=Number(document.getElementById('mLMonth').value);
+      lunarDay=Number(document.getElementById('mLDay').value);
+      lunarLeap=document.getElementById('mLeap').checked;
+      if(!name||!lunarYear||!lunarMonth||!lunarDay){ showToast('이름과 음력 날짜를 입력해주세요'); return; }
+      const solar=lunar2solar(lunarYear,lunarMonth,lunarDay,lunarLeap);
+      if(!solar){ showToast('음력 날짜를 변환할 수 없어요. 날짜를 확인해주세요'); return; }
+      date=fmtDate(solar);
+    } else {
+      date=document.getElementById('mDate').value;
+      if(!name||!date){ showToast('이름과 날짜를 입력해주세요'); return; }
+    }
+    const rec={id:ev.id||uid(),name,relation:document.getElementById('mRel').value,type:document.getElementById('mType').value,date,lunar:isLunar,lunarYear,lunarMonth,lunarDay,lunarLeap,recurring:document.getElementById('mRecurring').checked,amount:document.getElementById('mAmount').value,memo:document.getElementById('mMemo').value};
     if(ev.id){ const idx=state.events.findIndex(x=>x.id===ev.id); state.events[idx]=rec; }
     else state.events.push(rec);
     queueSave(); closeModal(); renderEvents(); renderHome();

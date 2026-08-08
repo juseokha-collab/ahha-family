@@ -52,9 +52,13 @@ nav.tabs button.active{background:var(--panel2);color:var(--text);border-color:v
   .mood-row{gap:4px;}
   .mood-row button{height:36px;font-size:16px;border-radius:8px;}
 }
-.datebar{display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:10px;}
-.datebar .d{font-size:16px;font-weight:700;}
-.datebar button{background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:8px;width:32px;height:32px;}
+.datebar{display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:10px;flex-wrap:wrap;}
+.datebar .d{font-size:16px;font-weight:700;white-space:nowrap;}
+.datebar button.iconbtn{background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:8px;width:32px;height:32px;flex-shrink:0;padding:0;}
+.datebar .btn.small{white-space:nowrap;flex-shrink:0;}
+.member-row{display:flex;gap:6px;margin-bottom:12px;}
+.member-row button{flex:1;background:var(--panel2);border:1px solid var(--border);color:var(--muted);padding:8px;border-radius:10px;font-size:13px;font-weight:600;white-space:nowrap;}
+.member-row button.active{color:var(--text);border-color:var(--accent);background:#2a2130;}
 .stat-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;}
 @media(min-width:640px){.stat-grid{grid-template-columns:repeat(4,1fr);}}
 .stat{background:var(--panel2);border-radius:12px;padding:12px;text-align:center;}
