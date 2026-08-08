@@ -452,13 +452,14 @@ function diaryArchiveRowsHtml(){
     });
   });
   if(!rows.length) return `<div class="empty">아직 작성된 일기가 없어요</div>`;
+  const myKey=currentAuthorKey();
   return rows.map(r=>`
     <div class="list-item" data-jump="${r.date}" style="cursor:pointer;">
       <div>
         <div><b>${r.date}</b> ${r.mood||''} <span class="pill">${escapeHtml(authorLabel(r,r.key))}</span></div>
         ${r.diary?`<div class="meta">${escapeHtml(r.diary)}</div>`:''}
       </div>
-      <button class="icon-btn" data-edit-diary="${escapeHtml(r.date)}|${escapeHtml(r.key)}" title="수정">✏️</button>
+      ${r.key===myKey?`<button class="icon-btn" data-edit-diary="${escapeHtml(r.date)}|${escapeHtml(r.key)}" title="수정">✏️</button>`:''}
     </div>`).join('');
 }
 function openDiaryEntryEditModal(date, key){
