@@ -360,7 +360,10 @@ function renderHome(){
         <button class="iconbtn" id="homeNext">›</button>
         ${homeDate!==todayStr()?`<button class="btn small" id="homeToday">오늘</button>`:''}
       </div>
-      <div class="meta" style="margin-bottom:6px;">${escapeHtml(authorLabel(mine,myKey))}의 기록</div>
+      <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <div class="meta">${escapeHtml(authorLabel(mine,myKey))}의 기록</div>
+        <button class="link-btn" id="diaryArchiveBtn">📖 일기 모아보기</button>
+      </div>
       <div class="mood-row" id="moodRow">
         ${MOODS.map(m=>`<button data-m="${m}" class="${mine.mood===m?'sel':''}">${m}</button>`).join('')}
       </div>
@@ -422,6 +425,32 @@ function renderHome(){
     const now=new Date();
     document.getElementById('diarySaveStatus').textContent = `✓ 저장됨 (${now.getHours()}:${pad2(now.getMinutes())})`;
   };
+  document.getElementById('diaryArchiveBtn').onclick=()=>openDiaryArchiveModal();
+}
+function openDiaryArchiveModal(){
+  const rows=[];
+  Object.keys(state.daily).sort().reverse().forEach(d=>{
+    const entries=(state.daily[d]||{}).entries||{};
+    Object.keys(entries).forEach(k=>{
+      const e=entries[k];
+      if(e && (e.mood || e.diary)) rows.push({date:d, key:k, ...e});
+    });
+  });
+  openModal(`
+    <h3>📖 일기 모아보기</h3>
+    ${rows.length? rows.map(r=>`
+      <div class="list-item" data-jump="${r.date}" style="cursor:pointer;">
+        <div>
+          <div><b>${r.date}</b> ${r.mood||''} <span class="pill">${escapeHtml(authorLabel(r,r.key))}</span></div>
+          ${r.diary?`<div class="meta">${escapeHtml(r.diary)}</div>`:''}
+        </div>
+      </div>`).join('') : `<div class="empty">아직 작성된 일기가 없어요</div>`}
+    <div class="modal-actions"><button class="btn" id="mCancel">닫기</button></div>
+  `);
+  document.getElementById('mCancel').onclick=closeModal;
+  document.querySelectorAll('[data-jump]').forEach(row=>row.onclick=()=>{
+    homeDate=row.dataset.jump; closeModal(); renderHome();
+  });
 }
 
 /* ---------- SCHEDULE ---------- */
