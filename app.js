@@ -530,11 +530,11 @@ let activeTab='home';
 function getVisibleTabs(){
   if(effectiveRole()==='daughter'){
     return [
-      {key:'home',label:'홈'},
-      {key:'schedule',label:'일정'},
-      {key:'study',label:'학습'},
-      {key:'health',label:'운동'},
-      {key:'budget',label:'가계부'}
+      {key:'home',label:'Home'},
+      {key:'schedule',label:'Calendar'},
+      {key:'study',label:'Learning'},
+      {key:'health',label:'Activity'},
+      {key:'budget',label:'Account'}
     ];
   }
   return [
@@ -711,21 +711,19 @@ function renderDayTimelines(){
     const cells=days.map((d,di)=>{
       const layout=layouts[di];
       const gap = di>0 ? '<td class="dt-gap"></td>' : '';
-      const colClass = di%2===1?' dt-col-b':'';
       if(layout.skip.has(idx)) return gap;
       const cell=layout.mainStart[idx];
       const edgeClass=meta.isEdge?' dt-edge':'';
       if(cell){
-        return gap+`<td class="dt-cell filled${edgeClass}${colClass}" rowspan="${cell.span}" data-add-date="${d}" data-add-time="${meta.addTime}">${cell.items.map(dtChip).join('')}</td>`;
+        return gap+`<td class="dt-cell filled${edgeClass}" rowspan="${cell.span}" data-add-date="${d}" data-add-time="${meta.addTime}">${cell.items.map(dtChip).join('')}</td>`;
       }
-      return gap+`<td class="dt-cell${edgeClass}${colClass}" data-add-date="${d}" data-add-time="${meta.addTime}"></td>`;
+      return gap+`<td class="dt-cell${edgeClass}" data-add-date="${d}" data-add-time="${meta.addTime}"></td>`;
     }).join('');
     rows += `<tr class="${meta.isEdge?'dt-edge-row':''}"><td class="dt-time-col">${meta.label}</td>${cells}</tr>`;
   });
   const headCells = days.map((d,i)=>{
     const gap = i>0 ? '<th class="dt-gap"></th>' : '';
-    const colClass = i%2===1?' dt-col-b':'';
-    return gap+`<th class="${colClass.trim()}">${dayLabels[i]} · ${parseDate(d).toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'})}</th>`;
+    return gap+`<th>${dayLabels[i]} · ${parseDate(d).toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'})}</th>`;
   }).join('');
   return `
     <div class="dt-panel">
@@ -741,7 +739,7 @@ function renderDayTimelines(){
 function moveScheduleItem(id, newDate, newTime){
   const item=state.schedule.find(x=>x.id===id);
   if(!item) return;
-  if(!canManageSchedule(item)){ showToast('공통 일정은 작성자만 이동할 수 있어요'); return; }
+  if(!canManageSchedule(item)){ showToast('가족공통 일정은 작성자만 이동할 수 있어요'); return; }
   if(item.time && item.endTime){
     const [sh,smi]=item.time.split(':').map(Number);
     const [eh,emi]=item.endTime.split(':').map(Number);
@@ -1078,8 +1076,8 @@ function openDiaryEntryEditModal(date, key){
 let scheduleMonth = new Date(); scheduleMonth.setDate(1);
 let scheduleSel = todayStr();
 let scheduleFilter = 'all';
-function getScheduleOwners(){ return [{key:'common',label:'공통'}].concat(FAMILY_MEMBERS); }
-function ownerLabel(key){ if(!key||key==='common') return '공통'; const m=FAMILY_MEMBERS.find(x=>x.key===key); return m?m.label:key; }
+function getScheduleOwners(){ return [{key:'common',label:'가족공통'}].concat(FAMILY_MEMBERS); }
+function ownerLabel(key){ if(!key||key==='common') return '가족공통'; const m=FAMILY_MEMBERS.find(x=>x.key===key); return m?m.label:key; }
 function getAllowedScheduleFilters(){
   const myRole=effectiveRole();
   if(myRole==='dad') return ['all','common'].concat(FAMILY_MEMBERS.map(m=>m.key));
@@ -1095,7 +1093,7 @@ function scheduleFilterLabel(key){
   const myRole=effectiveRole();
   if(myRole && myRole!=='dad'){
     if(key===myRole) return '나의 일정';
-    if(key==='common') return '공통 일정';
+    if(key==='common') return '가족공통 일정';
   }
   if(key==='all') return '전체';
   return ownerLabel(key);
@@ -1129,7 +1127,12 @@ function renderSchedule(){
   const daysInMonth=new Date(y,m+1,0).getDate();
   const totalCells=Math.ceil((firstDow+daysInMonth)/7)*7;
   const allowedFilters=getAllowedScheduleFilters();
-  if(!allowedFilters.includes(scheduleFilter)) scheduleFilter = allowedFilters[0];
+  const myRole=effectiveRole();
+  if(myRole && myRole!=='dad'){
+    scheduleFilter = showCommonOnHome ? 'common' : myRole;
+  } else if(!allowedFilters.includes(scheduleFilter)){
+    scheduleFilter = allowedFilters[0];
+  }
   const virtualEventItems=state.events.filter(ev=>!(ev.hiddenFromDaughter && effectiveRole()==='daughter')).map(ev=>({id:'evt-'+ev.id, date:fmtDate(eventOccurrence(ev)), time:'', title:'🎉 '+ev.name, memo:ev.memo, owner:'common', virtual:true}));
   const allItems=state.schedule.map(s=>({...s, owner:s.owner||'common'})).concat(virtualEventItems);
   const filtered = scheduleFilter==='all' ? allItems : allItems.filter(s=>s.owner===scheduleFilter);
@@ -1158,9 +1161,9 @@ function renderSchedule(){
     <div class="card">
       <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
         <div class="datebar" style="margin-bottom:0;"><button class="iconbtn" id="sPrev">‹</button><div class="d">${y}년 ${m+1}월</div><button class="iconbtn" id="sNext">›</button></div>
-        <div class="row" id="schedFilterRow" style="gap:6px;">
+        ${myRole==='dad'?`<div class="row" id="schedFilterRow" style="gap:6px;">
           ${allowedFilters.map(f=>`<button class="btn small ${scheduleFilter===f?'active':''}" data-owner="${f}">${scheduleFilterLabel(f)}</button>`).join('')}
-        </div>
+        </div>`:''}
       </div>
       <div class="cal-grid" style="margin-top:10px;">${['일','월','화','수','목','금','토'].map(d=>`<div class="cal-head">${d}</div>`).join('')}${grid}</div>
     </div>
@@ -1171,7 +1174,7 @@ function renderSchedule(){
         const canManage = !s.virtual && canManageSchedule(s);
         return `
         <div class="list-item sched-item">
-          <div><div style="font-size:14px;">${timeRangeLabel(s)?`<b>${timeRangeLabel(s)}</b> `:''}${escapeHtml(s.title)} <span class="pill">${ownerLabel(s.owner)}</span></div>${s.memo?`<div class="content-text" style="font-size:12.5px;">${escapeHtml(s.memo)}</div>`:''}</div>
+          <div><div style="font-size:14px;">${timeRangeLabel(s)?escapeHtml(timeRangeLabel(s))+' ':''}${escapeHtml(s.title)} <span class="pill">${ownerLabel(s.owner)}</span></div>${s.memo?`<div class="content-text" style="font-size:12.5px;">${escapeHtml(s.memo)}</div>`:''}</div>
           <div class="row">${s.virtual? `<span class="meta">경조사 탭에서 수정</span>` : (canManage?`<button class="btn small" data-edit="${s.id}">수정</button><button class="btn small danger" data-del="${s.id}">삭제</button>`:`<span class="meta">작성자만 관리 가능</span>`)}</div>
         </div>`;
       }).join('') : `<div class="empty">일정이 없어요</div>`}
@@ -1179,7 +1182,8 @@ function renderSchedule(){
   `;
   document.getElementById('sPrev').onclick=()=>{ scheduleMonth=new Date(y,m-1,1); renderSchedule(); };
   document.getElementById('sNext').onclick=()=>{ scheduleMonth=new Date(y,m+1,1); renderSchedule(); };
-  document.getElementById('schedFilterRow').addEventListener('click', e=>{
+  const schedFilterRow=document.getElementById('schedFilterRow');
+  if(schedFilterRow) schedFilterRow.addEventListener('click', e=>{
     const b=e.target.closest('button[data-owner]'); if(!b) return;
     scheduleFilter=b.dataset.owner; renderSchedule();
   });
@@ -1215,7 +1219,7 @@ function scheduleItemOccursOn(item, dateStr){
   return false;
 }
 function openScheduleModal(existing, prefill){
-  if(existing && !canManageSchedule(existing)){ showToast('공통 일정은 작성자만 수정·삭제할 수 있어요'); return; }
+  if(existing && !canManageSchedule(existing)){ showToast('가족공통 일정은 작성자만 수정·삭제할 수 있어요'); return; }
   const myOwners=getAllowedOwners();
   const role=effectiveRole();
   const defaultOwner = (prefill&&prefill.owner) ? prefill.owner
@@ -1576,31 +1580,27 @@ function renderStudy(){
   for(let h=0; h<24; h++){
     const cells=days.map((d,di)=>{
       const gap=di>0?'<td class="dt-gap"></td>':'';
-      const colClass=di%2===1?' dt-col-b':'';
       let segs='';
       for(let s=0;s<6;s++){
         const idx=h*6+s;
         const val=arrays[di][idx];
         segs+=`<div class="sb-seg${val?' sb-'+val:''}" data-day="${di}" data-idx="${idx}"></div>`;
       }
-      return gap+`<td class="sb-cell${colClass}"><div class="sb-row">${segs}</div></td>`;
+      return gap+`<td class="sb-cell"><div class="sb-row">${segs}</div></td>`;
     }).join('');
     rows+=`<tr><td class="dt-time-col">${pad2(h)}:00</td>${cells}</tr>`;
   }
   const showNext = studyAnchor!==todayStr();
   const headCells=days.map((d,i)=>{
     const gap = i>0 ? '<th class="dt-gap"></th>' : '';
-    const colClass = i%2===1?' dt-col-b':'';
     const isLast = i===days.length-1;
-    return gap+`<th class="${colClass.trim()}"><div class="row" style="justify-content:space-between;flex-wrap:nowrap;gap:4px;">${labels[i]} · ${d.slice(5)}${isLast&&showNext?`<button class="iconbtn" id="studyNextBtn" style="font-size:13px;width:20px;height:20px;flex-shrink:0;">▶</button>`:''}</div></th>`;
+    return gap+`<th><div class="row" style="justify-content:space-between;flex-wrap:nowrap;gap:4px;">${labels[i]} · ${d.slice(5)}${isLast&&showNext?`<button class="iconbtn" id="studyNextBtn" style="font-size:13px;width:20px;height:20px;flex-shrink:0;">▶</button>`:''}</div></th>`;
   }).join('');
   el.innerHTML=`
     <div class="card">
-      <div class="row" style="gap:10px;margin-bottom:10px;flex-wrap:wrap;justify-content:space-between;">
-        <div class="row" style="gap:10px;">
-          <span class="pill" style="background:${SB_COLORS.study};color:#3a2e00;border:none;">🟡 공부</span>
-          <span class="pill" style="background:${SB_COLORS.exercise};color:#08321a;border:none;">🟢 운동</span>
-        </div>
+      <div class="row" style="gap:10px;margin-bottom:10px;flex-wrap:wrap;justify-content:flex-end;">
+        <span class="pill" style="background:${SB_COLORS.study};color:#3a2e00;border:none;">🟡 공부</span>
+        <span class="pill" style="background:${SB_COLORS.exercise};color:#08321a;border:none;">🟢 운동</span>
         <span class="meta">칸을 눌러 색칠 (공부 → 운동 → 지우기)</span>
       </div>
       <div class="stat-grid">
@@ -1931,6 +1931,7 @@ function initShowCommonToggle(){
   document.getElementById('showCommonToggle').addEventListener('change', e=>{
     showCommonOnHome=e.target.checked;
     renderHome();
+    renderSchedule();
   });
 }
 
