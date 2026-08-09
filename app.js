@@ -1297,18 +1297,17 @@ const FAMILY_MEMBERS=[{key:'dad',label:'아빠'},{key:'mom',label:'엄마'},{key
 const EMAIL_ROLE={'juseok.ha@gmail.com':'dad','jinahkim2023@gmail.com':'mom'};
 let healthDate = todayStr();
 let healthPerson = null;
+let weightChartOthers = [];
 function memberLabel(key){ const m=FAMILY_MEMBERS.find(x=>x.key===key); return m?m.label:key; }
 function renderHealth(){
-  if(!healthPerson) healthPerson = effectiveRole() || 'mom';
+  healthPerson = effectiveRole() || 'mom';
   const day=state.daily[healthDate]||{};
   const rec=(day.health&&day.health[healthPerson])||{};
   const el=document.getElementById('tab-health');
   const dLabel = parseDate(healthDate).toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'});
   const schedList = ((state.healthSchedule&&state.healthSchedule[healthPerson])||[]).map(it=>({...it,d:dday(it.date)})).sort((a,b)=>a.d-b.d);
+  const otherMembers=FAMILY_MEMBERS.filter(m=>m.key!==healthPerson);
   el.innerHTML=`
-    <div class="member-row" id="memberRow">
-      ${FAMILY_MEMBERS.map(m=>`<button data-member="${m.key}" class="${healthPerson===m.key?'active':''}">${m.label}</button>`).join('')}
-    </div>
     <div class="card">
       <div class="row" style="justify-content:space-between;"><h3 style="margin:0;">🩺 ${memberLabel(healthPerson)} 주요 검진 일정</h3><button class="btn primary small" id="addHealthSchedBtn">+ 추가</button></div>
       ${schedList.length? schedList.map(it=>`
@@ -1337,13 +1336,22 @@ function renderHealth(){
       </div>
     </div>
     <div class="card">
-      <h3>📈 가족 체중 흐름</h3>
-      ${renderFamilyWeightTable()}
+      <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+        <h3 style="margin:0;">📈 체중 추이</h3>
+        <div class="row" style="gap:10px;">
+          ${otherMembers.map(m=>`<label class="pill" style="cursor:pointer;"><input type="checkbox" class="weightExtraToggle" value="${m.key}" ${weightChartOthers.includes(m.key)?'checked':''} style="margin-right:4px;">${m.label}</label>`).join('')}
+        </div>
+      </div>
+      <div style="margin-top:10px;">${renderWeightChart([healthPerson].concat(weightChartOthers))}</div>
     </div>
   `;
-  document.getElementById('memberRow').addEventListener('click', e=>{
-    const b=e.target.closest('button[data-member]'); if(!b) return;
-    healthPerson=b.dataset.member; renderHealth();
+  el.querySelectorAll('.weightExtraToggle').forEach(cb=>{
+    cb.addEventListener('change', ()=>{
+      const key=cb.value;
+      if(cb.checked){ if(!weightChartOthers.includes(key)) weightChartOthers.push(key); }
+      else { weightChartOthers=weightChartOthers.filter(k=>k!==key); }
+      renderHealth();
+    });
   });
   document.getElementById('hPrev').onclick=()=>{ healthDate=fmtDate(addDays(parseDate(healthDate),-1)); renderHealth(); };
   document.getElementById('hNext').onclick=()=>{ healthDate=fmtDate(addDays(parseDate(healthDate),1)); renderHealth(); };
@@ -1407,28 +1415,54 @@ function openHealthSchedModal(existing){
     queueSave(); closeModal(); renderHealth();
   };
 }
-function renderFamilyWeightTable(){
-  const dateSet=new Set();
-  Object.entries(state.daily).forEach(([d,v])=>{
-    FAMILY_MEMBERS.forEach(m=>{ if(v.health && v.health[m.key] && v.health[m.key].weight) dateSet.add(d); });
-  });
-  const dates=Array.from(dateSet).sort().slice(-14);
-  if(!dates.length) return `<div class="empty">체중 기록이 아직 없어요</div>`;
+function renderWeightChart(keys){
+  const days=30;
+  const today=parseDate(todayStr());
+  const dateList=Array.from({length:days},(_,i)=>fmtDate(addDays(today,-(days-1-i))));
+  const series=keys.map(key=>({
+    key, label:memberLabel(key), color:ROLE_BADGE_COLOR[key]||'#8b7cf6',
+    pts:dateList.map(d=>{
+      const w=state.daily[d] && state.daily[d].health && state.daily[d].health[key] && state.daily[d].health[key].weight;
+      return w?Number(w):null;
+    })
+  }));
+  const allVals=series.flatMap(s=>s.pts.filter(v=>v!=null));
+  if(!allVals.length) return `<div class="empty">체중 기록이 아직 없어요</div>`;
+  let min=Math.min(...allVals), max=Math.max(...allVals);
+  if(min===max){ min-=1; max+=1; }
+  const pad=(max-min)*0.15; min-=pad; max+=pad;
+  const W=600,H=180,ML=32,MR=8,MT=8,MB=18;
+  const plotW=W-ML-MR, plotH=H-MT-MB;
+  const x=i=>ML+(i/(days-1))*plotW;
+  const y=v=>MT+plotH-((v-min)/(max-min))*plotH;
+  const gridLines=[0,0.25,0.5,0.75,1].map(t=>{
+    const val=min+(max-min)*t;
+    const yy=MT+plotH-(t*plotH);
+    return `<line x1="${ML}" y1="${yy}" x2="${W-MR}" y2="${yy}" stroke="var(--border)" stroke-width="1"/><text x="${ML-5}" y="${yy+3}" font-size="9" fill="var(--muted)" text-anchor="end">${val.toFixed(1)}</text>`;
+  }).join('');
+  const seriesSvg=series.map(s=>{
+    let pathD='', started=false, dots='';
+    s.pts.forEach((v,i)=>{
+      if(v==null){ started=false; return; }
+      const px=x(i), py=y(v);
+      pathD += (started?'L':'M')+px+' '+py+' ';
+      started=true;
+      dots+=`<circle cx="${px}" cy="${py}" r="2.5" fill="${s.color}"/>`;
+    });
+    return pathD ? `<path d="${pathD.trim()}" fill="none" stroke="${s.color}" stroke-width="2"/>${dots}` : '';
+  }).join('');
+  const xLabels=dateList.map((d,i)=>{
+    if(i%5!==0 && i!==days-1) return '';
+    return `<text x="${x(i)}" y="${H-4}" font-size="9" fill="var(--muted)" text-anchor="middle">${d.slice(5)}</text>`;
+  }).join('');
   return `
     <div style="overflow-x:auto;">
-      <table class="maint-table">
-        <thead><tr><th>날짜</th>${FAMILY_MEMBERS.map(m=>`<th>${m.label}</th>`).join('')}</tr></thead>
-        <tbody>
-          ${dates.slice().reverse().map(d=>`
-            <tr>
-              <td>${d.slice(5)}</td>
-              ${FAMILY_MEMBERS.map(m=>{
-                const w=state.daily[d] && state.daily[d].health && state.daily[d].health[m.key] && state.daily[d].health[m.key].weight;
-                return `<td>${w?w+'kg':'-'}</td>`;
-              }).join('')}
-            </tr>`).join('')}
-        </tbody>
-      </table>
+      <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;min-width:320px;">
+        ${gridLines}${seriesSvg}${xLabels}
+      </svg>
+    </div>
+    <div class="row" style="gap:14px;margin-top:6px;">
+      ${series.map(s=>`<span class="meta" style="display:flex;align-items:center;gap:4px;"><span style="width:9px;height:9px;border-radius:50%;background:${s.color};display:inline-block;"></span>${s.label}</span>`).join('')}
     </div>
   `;
 }
@@ -1918,7 +1952,7 @@ function updateViewAsButtons(){
 }
 function setViewAs(role){
   viewAsOverride = viewAsOverride===role ? null : role;
-  healthPerson=null;
+  weightChartOthers=[];
   scheduleFilter='all';
   updateViewAsButtons();
   renderAll();
