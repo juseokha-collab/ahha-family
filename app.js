@@ -1309,6 +1309,15 @@ function renderHealth(){
   const otherMembers=FAMILY_MEMBERS.filter(m=>m.key!==healthPerson);
   el.innerHTML=`
     <div class="card">
+      <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+        <h3 style="margin:0;">📈 체중 추이</h3>
+        <div class="row" style="gap:10px;">
+          ${otherMembers.map(m=>`<label class="pill" style="cursor:pointer;"><input type="checkbox" class="weightExtraToggle" value="${m.key}" ${weightChartOthers.includes(m.key)?'checked':''} style="margin-right:4px;">${m.label}</label>`).join('')}
+        </div>
+      </div>
+      <div style="margin-top:10px;">${renderWeightChart([healthPerson].concat(weightChartOthers))}</div>
+    </div>
+    <div class="card">
       <div class="row" style="justify-content:space-between;"><h3 style="margin:0;">🩺 ${memberLabel(healthPerson)} 주요 검진 일정</h3><button class="btn primary small" id="addHealthSchedBtn">+ 추가</button></div>
       ${schedList.length? schedList.map(it=>`
         <div class="list-item">
@@ -1334,15 +1343,6 @@ function renderHealth(){
         <label>증상 / 컨디션 메모</label>
         <textarea id="hSymptom" placeholder="컨디션, 증상 등을 기록해보세요">${escapeHtml(rec.symptom)}</textarea>
       </div>
-    </div>
-    <div class="card">
-      <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
-        <h3 style="margin:0;">📈 체중 추이</h3>
-        <div class="row" style="gap:10px;">
-          ${otherMembers.map(m=>`<label class="pill" style="cursor:pointer;"><input type="checkbox" class="weightExtraToggle" value="${m.key}" ${weightChartOthers.includes(m.key)?'checked':''} style="margin-right:4px;">${m.label}</label>`).join('')}
-        </div>
-      </div>
-      <div style="margin-top:10px;">${renderWeightChart([healthPerson].concat(weightChartOthers))}</div>
     </div>
   `;
   el.querySelectorAll('.weightExtraToggle').forEach(cb=>{
@@ -1596,11 +1596,12 @@ function studySummary(arr){
 }
 function fmtStudyMin(min){ return `${Math.floor(min/60)}시간 ${min%60}분`; }
 function relDayLabel(dateStr){
-  const diff=Math.round((parseDate(todayStr())-parseDate(dateStr))/86400000);
-  if(diff===0) return 'Today';
-  if(diff===1) return '어제';
-  if(diff===2) return '그제';
-  return diff+'일 전';
+  return dateStr===todayStr() ? 'Today' : '';
+}
+function weekRangeContaining(dateStr){
+  const d=parseDate(dateStr);
+  const start=addDays(d,-d.getDay());
+  return Array.from({length:7},(_,i)=>fmtDate(addDays(start,i)));
 }
 function renderStudy(){
   const el=document.getElementById('tab-study');
@@ -1628,8 +1629,15 @@ function renderStudy(){
   const headCells=days.map((d,i)=>{
     const gap = i>0 ? '<th class="dt-gap"></th>' : '';
     const isLast = i===days.length-1;
-    return gap+`<th><div class="row" style="justify-content:space-between;flex-wrap:nowrap;gap:4px;">${labels[i]} · ${d.slice(5)}${isLast&&showNext?`<button class="iconbtn" id="studyNextBtn" style="font-size:13px;width:20px;height:20px;flex-shrink:0;">▶</button>`:''}</div></th>`;
+    const label = labels[i] ? labels[i]+' · ' : '';
+    return gap+`<th><div class="row" style="justify-content:space-between;flex-wrap:nowrap;gap:4px;">${label}${d.slice(5)}${isLast&&showNext?`<button class="iconbtn" id="studyNextBtn" style="font-size:13px;width:20px;height:20px;flex-shrink:0;">▶</button>`:''}</div></th>`;
   }).join('');
+  const weekDates=weekRangeContaining(studyAnchor);
+  const weekSummary=weekDates.reduce((acc,d)=>{
+    const s=studySummary(studyBlocksFor(key,d));
+    acc.study+=s.study; acc.exercise+=s.exercise;
+    return acc;
+  },{study:0,exercise:0});
   el.innerHTML=`
     <div class="card">
       <div class="row" style="gap:10px;margin-bottom:10px;flex-wrap:wrap;justify-content:flex-end;">
@@ -1637,14 +1645,22 @@ function renderStudy(){
         <span class="pill" style="background:${SB_COLORS.exercise};color:#08321a;border:none;">🟢 운동</span>
         <span class="meta">칸을 눌러 색칠 (공부 → 운동 → 지우기)</span>
       </div>
-      <div class="stat-grid">
-        ${days.map((d,i)=>`<div class="stat"><div class="l">${labels[i]}</div><div class="v" style="font-size:12px;line-height:1.5;margin-top:2px;">공부 ${fmtStudyMin(summaries[i].study)}<br>운동 ${fmtStudyMin(summaries[i].exercise)}</div></div>`).join('')}
-      </div>
-      <div style="overflow-x:auto;margin-top:12px;">
+      <div style="overflow-x:auto;">
         <table class="dt-table sb-table">
           <thead><tr><th class="dt-time-col"><button class="iconbtn" id="studyPrevBtn" style="font-size:13px;width:20px;height:20px;">◀</button></th>${headCells}</tr></thead>
           <tbody>${rows}</tbody>
         </table>
+      </div>
+      <div class="stat-grid" style="margin-top:12px;">
+        ${days.map((d,i)=>`<div class="stat">${labels[i]?`<div class="l">${labels[i]}</div>`:''}<div class="v" style="font-size:12px;line-height:1.5;margin-top:2px;">공부 ${fmtStudyMin(summaries[i].study)}<br>운동 ${fmtStudyMin(summaries[i].exercise)}</div></div>`).join('')}
+      </div>
+    </div>
+    <div class="card">
+      <h3>📅 이번주 합계 (${weekDates[0].slice(5)} ~ ${weekDates[6].slice(5)})</h3>
+      <div class="stat-grid">
+        <div class="stat"><div class="v">${fmtStudyMin(weekSummary.study)}</div><div class="l">학습</div></div>
+        <div class="stat"><div class="v">${fmtStudyMin(weekSummary.exercise)}</div><div class="l">운동</div></div>
+        <div class="stat"><div class="v">${fmtStudyMin(weekSummary.study+weekSummary.exercise)}</div><div class="l">합계</div></div>
       </div>
     </div>
   `;
