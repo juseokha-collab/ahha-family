@@ -4,6 +4,21 @@ function pad2(n){ return String(n).padStart(2,'0'); }
 function fmtDate(d){ return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`; }
 function shortDate(s){ const [y,m,d]=s.split('-'); return y.slice(2)+'.'+m+'.'+d; }
 function timeRangeLabel(s){ return s.time ? (s.time + (s.endTime?'~'+s.endTime:'')) : ''; }
+const KST_OFFSET_MIN=540;
+function getUKOffsetMinutes(dateStr){
+  const d=new Date(dateStr+'T12:00:00Z');
+  const parts=new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/London',hour:'2-digit',minute:'2-digit',hour12:false}).formatToParts(d);
+  const lh=Number(parts.find(p=>p.type==='hour').value);
+  const lm=Number(parts.find(p=>p.type==='minute').value);
+  return (lh*60+lm)-720;
+}
+function koreaToUK(hhmm, dateStr){
+  const [h,mi]=hhmm.split(':').map(Number);
+  const ukOff=getUKOffsetMinutes(dateStr);
+  let mins=(h*60+mi)-KST_OFFSET_MIN+ukOff;
+  mins=((mins%1440)+1440)%1440;
+  return pad2(Math.floor(mins/60))+':'+pad2(mins%60);
+}
 function todayStr(){ return fmtDate(new Date()); }
 function parseDate(s){ const [y,m,d]=s.split('-').map(Number); return new Date(y,m-1,d); }
 function addDays(d,n){ const r=new Date(d); r.setDate(r.getDate()+n); return r; }
@@ -403,9 +418,9 @@ function getVisibleTabs(){
     return [
       {key:'home',label:'홈'},
       {key:'schedule',label:'일정'},
+      {key:'study',label:'학습'},
       {key:'health',label:'운동'},
-      {key:'budget',label:'가계부'},
-      {key:'study',label:'학습'}
+      {key:'budget',label:'가계부'}
     ];
   }
   return [
@@ -496,46 +511,49 @@ function dtChip(it){
   if(isVirtual) return `<div class="dt-evt" data-virtual="1">${escapeHtml(it.title)}</div>`;
   return `<div class="dt-evt" data-item-id="${it.id}">${timeRangeLabel(it)?escapeHtml(timeRangeLabel(it))+' ':''}${escapeHtml(it.title)}</div>`;
 }
-function dtCell(dateStr, layout, rowIdx, slotTime){
+function dtCell(dateStr, layout, rowIdx, slotTime, dayIdx){
   if(layout.skip.has(rowIdx)) return '';
   const cell=layout.mainStart[rowIdx];
+  const dayClass='dt-day-'+dayIdx;
   if(cell){
-    return `<td class="dt-cell filled" rowspan="${cell.span}" data-add-date="${dateStr}" data-add-time="${slotTime}">${cell.items.map(dtChip).join('')}</td>`;
+    return `<td class="dt-cell filled ${dayClass}" rowspan="${cell.span}" data-add-date="${dateStr}" data-add-time="${slotTime}">${cell.items.map(dtChip).join('')}</td>`;
   }
-  return `<td class="dt-cell" data-add-date="${dateStr}" data-add-time="${slotTime}"></td>`;
+  return `<td class="dt-cell ${dayClass}" data-add-date="${dateStr}" data-add-time="${slotTime}"></td>`;
 }
 function renderDayTimelines(){
-  const today=todayStr();
-  const tomorrow=fmtDate(addDays(new Date(),1));
-  const todayLabel=parseDate(today).toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'});
-  const tomorrowLabel=parseDate(tomorrow).toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'});
-  const layoutToday=computeDayLayout(today);
-  const layoutTomorrow=computeDayLayout(tomorrow);
+  const isDaughter = effectiveRole()==='daughter';
+  const dayLabels=['오늘','내일','모레'];
+  const days=[0,1,2].map(n=>fmtDate(addDays(new Date(),n)));
+  const layouts=days.map(computeDayLayout);
+  const refDate=days[0];
+  const leftLabel = korTime => isDaughter ? koreaToUK(korTime, refDate) : korTime;
+  const rightLabel = korTime => isDaughter ? korTime : koreaToUK(korTime, refDate);
   let rows='';
   rows += `<tr class="dt-edge-row">
-    <td class="dt-time-col"><div>08:00</div><div>이전</div></td>
-    <td class="dt-cell dt-edge" data-add-date="${today}" data-add-time="07:00">${layoutToday.before.map(dtChip).join('')}</td>
-    <td class="dt-cell dt-edge" data-add-date="${tomorrow}" data-add-time="07:00">${layoutTomorrow.before.map(dtChip).join('')}</td>
+    <td class="dt-time-col"><div>${leftLabel('08:00')}</div><div>이전</div></td>
+    ${days.map((d,i)=>`<td class="dt-cell dt-edge dt-day-${i}" data-add-date="${d}" data-add-time="07:00">${layouts[i].before.map(dtChip).join('')}</td>`).join('')}
+    <td class="dt-time-col dt-time-right"><div>${rightLabel('08:00')}</div><div>이전</div></td>
   </tr>`;
   for(let i=0;i<DT_ROWS;i++){
     const totalMin=DT_START_MIN+i*DT_STEP;
-    const tlabel=pad2(Math.floor(totalMin/60))+':'+pad2(totalMin%60);
+    const korTime=pad2(Math.floor(totalMin/60))+':'+pad2(totalMin%60);
     rows += `<tr>
-      <td class="dt-time-col">${tlabel}</td>
-      ${dtCell(today, layoutToday, i, tlabel)}
-      ${dtCell(tomorrow, layoutTomorrow, i, tlabel)}
+      <td class="dt-time-col">${leftLabel(korTime)}</td>
+      ${days.map((d,di)=>dtCell(d, layouts[di], i, korTime, di)).join('')}
+      <td class="dt-time-col dt-time-right">${rightLabel(korTime)}</td>
     </tr>`;
   }
   rows += `<tr class="dt-edge-row">
-    <td class="dt-time-col"><div>18:00</div><div>이후</div></td>
-    <td class="dt-cell dt-edge" data-add-date="${today}" data-add-time="19:00">${layoutToday.after.map(dtChip).join('')}</td>
-    <td class="dt-cell dt-edge" data-add-date="${tomorrow}" data-add-time="19:00">${layoutTomorrow.after.map(dtChip).join('')}</td>
+    <td class="dt-time-col"><div>${leftLabel('18:00')}</div><div>이후</div></td>
+    ${days.map((d,i)=>`<td class="dt-cell dt-edge dt-day-${i}" data-add-date="${d}" data-add-time="19:00">${layouts[i].after.map(dtChip).join('')}</td>`).join('')}
+    <td class="dt-time-col dt-time-right"><div>${rightLabel('18:00')}</div><div>이후</div></td>
   </tr>`;
+  const headCells = days.map((d,i)=>`<th class="dt-day-${i}">${dayLabels[i]} · ${parseDate(d).toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'})}</th>`).join('');
   return `
     <div class="dt-panel">
       <div style="overflow-x:auto;">
         <table class="dt-table">
-          <thead><tr><th class="dt-time-col"></th><th>오늘 · ${todayLabel}</th><th>내일 · ${tomorrowLabel}</th></tr></thead>
+          <thead><tr><th class="dt-time-col">${isDaughter?'UK':'KST'}</th>${headCells}<th class="dt-time-col dt-time-right">${isDaughter?'KST':'UK'}</th></tr></thead>
           <tbody>${rows}</tbody>
         </table>
       </div>
@@ -739,12 +757,22 @@ function ownerLabel(key){ if(!key||key==='common') return '공통'; const m=FAMI
 function getAllowedScheduleFilters(){
   const myRole=effectiveRole();
   if(myRole==='dad') return ['all','common'].concat(FAMILY_MEMBERS.map(m=>m.key));
-  if(myRole) return ['common', myRole];
+  if(myRole) return [myRole, 'common'];
   return ['common'];
 }
 function getAllowedOwners(){
   const allowed=getAllowedScheduleFilters().filter(f=>f!=='all');
-  return getScheduleOwners().filter(o=>allowed.includes(o.key));
+  const owners=getScheduleOwners();
+  return allowed.map(key=>owners.find(o=>o.key===key)).filter(Boolean);
+}
+function scheduleFilterLabel(key){
+  const myRole=effectiveRole();
+  if(myRole && myRole!=='dad'){
+    if(key===myRole) return '나의 일정';
+    if(key==='common') return '공통 일정';
+  }
+  if(key==='all') return '전체';
+  return ownerLabel(key);
 }
 function renderSchedule(){
   const el=document.getElementById('tab-schedule');
@@ -753,7 +781,7 @@ function renderSchedule(){
   const daysInMonth=new Date(y,m+1,0).getDate();
   const totalCells=Math.ceil((firstDow+daysInMonth)/7)*7;
   const allowedFilters=getAllowedScheduleFilters();
-  if(!allowedFilters.includes(scheduleFilter)) scheduleFilter = allowedFilters.includes('common') ? 'common' : allowedFilters[0];
+  if(!allowedFilters.includes(scheduleFilter)) scheduleFilter = allowedFilters[0];
   const virtualEventItems=state.events.filter(ev=>!(ev.hiddenFromDaughter && effectiveRole()==='daughter')).map(ev=>({id:'evt-'+ev.id, date:fmtDate(eventOccurrence(ev)), time:'', title:'🎉 '+ev.name, memo:ev.memo, owner:'common', virtual:true}));
   const allItems=state.schedule.map(s=>({...s, owner:s.owner||'common'})).concat(virtualEventItems);
   const filtered = scheduleFilter==='all' ? allItems : allItems.filter(s=>s.owner===scheduleFilter);
@@ -780,7 +808,7 @@ function renderSchedule(){
   const dayItems = filtered.filter(s=>s.date===scheduleSel).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
   el.innerHTML=`
     <div class="member-row" id="schedFilterRow">
-      ${allowedFilters.map(f=>`<button data-owner="${f}" class="${scheduleFilter===f?'active':''}">${f==='all'?'전체':ownerLabel(f)}</button>`).join('')}
+      ${allowedFilters.map(f=>`<button data-owner="${f}" class="${scheduleFilter===f?'active':''}">${scheduleFilterLabel(f)}</button>`).join('')}
     </div>
     <div class="card">
       <div class="datebar"><button class="iconbtn" id="sPrev">‹</button><div class="d">${y}년 ${m+1}월</div><button class="iconbtn" id="sNext">›</button></div>
@@ -831,7 +859,7 @@ function openScheduleModal(existing, prefill){
     <div class="field">
       <label>공통 / 개인</label>
       <div class="row">
-        ${ownerOptions.map(o=>`<label class="pill" style="cursor:pointer;"><input type="radio" name="mOwner" value="${o.key}" ${(s.owner||'common')===o.key?'checked':''} style="margin-right:4px;">${o.label}</label>`).join('')}
+        ${ownerOptions.map(o=>`<label class="pill" style="cursor:pointer;"><input type="radio" name="mOwner" value="${o.key}" ${(s.owner||'common')===o.key?'checked':''} style="margin-right:4px;">${scheduleFilterLabel(o.key)}</label>`).join('')}
       </div>
     </div>
     <div class="grid2">

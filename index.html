@@ -121,16 +121,21 @@ nav.tabs button.active{background:var(--panel2);color:var(--text);border-color:v
 .bar-track{flex:1;height:8px;background:var(--panel2);border-radius:4px;overflow:hidden;}
 .bar-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));}
 .dt-panel{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:14px;margin-bottom:14px;}
-.dt-table{width:100%;border-collapse:collapse;font-size:11px;min-width:360px;}
+.dt-table{width:100%;border-collapse:collapse;font-size:11px;min-width:480px;}
 .dt-table th{padding:6px 4px;text-align:left;font-size:12px;color:var(--text);border-bottom:1px solid var(--border);}
-.dt-table td{border-bottom:1px solid var(--border);padding:2px 4px;vertical-align:top;height:22px;}
-.dt-time-col{width:52px;color:var(--muted);font-size:10px;white-space:nowrap;text-align:right;padding-right:6px!important;}
+.dt-table td{border-bottom:1px solid var(--border);padding:2px 4px;vertical-align:top;height:22px;border-left:none;border-right:none;}
+.dt-time-col{width:48px;color:var(--muted);font-size:10px;white-space:nowrap;text-align:right;padding-right:6px!important;}
+.dt-time-right{text-align:left;padding-left:6px!important;}
 .dt-edge-row td{height:44px;}
 .dt-cell{cursor:pointer;}
-.dt-cell:hover{background:var(--panel2);}
-.dt-cell.dt-edge{background:var(--panel2);}
+.dt-day-0{background:var(--panel);}
+.dt-day-1{background:var(--panel2);}
+.dt-day-2{background:var(--panel);}
+.dt-cell:hover{background:var(--sel-bg);}
+.dt-cell.dt-edge{opacity:.92;}
 .dt-cell.filled{background:var(--accent-soft);}
 .dt-evt{background:linear-gradient(90deg,var(--accent),var(--accent2));color:#181820;border:none;border-radius:6px;padding:2px 6px;font-size:11px;font-weight:600;margin-bottom:2px;cursor:pointer;display:inline-block;}
+:root[data-theme="light"] .dt-evt{background:var(--accent);color:#ffffff;}
 .dt-evt:hover{filter:brightness(1.08);}
 .dt-evt[data-virtual]{background:var(--panel2);color:var(--text);border:1px solid var(--border);font-weight:400;}
 </style>
@@ -176,7 +181,7 @@ nav.tabs button.active{background:var(--panel2);color:var(--text);border-color:v
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-<script src="firebase-config.js?v=20260809b"></script>
-<script src="app.js?v=20260809b"></script>
+<script src="firebase-config.js?v=20260809c"></script>
+<script src="app.js?v=20260809c"></script>
 </body>
 </html>
