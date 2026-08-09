@@ -385,6 +385,7 @@ function effectiveRole(){ return viewAsOverride || EMAIL_ROLE[user&&user.email] 
 function currentAuthorKey(){
   if(viewAsOverride==='mom') return VIEW_AS_EMAIL.mom;
   if(viewAsOverride==='daughter') return 'daughter';
+  if(user && EMAIL_ROLE[user.email]==='daughter') return 'daughter';
   return user ? user.email : 'local';
 }
 function authorLabel(entry, key){ return (entry&&entry.name) ? entry.name : (key==='local' ? '나' : key); }
@@ -1284,7 +1285,7 @@ function openScheduleModal(existing, prefill){
 
 /* ---------- HEALTH ---------- */
 const FAMILY_MEMBERS=[{key:'dad',label:'아빠'},{key:'mom',label:'엄마'},{key:'daughter',label:'딸'}];
-const EMAIL_ROLE={'juseok.ha@gmail.com':'dad','jinahkim2023@gmail.com':'mom'};
+const EMAIL_ROLE={'juseok.ha@gmail.com':'dad','jinahkim2023@gmail.com':'mom','loraha5416@gmail.com':'daughter'};
 let healthDate = todayStr();
 let healthPerson = null;
 let weightChartOthers = [];
