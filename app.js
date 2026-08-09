@@ -648,9 +648,9 @@ function authorBadge(key){
 }
 function dtChip(it){
   const isVirtual = typeof it.id==='string' && it.id.startsWith('evt-');
-  if(isVirtual) return `<div class="dt-evt" data-virtual="1">${escapeHtml(it.title)}</div>`;
+  if(isVirtual) return `<div class="dt-evt" data-virtual="1"${it.memo?` title="${escapeHtml(it.memo)}"`:''}>${escapeHtml(it.title)}</div>`;
   const badge = it.owner==='common' ? authorBadge(it.createdBy) : '';
-  return `<div class="dt-evt" draggable="true" data-item-id="${it.id}">${badge}${timeRangeLabel(it)?escapeHtml(timeRangeLabel(it))+' ':''}${escapeHtml(it.title)}</div>`;
+  return `<div class="dt-evt" draggable="true" data-item-id="${it.id}"${it.memo?` title="${escapeHtml(it.memo)}"`:''}>${badge}${timeRangeLabel(it)?escapeHtml(timeRangeLabel(it))+' ':''}${escapeHtml(it.title)}</div>`;
 }
 function dtHl(hhmm){
   const h=Number(hhmm.split(':')[0]);
@@ -688,18 +688,21 @@ function renderDayTimelines(){
     const meta=unifiedRowMeta(idx);
     const cells=days.map((d,di)=>{
       const layout=layouts[di];
-      if(layout.skip.has(idx)) return '';
+      const gap = di>0 ? '<td class="dt-gap"></td>' : '';
+      if(layout.skip.has(idx)) return gap;
       const cell=layout.mainStart[idx];
-      const dayClass='dt-day-'+di;
       const edgeClass=meta.isEdge?' dt-edge':'';
       if(cell){
-        return `<td class="dt-cell filled${edgeClass} ${dayClass}" rowspan="${cell.span}" data-add-date="${d}" data-add-time="${meta.addTime}">${cell.items.map(dtChip).join('')}</td>`;
+        return gap+`<td class="dt-cell filled${edgeClass}" rowspan="${cell.span}" data-add-date="${d}" data-add-time="${meta.addTime}">${cell.items.map(dtChip).join('')}</td>`;
       }
-      return `<td class="dt-cell${edgeClass} ${dayClass}" data-add-date="${d}" data-add-time="${meta.addTime}"></td>`;
+      return gap+`<td class="dt-cell${edgeClass}" data-add-date="${d}" data-add-time="${meta.addTime}"></td>`;
     }).join('');
     rows += `<tr class="${meta.isEdge?'dt-edge-row':''}"><td class="dt-time-col">${meta.label}</td>${cells}</tr>`;
   });
-  const headCells = days.map((d,i)=>`<th class="dt-day-${i}">${dayLabels[i]} · ${parseDate(d).toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'})}</th>`).join('');
+  const headCells = days.map((d,i)=>{
+    const gap = i>0 ? '<th class="dt-gap"></th>' : '';
+    return gap+`<th>${dayLabels[i]} · ${parseDate(d).toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'})}</th>`;
+  }).join('');
   return `
     <div class="dt-panel">
       <div style="overflow-x:auto;">
@@ -1183,18 +1186,17 @@ function openScheduleModal(existing, prefill){
   if(!s.id && s.time && !s.endTime) s.endTime=addOneHour(s.time);
   const ownerOptions = myOwners.some(o=>o.key===(s.owner||'common')) ? myOwners : myOwners.concat([{key:s.owner||'common',label:ownerLabel(s.owner)}]);
   openModal(`
-    <h3>${existing?'일정 수정':'일정 추가'}</h3>
-    <div class="field">
-      <label>공통 / 개인</label>
-      <div class="row">
+    <div class="row" style="justify-content:space-between;align-items:center;padding-right:30px;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+      <h3 style="margin:0;">${existing?'일정 수정':'일정 추가'}</h3>
+      <div class="row" style="gap:6px;">
         ${ownerOptions.map(o=>`<label class="pill" style="cursor:pointer;"><input type="radio" name="mOwner" value="${o.key}" ${(s.owner||'common')===o.key?'checked':''} style="margin-right:4px;">${scheduleFilterLabel(o.key)}</label>`).join('')}
       </div>
     </div>
+    <div class="field"><label>날짜</label><input type="text" readonly class="date-input" placeholder="YYYY-MM-DD" id="mDate" value="${s.date}"></div>
     <div class="grid2">
-      <div class="field"><label>날짜 (한국시간 기준)</label><input type="text" readonly class="date-input" placeholder="YYYY-MM-DD" id="mDate" value="${s.date}"></div>
       <div class="field"><label>시작 시간 (선택)</label><input type="time" step="600" id="mTime" value="${s.time||''}"></div>
+      <div class="field"><label>종료 시간 (선택)</label><input type="time" step="600" id="mEndTime" value="${s.endTime||''}"></div>
     </div>
-    <div class="field"><label>종료 시간 (선택, 시간표처럼 구간 표시)</label><input type="time" step="600" id="mEndTime" value="${s.endTime||''}"></div>
     <div class="field"><label>제목</label><input id="mTitle" value="${escapeHtml(s.title)}"></div>
     <div class="field"><label>인맥 (쉼표로 구분, 예: 홍길동, 김철수)</label><input id="mContacts" value="${escapeHtml(s.contacts)}"></div>
     <div class="field"><label>메모</label><textarea id="mMemo">${escapeHtml(s.memo)}</textarea></div>
