@@ -625,6 +625,10 @@ function dtCell(layout, rowIdx, dayIdx, addInfo){
   }
   return `<td class="dt-cell ${dayClass}" data-add-date="${addInfo.date}" data-add-time="${addInfo.time}"></td>`;
 }
+function dtHl(hhmm){
+  const h=Number(hhmm.split(':')[0]);
+  return [9,12,15,18,21,0].includes(h) ? `<span class="dt-hl">${hhmm}</span>` : hhmm;
+}
 function renderDayTimelines(){
   const isDaughter = effectiveRole()==='daughter';
   const dayLabels=['오늘','내일','모레'];
@@ -637,23 +641,23 @@ function renderDayTimelines(){
   const toAddInfo = (localTime, dayIdx) => isDaughter ? ukToKoreaFull(localTime, days[dayIdx]) : {date:days[dayIdx], time:localTime};
   let rows='';
   rows += `<tr class="dt-edge-row">
-    <td class="dt-time-col"><div>08:00</div><div>이전</div></td>
+    <td class="dt-time-col"><div>${dtHl('08:00')}</div><div>이전</div></td>
     ${days.map((d,i)=>{ const a=toAddInfo('07:00', i); return `<td class="dt-cell dt-edge dt-day-${i}" data-add-date="${a.date}" data-add-time="${a.time}">${layouts[i].before.map(dtChip).join('')}</td>`; }).join('')}
-    <td class="dt-time-col dt-time-right"><div>${otherLabel('08:00')}</div><div>이전</div></td>
+    <td class="dt-time-col dt-time-right"><div>${dtHl(otherLabel('08:00'))}</div><div>이전</div></td>
   </tr>`;
   for(let i=0;i<DT_ROWS;i++){
     const totalMin=DT_START_MIN+i*DT_STEP;
     const localTime=pad2(Math.floor(totalMin/60))+':'+pad2(totalMin%60);
     rows += `<tr>
-      <td class="dt-time-col">${localTime}</td>
+      <td class="dt-time-col">${dtHl(localTime)}</td>
       ${days.map((d,di)=>dtCell(layouts[di], i, di, toAddInfo(localTime, di))).join('')}
-      <td class="dt-time-col dt-time-right">${otherLabel(localTime)}</td>
+      <td class="dt-time-col dt-time-right">${dtHl(otherLabel(localTime))}</td>
     </tr>`;
   }
   rows += `<tr class="dt-edge-row">
-    <td class="dt-time-col"><div>18:00</div><div>이후</div></td>
+    <td class="dt-time-col"><div>${dtHl('18:00')}</div><div>이후</div></td>
     ${days.map((d,i)=>{ const a=toAddInfo('19:00', i); return `<td class="dt-cell dt-edge dt-day-${i}" data-add-date="${a.date}" data-add-time="${a.time}">${layouts[i].after.map(dtChip).join('')}</td>`; }).join('')}
-    <td class="dt-time-col dt-time-right"><div>${otherLabel('18:00')}</div><div>이후</div></td>
+    <td class="dt-time-col dt-time-right"><div>${dtHl(otherLabel('18:00'))}</div><div>이후</div></td>
   </tr>`;
   const headCells = days.map((d,i)=>`<th class="dt-day-${i}">${dayLabels[i]} · ${parseDate(d).toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'})}</th>`).join('');
   return `
@@ -913,7 +917,6 @@ function renderSchedule(){
     </div>`;
   }
   const dayItems = filtered.filter(s=>s.date===scheduleSel).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
-  const myKeyForDelete=currentAuthorKey();
   el.innerHTML=`
     <div class="card">
       <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
@@ -927,11 +930,11 @@ function renderSchedule(){
     <div class="card">
       <div class="row" style="justify-content:space-between;"><h3 style="margin:0;">${scheduleSel} 일정${holidays[scheduleSel]?` <span class="pill">${escapeHtml(holidays[scheduleSel])}</span>`:''}</h3><button class="btn primary small" id="addSchedBtn">+ 일정 추가</button></div>
       ${dayItems.length? dayItems.map(s=>{
-        const canDelete = !s.virtual && (s.owner!=='common' || !s.createdBy || s.createdBy===myKeyForDelete);
+        const canManage = !s.virtual && canManageSchedule(s);
         return `
         <div class="list-item">
           <div><div>${timeRangeLabel(s)?`<b>${timeRangeLabel(s)}</b> `:''}${escapeHtml(s.title)} <span class="pill">${ownerLabel(s.owner)}</span></div>${s.memo?`<div class="meta">${escapeHtml(s.memo)}</div>`:''}</div>
-          <div class="row">${s.virtual? `<span class="meta">경조사 탭에서 수정</span>` : `<button class="btn small" data-edit="${s.id}">수정</button>${canDelete?`<button class="btn small danger" data-del="${s.id}">삭제</button>`:''}`}</div>
+          <div class="row">${s.virtual? `<span class="meta">경조사 탭에서 수정</span>` : (canManage?`<button class="btn small" data-edit="${s.id}">수정</button><button class="btn small danger" data-del="${s.id}">삭제</button>`:`<span class="meta">작성자만 관리 가능</span>`)}</div>
         </div>`;
       }).join('') : `<div class="empty">일정이 없어요</div>`}
     </div>
@@ -958,14 +961,25 @@ function addOneHour(timeStr){
   const total=(h*60+mi+60)%1440;
   return pad2(Math.floor(total/60))+':'+pad2(total%60);
 }
+function canManageSchedule(item){
+  return !item || item.owner!=='common' || !item.createdBy || item.createdBy===currentAuthorKey();
+}
 function openScheduleModal(existing, prefill){
+  if(existing && !canManageSchedule(existing)){ showToast('공통 일정은 작성자만 수정·삭제할 수 있어요'); return; }
   const myOwners=getAllowedOwners();
   const role=effectiveRole();
+  const isDaughter = role==='daughter';
   const defaultOwner = (prefill&&prefill.owner) ? prefill.owner
     : (role && role!=='dad' && myOwners.some(o=>o.key===role)) ? role
     : ((scheduleFilter!=='all' && myOwners.some(o=>o.key===scheduleFilter)) ? scheduleFilter : (myOwners[0]?myOwners[0].key:'common'));
   const s=existing||{id:null,date:(prefill&&prefill.date)||scheduleSel,time:(prefill&&prefill.time)||'',endTime:(prefill&&prefill.endTime)||'',title:'',contacts:'',memo:'',owner:defaultOwner};
-  if(!existing && s.time && !s.endTime) s.endTime=addOneHour(s.time);
+  let displayDate=s.date, displayTime=s.time, displayEnd=s.endTime;
+  if(isDaughter && s.time){
+    const conv=koreaToUKFull(s.time, s.date);
+    displayDate=conv.date; displayTime=conv.time;
+    if(s.endTime) displayEnd=koreaToUKFull(s.endTime, s.date).time;
+  }
+  if(!s.id && displayTime && !displayEnd) displayEnd=addOneHour(displayTime);
   const ownerOptions = myOwners.some(o=>o.key===(s.owner||'common')) ? myOwners : myOwners.concat([{key:s.owner||'common',label:ownerLabel(s.owner)}]);
   openModal(`
     <h3>${existing?'일정 수정':'일정 추가'}</h3>
@@ -976,14 +990,18 @@ function openScheduleModal(existing, prefill){
       </div>
     </div>
     <div class="grid2">
-      <div class="field"><label>날짜</label><input type="text" readonly class="date-input" placeholder="YYYY-MM-DD" id="mDate" value="${s.date}"></div>
-      <div class="field"><label>시작 시간 (선택)</label><input type="time" step="600" id="mTime" value="${s.time||''}"></div>
+      <div class="field"><label>날짜${isDaughter?' (영국 기준)':''}</label><input type="text" readonly class="date-input" placeholder="YYYY-MM-DD" id="mDate" value="${displayDate}"></div>
+      <div class="field"><label>시작 시간 (선택)${isDaughter?' (영국 기준)':''}</label><input type="time" step="600" id="mTime" value="${displayTime||''}"></div>
     </div>
-    <div class="field"><label>종료 시간 (선택, 시간표처럼 구간 표시)</label><input type="time" step="600" id="mEndTime" value="${s.endTime||''}"></div>
+    <div class="field"><label>종료 시간 (선택, 시간표처럼 구간 표시)</label><input type="time" step="600" id="mEndTime" value="${displayEnd||''}"></div>
     <div class="field"><label>제목</label><input id="mTitle" value="${escapeHtml(s.title)}"></div>
     <div class="field"><label>인맥 (쉼표로 구분, 예: 홍길동, 김철수)</label><input id="mContacts" value="${escapeHtml(s.contacts)}"></div>
     <div class="field"><label>메모</label><textarea id="mMemo">${escapeHtml(s.memo)}</textarea></div>
-    <div class="modal-actions"><button class="btn" id="mCancel">취소</button><button class="btn primary" id="mSave">저장</button></div>
+    <div class="modal-actions">
+      ${existing?`<button class="btn danger" id="mDelete">삭제</button>`:''}
+      <button class="btn" id="mCancel">취소</button>
+      <button class="btn primary" id="mSave">저장</button>
+    </div>
   `);
   document.getElementById('mCancel').onclick=closeModal;
   attachDatePicker('mDate');
@@ -991,14 +1009,28 @@ function openScheduleModal(existing, prefill){
     if(e.target.value) document.getElementById('mEndTime').value=addOneHour(e.target.value);
   });
   document.getElementById('mSave').onclick=()=>{
-    const date=document.getElementById('mDate').value;
+    const formDate=document.getElementById('mDate').value;
+    const formTime=document.getElementById('mTime').value;
+    const formEnd=document.getElementById('mEndTime').value;
     const title=document.getElementById('mTitle').value.trim();
-    if(!date||!title){ showToast('날짜와 제목을 입력해주세요'); return; }
+    if(!formDate||!title){ showToast('날짜와 제목을 입력해주세요'); return; }
+    let saveDate=formDate, saveTime=formTime, saveEnd=formEnd;
+    if(isDaughter && formTime){
+      const conv=ukToKoreaFull(formTime, formDate);
+      saveDate=conv.date; saveTime=conv.time;
+      if(formEnd) saveEnd=ukToKoreaFull(formEnd, formDate).time;
+    }
     const owner=(document.querySelector('input[name="mOwner"]:checked')||{}).value || 'common';
-    const rec={id:s.id||uid(),date,time:document.getElementById('mTime').value,endTime:document.getElementById('mEndTime').value,title,contacts:document.getElementById('mContacts').value,memo:document.getElementById('mMemo').value,owner,createdBy:s.createdBy||currentAuthorKey()};
+    const rec={id:s.id||uid(),date:saveDate,time:saveTime,endTime:saveEnd,title,contacts:document.getElementById('mContacts').value,memo:document.getElementById('mMemo').value,owner,createdBy:s.createdBy||currentAuthorKey()};
     if(s.id){ const idx=state.schedule.findIndex(x=>x.id===s.id); state.schedule[idx]=rec; }
     else state.schedule.push(rec);
-    scheduleSel=date;
+    scheduleSel=saveDate;
+    queueSave(); closeModal(); renderSchedule(); renderHome();
+  };
+  const delBtn=document.getElementById('mDelete');
+  if(delBtn) delBtn.onclick=()=>{
+    if(!confirm('이 일정을 완전히 삭제할까요? 삭제하면 되돌릴 수 없어요.')) return;
+    state.schedule=state.schedule.filter(x=>x.id!==s.id);
     queueSave(); closeModal(); renderSchedule(); renderHome();
   };
 }
