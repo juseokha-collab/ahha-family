@@ -636,10 +636,21 @@ function computeDayLayoutFromItems(items){
   return {before, after, mainStart, skip};
 }
 function computeDayLayout(dateStr){ return computeDayLayoutFromItems(myVisibleScheduleItems(dateStr)); }
+const ROLE_EMOJI={dad:'👨',mom:'👩',daughter:'👧'};
+function authorRoleOf(key){
+  if(!key) return null;
+  if(key==='daughter') return 'daughter';
+  return EMAIL_ROLE[key] || null;
+}
+function authorEmoji(key){
+  const role=authorRoleOf(key);
+  return role ? ROLE_EMOJI[role] : '';
+}
 function dtChip(it){
   const isVirtual = typeof it.id==='string' && it.id.startsWith('evt-');
   if(isVirtual) return `<div class="dt-evt" data-virtual="1">${escapeHtml(it.title)}</div>`;
-  return `<div class="dt-evt" data-item-id="${it.id}">${timeRangeLabel(it)?escapeHtml(timeRangeLabel(it))+' ':''}${escapeHtml(it.title)}</div>`;
+  const emoji = it.owner==='common' ? authorEmoji(it.createdBy) : '';
+  return `<div class="dt-evt" draggable="true" data-item-id="${it.id}">${emoji?emoji+' ':''}${timeRangeLabel(it)?escapeHtml(timeRangeLabel(it))+' ':''}${escapeHtml(it.title)}</div>`;
 }
 function dtCell(layout, rowIdx, dayIdx, addInfo){
   if(layout.skip.has(rowIdx)) return '';
@@ -654,18 +665,30 @@ function dtHl(hhmm){
   const h=Number(hhmm.split(':')[0]);
   return [9,12,15,18,21,0].includes(h) ? `<span class="dt-hl">${hhmm}</span>` : hhmm;
 }
+let showCommonOnHome=false;
+function myHomeVisibleScheduleItems(dateStr){
+  const role=effectiveRole();
+  const virtualEventItems=state.events
+    .filter(ev=>!(ev.hiddenFromDaughter && role==='daughter'))
+    .map(ev=>({id:'evt-'+ev.id, date:fmtDate(eventOccurrence(ev)), time:'', title:'🎉 '+ev.name, owner:'common'}));
+  const allItems=state.schedule.map(s=>({...s, owner:s.owner||'common'})).concat(virtualEventItems);
+  const visible = allItems.filter(it=>{
+    if(!role) return it.owner==='common';
+    if(it.owner===role) return true;
+    if(it.owner==='common') return showCommonOnHome;
+    return false;
+  });
+  return visible.filter(it=>it.date===dateStr).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+}
 function renderDayTimelines(){
   const dayLabels=['오늘','내일','모레'];
   const days=[0,1,2].map(n=>fmtDate(addDays(new Date(), n)));
-  const layouts=days.map(d=>computeDayLayout(d));
-  const refDate=days[0];
-  const otherLabel = korTime => koreaToUK(korTime, refDate);
+  const layouts=days.map(d=>computeDayLayoutFromItems(myHomeVisibleScheduleItems(d)));
   const toAddInfo = (korTime, dayIdx) => ({date:days[dayIdx], time:korTime});
   let rows='';
   rows += `<tr class="dt-edge-row">
     <td class="dt-time-col"><div>${dtHl('08:00')}</div><div>이전</div></td>
     ${days.map((d,i)=>{ const a=toAddInfo('07:00', i); return `<td class="dt-cell dt-edge dt-day-${i}" data-add-date="${a.date}" data-add-time="${a.time}">${layouts[i].before.map(dtChip).join('')}</td>`; }).join('')}
-    <td class="dt-time-col dt-time-right"><div>${dtHl(otherLabel('08:00'))}</div><div>이전</div></td>
   </tr>`;
   for(let i=0;i<DT_ROWS;i++){
     const totalMin=DT_START_MIN+i*DT_STEP;
@@ -673,26 +696,40 @@ function renderDayTimelines(){
     rows += `<tr>
       <td class="dt-time-col">${dtHl(korTime)}</td>
       ${days.map((d,di)=>dtCell(layouts[di], i, di, toAddInfo(korTime, di))).join('')}
-      <td class="dt-time-col dt-time-right">${dtHl(otherLabel(korTime))}</td>
     </tr>`;
   }
   rows += `<tr class="dt-edge-row">
     <td class="dt-time-col"><div>${dtHl('18:00')}</div><div>이후</div></td>
     ${days.map((d,i)=>{ const a=toAddInfo('19:00', i); return `<td class="dt-cell dt-edge dt-day-${i}" data-add-date="${a.date}" data-add-time="${a.time}">${layouts[i].after.map(dtChip).join('')}</td>`; }).join('')}
-    <td class="dt-time-col dt-time-right"><div>${dtHl(otherLabel('18:00'))}</div><div>이후</div></td>
   </tr>`;
   const headCells = days.map((d,i)=>`<th class="dt-day-${i}">${dayLabels[i]} · ${parseDate(d).toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'})}</th>`).join('');
   return `
     <div class="dt-panel">
-      <div class="meta" style="margin-bottom:6px;">시간은 한국시간(KST) 기준이며, 오른쪽 영국시간(UK)은 참고용입니다.</div>
       <div style="overflow-x:auto;">
         <table class="dt-table">
-          <thead><tr><th class="dt-time-col">KST</th>${headCells}<th class="dt-time-col dt-time-right">UK</th></tr></thead>
+          <thead><tr><th class="dt-time-col">KST</th>${headCells}</tr></thead>
           <tbody>${rows}</tbody>
         </table>
       </div>
     </div>
   `;
+}
+function moveScheduleItem(id, newDate, newTime){
+  const item=state.schedule.find(x=>x.id===id);
+  if(!item) return;
+  if(!canManageSchedule(item)){ showToast('공통 일정은 작성자만 이동할 수 있어요'); return; }
+  if(item.time && item.endTime){
+    const [sh,smi]=item.time.split(':').map(Number);
+    const [eh,emi]=item.endTime.split(':').map(Number);
+    const durMin=(eh*60+emi)-(sh*60+smi);
+    const [nh,nmi]=newTime.split(':').map(Number);
+    let endMin=Math.max(0, Math.min(1439, nh*60+nmi+durMin));
+    item.endTime=pad2(Math.floor(endMin/60))+':'+pad2(endMin%60);
+  }
+  item.date=newDate;
+  item.time=newTime;
+  queueSave(); renderSchedule(); renderHome();
+  showToast('일정을 이동했어요');
 }
 function bindDayTimelineEvents(){
   const el=document.getElementById('tab-home');
@@ -701,12 +738,25 @@ function bindDayTimelineEvents(){
       if(e.target.closest('.dt-evt')) return;
       openScheduleModal(null, {date:td.dataset.addDate, time:td.dataset.addTime});
     });
+    td.addEventListener('dragover', e=>{ e.preventDefault(); td.classList.add('dt-dragover'); });
+    td.addEventListener('dragleave', ()=>{ td.classList.remove('dt-dragover'); });
+    td.addEventListener('drop', e=>{
+      e.preventDefault();
+      td.classList.remove('dt-dragover');
+      const id=e.dataTransfer.getData('text/plain');
+      if(!id) return;
+      moveScheduleItem(id, td.dataset.addDate, td.dataset.addTime);
+    });
   });
   el.querySelectorAll('.dt-evt[data-item-id]').forEach(chip=>{
     chip.addEventListener('click', e=>{
       e.stopPropagation();
       const item=state.schedule.find(x=>x.id===chip.dataset.itemId);
       if(item) openScheduleModal(item);
+    });
+    chip.addEventListener('dragstart', e=>{
+      e.dataTransfer.setData('text/plain', chip.dataset.itemId);
+      e.dataTransfer.effectAllowed='move';
     });
   });
   el.querySelectorAll('.dt-evt[data-virtual]').forEach(chip=>{
@@ -1786,6 +1836,12 @@ function initViewAs(){
   document.getElementById('viewAsMomBtn').addEventListener('click', ()=>setViewAs('mom'));
   document.getElementById('viewAsDaughterBtn').addEventListener('click', ()=>setViewAs('daughter'));
 }
+function initShowCommonToggle(){
+  document.getElementById('showCommonToggle').addEventListener('change', e=>{
+    showCommonOnHome=e.target.checked;
+    renderHome();
+  });
+}
 
 /* ---------- init ---------- */
 function renderAll(){
@@ -1794,5 +1850,6 @@ function renderAll(){
 }
 initTheme();
 initViewAs();
+initShowCommonToggle();
 initAuth();
 renderAll();
