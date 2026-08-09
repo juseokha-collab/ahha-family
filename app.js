@@ -1325,9 +1325,15 @@ function weightGoalsFor(key){
   if(!state.weightGoals[key]) state.weightGoals[key]={target:'',weeklyLoss:'',finalTarget:''};
   return state.weightGoals[key];
 }
-function latestWeightFor(key){
+function latestWeightEntryFor(key){
   const dates=Object.keys(state.daily).filter(d=>state.daily[d].health && state.daily[d].health[key] && state.daily[d].health[key].weight).sort();
-  return dates.length ? Number(state.daily[dates[dates.length-1]].health[key].weight) : null;
+  if(!dates.length) return null;
+  const d=dates[dates.length-1];
+  return {date:d, weight:Number(state.daily[d].health[key].weight)};
+}
+function latestWeightFor(key){
+  const entry=latestWeightEntryFor(key);
+  return entry ? entry.weight : null;
 }
 function fmtKoreanDate(dateStr){
   const d=parseDate(dateStr);
@@ -1352,11 +1358,11 @@ function renderHealth(){
   const curWeight = latestWeightFor(healthPerson);
   const targetDate = projectedAchievementDate(curWeight, goals.target, goals.weeklyLoss);
   const finalDate = projectedAchievementDate(curWeight, goals.finalTarget, goals.weeklyLoss);
-  const goalInputStyle='width:60px;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px 6px;font-size:11px;';
+  const goalInputStyle=v=>`width:${Math.max(String(v||'').length,2)+1.5}ch;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px 6px;font-size:11px;`;
   const goalLegendHtml = `
-    <span class="meta">1차 목표</span><input type="number" step="0.1" id="wgTarget" value="${goals.target}" style="${goalInputStyle}"><span class="meta">kg</span>
-    <span class="meta">주당</span><input type="number" step="10" id="wgWeekly" value="${goals.weeklyLoss}" style="${goalInputStyle}"><span class="meta">g 감량</span>
-    <span class="meta">최종목표</span><input type="number" step="0.1" id="wgFinal" value="${goals.finalTarget}" style="${goalInputStyle}"><span class="meta">kg</span>
+    <span class="meta">1차 목표</span><input type="number" step="0.1" class="wg-input" id="wgTarget" value="${goals.target}" style="${goalInputStyle(goals.target)}"><span class="meta">kg</span>
+    <span class="meta">주당</span><input type="number" step="10" class="wg-input" id="wgWeekly" value="${goals.weeklyLoss}" style="${goalInputStyle(goals.weeklyLoss)}"><span class="meta">g 감량</span>
+    <span class="meta">최종목표</span><input type="number" step="0.1" class="wg-input" id="wgFinal" value="${goals.finalTarget}" style="${goalInputStyle(goals.finalTarget)}"><span class="meta">kg</span>
   `;
   el.innerHTML=`
     <div class="card">
@@ -1374,13 +1380,11 @@ function renderHealth(){
       <div class="datebar"><button class="iconbtn" id="hPrev">‹</button><div class="d">${dLabel}</div><button class="iconbtn" id="hNext">›</button>
         ${healthDate!==todayStr()?`<button class="btn small" id="hToday">오늘</button>`:''}
       </div>
-      <div class="grid2">
+      <div class="grid4">
         <div class="field"><label>체중 (kg)</label><input type="number" step="0.1" id="hWeight" value="${rec.weight||''}"></div>
         <div class="field"><label>수면 시간</label><input type="number" step="0.5" id="hSleep" value="${rec.sleep||''}"></div>
-      </div>
-      <div class="grid2" style="margin-top:10px;">
         <div class="field"><label>공복시간</label><input type="number" step="0.5" id="hFasting" value="${rec.fasting||''}"></div>
-        <div class="field"><label>총칼로리 섭취량 (kcal)</label><input type="number" step="10" id="hCalories" value="${rec.calories||''}"></div>
+        <div class="field"><label>총칼로리 (kcal)</label><input type="number" step="10" id="hCalories" value="${rec.calories||''}"></div>
       </div>
       <div class="row" style="margin-top:8px;">
         <label class="pill" style="cursor:pointer;"><input type="checkbox" id="hExercise" ${rec.exercise?'checked':''} style="margin-right:4px;">운동</label>
@@ -1406,6 +1410,9 @@ function renderHealth(){
   document.getElementById('wgTarget').addEventListener('change', e=>{ saveGoal('target', e.target.value); renderHealth(); });
   document.getElementById('wgWeekly').addEventListener('change', e=>{ saveGoal('weeklyLoss', e.target.value); renderHealth(); });
   document.getElementById('wgFinal').addEventListener('change', e=>{ saveGoal('finalTarget', e.target.value); renderHealth(); });
+  el.querySelectorAll('.wg-input').forEach(inp=>{
+    inp.addEventListener('input', e=>{ e.target.style.width=(Math.max(e.target.value.length,2)+1.5)+'ch'; });
+  });
   el.querySelectorAll('.weightExtraToggle').forEach(cb=>{
     cb.addEventListener('change', ()=>{
       const key=cb.value;
@@ -1413,6 +1420,10 @@ function renderHealth(){
       else { weightChartOthers=weightChartOthers.filter(k=>k!==key); }
       renderHealth();
     });
+  });
+  el.querySelectorAll('.wt-point').forEach(pt=>{
+    pt.addEventListener('mouseenter', ()=>showDtTooltip(pt, pt.dataset.tip));
+    pt.addEventListener('mouseleave', hideDtTooltip);
   });
   document.getElementById('hPrev').onclick=()=>{ healthDate=fmtDate(addDays(parseDate(healthDate),-1)); renderHealth(); };
   document.getElementById('hNext').onclick=()=>{ healthDate=fmtDate(addDays(parseDate(healthDate),1)); renderHealth(); };
@@ -1494,13 +1505,15 @@ function renderWeightChart(keys, extraLegendHtml, goalProjection){
   }));
   let goalPts=null, goalColor=null;
   if(goalProjection && goalProjection.weeklyLoss){
-    const anchorWeight=latestWeightFor(goalProjection.key);
-    if(anchorWeight!=null){
+    const anchorEntry=latestWeightEntryFor(goalProjection.key);
+    if(anchorEntry){
+      let anchorIdx=dateList.indexOf(anchorEntry.date);
+      if(anchorIdx===-1) anchorIdx=todayIdx;
       goalColor=ROLE_BADGE_COLOR[goalProjection.key]||'#8b7cf6';
       goalPts=dateList.map((d,i)=>{
-        if(i<todayIdx) return null;
-        const daysAhead=i-todayIdx;
-        let w=anchorWeight-(Number(goalProjection.weeklyLoss)/1000)*(daysAhead/7);
+        if(i<anchorIdx) return null;
+        const daysAhead=i-anchorIdx;
+        let w=anchorEntry.weight-(Number(goalProjection.weeklyLoss)/1000)*(daysAhead/7);
         if(goalProjection.finalTarget && w<Number(goalProjection.finalTarget)) w=Number(goalProjection.finalTarget);
         return w;
       });
@@ -1528,18 +1541,25 @@ function renderWeightChart(keys, extraLegendHtml, goalProjection){
       if(v==null) return;
       const px=x(i), py=y(v);
       pathD += (pathD?'L':'M')+px+' '+py+' ';
-      dots+=`<circle cx="${px}" cy="${py}" r="3" fill="${s.color}"/>`;
+      dots+=`<circle class="wt-point" data-tip="${escapeHtml(s.label)} ${v}kg (${dateList[i].slice(5)})" cx="${px}" cy="${py}" r="4" fill="${s.color}" style="cursor:pointer;"/>`;
     });
     return pathD ? `<path d="${pathD.trim()}" fill="none" stroke="${s.color}" stroke-width="2"/>${dots}` : '';
   }).join('');
   let goalSvg='';
   if(goalPts){
-    let pathD='';
+    let pathD='', lastIdx=-1, lastVal=null;
     goalPts.forEach((v,i)=>{
       if(v==null) return;
       pathD += (pathD?'L':'M')+x(i)+' '+y(v)+' ';
+      lastIdx=i; lastVal=v;
     });
-    if(pathD) goalSvg=`<path d="${pathD.trim()}" fill="none" stroke="${goalColor}" stroke-width="2" stroke-dasharray="4 3" opacity="0.7"/>`;
+    if(pathD){
+      goalSvg=`<path d="${pathD.trim()}" fill="none" stroke="${goalColor}" stroke-width="2" stroke-dasharray="4 3" opacity="0.7"/>`;
+      if(lastIdx>=0){
+        const ex=x(lastIdx), ey=y(lastVal);
+        goalSvg+=`<circle cx="${ex}" cy="${ey}" r="4" fill="var(--panel)" stroke="${goalColor}" stroke-width="2"/><text x="${ex-6}" y="${ey-8}" font-size="9" fill="${goalColor}" text-anchor="end" font-weight="700">${lastVal.toFixed(1)}kg</text>`;
+      }
+    }
   }
   const xLabels=dateList.map((d,i)=>{
     if(i%7!==0 && i!==totalDays-1 && i!==todayIdx) return '';
