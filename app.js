@@ -867,7 +867,7 @@ function renderHome(){
   const dLabel = parseDate(homeDate).toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'});
   const todaySchedule = state.schedule.filter(s=>s.date===homeDate).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
   const ym=homeDate.slice(0,7);
-  const monthBudget = state.budget.filter(b=>b.date.startsWith(ym)).reduce((s,b)=>s+Number(b.amount||0),0);
+  const monthBudget = state.budget.filter(b=>b.date.startsWith(ym) && b.type!=='income').reduce((s,b)=>s+Number(b.amount||0),0);
   const upcomingEvent = state.events.filter(ev=>!(ev.hiddenFromDaughter && effectiveRole()==='daughter')).map(ev=>({...ev,d:ddayFromDate(eventOccurrence(ev))})).filter(e=>e.d>=0).sort((a,b)=>a.d-b.d)[0];
   const upcomingRenew = state.vehicle.renewals.map(r=>({...r,d:dday(r.date)})).filter(r=>r.d>=0).sort((a,b)=>a.d-b.d)[0];
   const todayTodos = todosForToday();
@@ -1470,32 +1470,87 @@ function renderWeightChart(keys){
 /* ---------- BUDGET ---------- */
 let budgetMonth = todayStr().slice(0,7);
 const BUDGET_CATS=['식비','생활용품','의료/건강','쇼핑','문화/여가','교통','기타'];
+const DAUGHTER_EXPENSE_CATS=['밥값','Tea 등 음료','문화생활비','체육활동비','기타'];
+const INCOME_CATS=['용돈','상여금','환급','기타'];
+const DAUGHTER_INCOME_CATS=['주급(토스)','주급(로이드)','학습·운동 인센티브','체중감량 인센티브','기타'];
 function myBudgetCategories(){
   const key=currentAuthorKey();
   if(!state.budgetCategories) state.budgetCategories={};
-  if(!state.budgetCategories[key]) state.budgetCategories[key]=[...BUDGET_CATS];
+  if(!state.budgetCategories[key]) state.budgetCategories[key]=[...(key==='daughter'?DAUGHTER_EXPENSE_CATS:BUDGET_CATS)];
   return state.budgetCategories[key];
+}
+function myIncomeCategories(){
+  const key=currentAuthorKey();
+  if(!state.incomeCategories) state.incomeCategories={};
+  if(!state.incomeCategories[key]) state.incomeCategories[key]=[...(key==='daughter'?DAUGHTER_INCOME_CATS:INCOME_CATS)];
+  return state.incomeCategories[key];
+}
+function fmtCurrency(v,cur){ return cur==='GBP' ? '£'+Number(v).toLocaleString() : Number(v).toLocaleString()+'원'; }
+function renderIncomeEstimateCard(){
+  const week=weekRangeContaining(todayStr());
+  const weekMinutes=week.reduce((acc,d)=>{
+    const s=studySummary(studyBlocksFor('daughter',d));
+    return acc+s.study+s.exercise;
+  },0);
+  const hours=weekMinutes/60;
+  const incentiveGBP=Math.round(hours*2*100)/100;
+  const weightDates=Object.keys(state.daily).filter(d=>state.daily[d].health && state.daily[d].health.daughter && state.daily[d].health.daughter.weight).sort();
+  const latestWeight = weightDates.length? Number(state.daily[weightDates[weightDates.length-1]].health.daughter.weight) : null;
+  const milestones=[{w:49,bonus:20},{w:48,bonus:50},{w:45,bonus:100}];
+  const loggedTexts=state.budget.filter(b=>b.type==='income'&&b.category==='체중감량 인센티브').map(b=>(b.memo||'')+' '+b.amount);
+  const reached=latestWeight==null?[]:milestones.filter(ms=>latestWeight<=ms.w);
+  const unpaid=reached.filter(ms=>!loggedTexts.some(t=>t.includes(String(ms.w))));
+  return `
+    <div class="card">
+      <h3>💡 이번 주 예상 수입</h3>
+      <div class="row" style="gap:20px;flex-wrap:wrap;">
+        <div><div class="meta">주급</div><div style="font-size:15px;font-weight:700;">₩200,000 + £50</div></div>
+        <div><div class="meta">학습·운동 인센티브 (${hours.toFixed(1)}시간 × £2)</div><div style="font-size:15px;font-weight:700;">£${incentiveGBP.toFixed(2)}</div></div>
+      </div>
+      ${unpaid.length?`<div class="meta" style="margin-top:10px;color:var(--good);">🎉 체중 감량 목표 달성: ${unpaid.map(ms=>`${ms.w}kg 이하 → £${ms.bonus}`).join(', ')} (아직 수입 내역에 기록 안 됨)</div>`:''}
+    </div>
+  `;
 }
 function renderBudget(){
   const el=document.getElementById('tab-budget');
-  const items=state.budget.filter(b=>b.date.startsWith(budgetMonth)).sort((a,b)=>b.date.localeCompare(a.date));
+  const monthItems=state.budget.filter(b=>b.date.startsWith(budgetMonth));
+  const items=monthItems.filter(b=>b.type!=='income').sort((a,b)=>b.date.localeCompare(a.date));
+  const incomeItems=monthItems.filter(b=>b.type==='income').sort((a,b)=>b.date.localeCompare(a.date));
   const total=items.reduce((s,b)=>s+Number(b.amount||0),0);
+  const incomeByCur={KRW:0,GBP:0};
+  incomeItems.forEach(b=>{ const cur=b.currency||'KRW'; incomeByCur[cur]=(incomeByCur[cur]||0)+Number(b.amount||0); });
   const byCat={};
   items.forEach(b=>{ byCat[b.category]=(byCat[b.category]||0)+Number(b.amount||0); });
   const [y,m]=budgetMonth.split('-');
+  const isDaughter=effectiveRole()==='daughter';
   el.innerHTML=`
     <div class="card">
       <div class="datebar"><button class="iconbtn" id="bPrev">‹</button><div class="d">${y}년 ${Number(m)}월</div><button class="iconbtn" id="bNext">›</button></div>
-      <div class="stat-grid" style="grid-template-columns:1fr;"><div class="stat"><div class="v">${total.toLocaleString()}원</div><div class="l">이번달 총 지출</div></div></div>
+      <div class="stat-grid">
+        <div class="stat"><div class="v">${total.toLocaleString()}원</div><div class="l">이번달 총 지출</div></div>
+        <div class="stat"><div class="v">${incomeByCur.KRW.toLocaleString()}원${incomeByCur.GBP?' / £'+incomeByCur.GBP.toLocaleString():''}</div><div class="l">이번달 총 수입</div></div>
+      </div>
+    </div>
+    ${isDaughter?renderIncomeEstimateCard():''}
+    <div class="card">
+      <div class="row" style="justify-content:space-between;"><h3 style="margin:0;">💰 수입</h3>
+        <div class="row"><button class="btn small" id="manageIncCatBtn">카테고리 관리</button><button class="btn primary small" id="addIncomeBtn">+ 수입 추가</button></div>
+      </div>
+      ${incomeItems.length? incomeItems.map(b=>`
+        <div class="list-item">
+          <div><div><span class="pill">${escapeHtml(b.category)}</span> ${escapeHtml(b.memo)}</div><div class="meta">${b.date}</div></div>
+          <div class="row"><b>${fmtCurrency(b.amount,b.currency||'KRW')}</b>
+            <button class="btn small" data-edit-inc="${b.id}">수정</button><button class="btn small danger" data-del-inc="${b.id}">삭제</button></div>
+        </div>`).join('') : `<div class="empty">이번달 수입 내역이 없어요</div>`}
     </div>
     <div class="card">
-      <h3>카테고리별</h3>
+      <h3>지출 카테고리별</h3>
       ${Object.keys(byCat).length? Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([c,v])=>`
         <div class="bar-row"><span style="width:70px;">${c}</span><div class="bar-track"><div class="bar-fill" style="width:${total?Math.round(v/total*100):0}%"></div></div><span style="width:80px;text-align:right;">${v.toLocaleString()}원</span></div>
       `).join('') : `<div class="empty">지출 내역이 없어요</div>`}
     </div>
     <div class="card">
-      <div class="row" style="justify-content:space-between;"><h3 style="margin:0;">내역</h3>
+      <div class="row" style="justify-content:space-between;"><h3 style="margin:0;">지출 내역</h3>
         <div class="row"><button class="btn small" id="manageCatBtn">카테고리 관리</button><button class="btn primary small" id="addBudgetBtn">+ 지출 추가</button></div>
       </div>
       ${items.length? items.map(b=>`
@@ -1510,9 +1565,15 @@ function renderBudget(){
   document.getElementById('bNext').onclick=()=>{ budgetMonth=shiftMonth(budgetMonth,1); renderBudget(); };
   document.getElementById('addBudgetBtn').onclick=()=>openBudgetModal();
   document.getElementById('manageCatBtn').onclick=()=>openCategoryManageModal();
+  document.getElementById('addIncomeBtn').onclick=()=>openIncomeModal();
+  document.getElementById('manageIncCatBtn').onclick=()=>openIncomeCategoryManageModal();
   el.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>openBudgetModal(state.budget.find(x=>x.id===b.dataset.edit)));
   el.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{
     if(confirm('삭제할까요?')){ state.budget=state.budget.filter(x=>x.id!==b.dataset.del); queueSave(); renderBudget(); renderHome(); }
+  });
+  el.querySelectorAll('[data-edit-inc]').forEach(b=>b.onclick=()=>openIncomeModal(state.budget.find(x=>x.id===b.dataset.editInc)));
+  el.querySelectorAll('[data-del-inc]').forEach(b=>b.onclick=()=>{
+    if(confirm('삭제할까요?')){ state.budget=state.budget.filter(x=>x.id!==b.dataset.delInc); queueSave(); renderBudget(); renderHome(); }
   });
 }
 function openCategoryManageModal(){
@@ -1521,7 +1582,7 @@ function openCategoryManageModal(){
     <h3>내 카테고리 관리</h3>
     <div class="meta" style="margin-bottom:10px;">여기서 관리하는 카테고리는 지금 로그인한 계정에만 적용돼요.</div>
     ${cats.map(c=>{
-      const cnt=state.budget.filter(x=>x.category===c).length;
+      const cnt=state.budget.filter(x=>x.category===c && x.type!=='income').length;
       return `<div class="list-item"><div>${escapeHtml(c)}${cnt?` <span class="meta">(${cnt}건 사용중)</span>`:''}</div><button class="btn small danger" data-del-cat="${escapeHtml(c)}">삭제</button></div>`;
     }).join('')}
     <div class="row" style="margin-top:12px;">
@@ -1541,7 +1602,7 @@ function openCategoryManageModal(){
   };
   document.querySelectorAll('[data-del-cat]').forEach(b=>b.onclick=()=>{
     const cat=b.dataset.delCat;
-    const cnt=state.budget.filter(x=>x.category===cat).length;
+    const cnt=state.budget.filter(x=>x.category===cat && x.type!=='income').length;
     const msg = cnt>0 ? `"${cat}" 카테고리를 사용한 지출 내역이 ${cnt}건 있어요. 그래도 내 카테고리 목록에서 삭제할까요? (기존 지출 내역은 그대로 유지돼요)` : `"${cat}" 카테고리를 삭제할까요?`;
     if(!confirm(msg)) return;
     const list=myBudgetCategories();
@@ -1581,6 +1642,69 @@ function openBudgetModal(existing){
     queueSave(); closeModal(); renderBudget(); renderHome();
   };
 }
+function openIncomeModal(existing){
+  const myCats=myIncomeCategories();
+  const b=existing||{id:null,date:budgetMonth+'-'+pad2(new Date().getDate()),category:myCats[0]||'기타',amount:'',currency:'KRW',memo:''};
+  const catOptions = myCats.includes(b.category) ? myCats : myCats.concat([b.category]);
+  openModal(`
+    <h3>${existing?'수입 수정':'수입 추가'}</h3>
+    <div class="field"><label>날짜</label><input type="text" readonly class="date-input" placeholder="YYYY-MM-DD" id="mDate" value="${b.date}"></div>
+    <div class="field"><label>카테고리</label><select id="mCat">${catOptions.map(c=>`<option ${c===b.category?'selected':''}>${escapeHtml(c)}</option>`).join('')}</select></div>
+    <div class="grid2">
+      <div class="field"><label>금액</label><input type="number" id="mAmount" value="${b.amount}"></div>
+      <div class="field"><label>통화</label><select id="mCurrency"><option value="KRW" ${(b.currency||'KRW')==='KRW'?'selected':''}>원 (KRW)</option><option value="GBP" ${b.currency==='GBP'?'selected':''}>£ (GBP)</option></select></div>
+    </div>
+    <div class="field"><label>메모</label><input id="mMemo" value="${escapeHtml(b.memo)}"></div>
+    <div class="modal-actions"><button class="btn" id="mCancel">취소</button><button class="btn primary" id="mSave">저장</button></div>
+  `);
+  document.getElementById('mCancel').onclick=closeModal;
+  attachDatePicker('mDate');
+  document.getElementById('mSave').onclick=()=>{
+    const date=document.getElementById('mDate').value;
+    const amount=Number(document.getElementById('mAmount').value||0);
+    if(!date||!amount){ showToast('날짜와 금액을 입력해주세요'); return; }
+    const rec={id:b.id||uid(),date,category:document.getElementById('mCat').value,amount,currency:document.getElementById('mCurrency').value,memo:document.getElementById('mMemo').value,type:'income'};
+    if(b.id){ const idx=state.budget.findIndex(x=>x.id===b.id); state.budget[idx]=rec; }
+    else state.budget.push(rec);
+    budgetMonth=date.slice(0,7);
+    queueSave(); closeModal(); renderBudget(); renderHome();
+  };
+}
+function openIncomeCategoryManageModal(){
+  const cats=myIncomeCategories();
+  openModal(`
+    <h3>내 수입 카테고리 관리</h3>
+    <div class="meta" style="margin-bottom:10px;">여기서 관리하는 카테고리는 지금 로그인한 계정에만 적용돼요.</div>
+    ${cats.map(c=>{
+      const cnt=state.budget.filter(x=>x.type==='income' && x.category===c).length;
+      return `<div class="list-item"><div>${escapeHtml(c)}${cnt?` <span class="meta">(${cnt}건 사용중)</span>`:''}</div><button class="btn small danger" data-del-inccat="${escapeHtml(c)}">삭제</button></div>`;
+    }).join('')}
+    <div class="row" style="margin-top:12px;">
+      <div class="field" style="margin:0;"><input id="newIncCatInput" placeholder="새 카테고리 이름"></div>
+      <button class="btn primary small" id="addIncCatBtn">추가</button>
+    </div>
+    <div class="modal-actions"><button class="btn" id="mCancel">닫기</button></div>
+  `);
+  document.getElementById('mCancel').onclick=closeModal;
+  document.getElementById('addIncCatBtn').onclick=()=>{
+    const v=document.getElementById('newIncCatInput').value.trim();
+    if(!v) return;
+    const list=myIncomeCategories();
+    if(list.includes(v)){ showToast('이미 있는 카테고리예요'); return; }
+    list.push(v);
+    queueSave(); openIncomeCategoryManageModal();
+  };
+  document.querySelectorAll('[data-del-inccat]').forEach(b=>b.onclick=()=>{
+    const cat=b.dataset.delInccat;
+    const cnt=state.budget.filter(x=>x.type==='income' && x.category===cat).length;
+    const msg = cnt>0 ? `"${cat}" 카테고리를 사용한 수입 내역이 ${cnt}건 있어요. 그래도 내 카테고리 목록에서 삭제할까요? (기존 수입 내역은 그대로 유지돼요)` : `"${cat}" 카테고리를 삭제할까요?`;
+    if(!confirm(msg)) return;
+    const list=myIncomeCategories();
+    const idx=list.indexOf(cat);
+    if(idx>=0) list.splice(idx,1);
+    queueSave(); openIncomeCategoryManageModal();
+  });
+}
 
 /* ---------- STUDY ---------- */
 function studyBlocksFor(authorKey, dateStr){
@@ -1602,6 +1726,23 @@ function weekRangeContaining(dateStr){
   const d=parseDate(dateStr);
   const start=addDays(d,-d.getDay());
   return Array.from({length:7},(_,i)=>fmtDate(addDays(start,i)));
+}
+function weeklyLogRows(key){
+  const rows=[];
+  let weekStart=weekRangeContaining(todayStr())[0];
+  for(let i=0;i<8;i++){
+    const weekDates=Array.from({length:7},(_,j)=>fmtDate(addDays(parseDate(weekStart),j)));
+    const sum=weekDates.reduce((acc,d)=>{
+      const s=studySummary(studyBlocksFor(key,d));
+      acc.study+=s.study; acc.exercise+=s.exercise;
+      return acc;
+    },{study:0,exercise:0});
+    if(i===0 || sum.study>0 || sum.exercise>0){
+      rows.push({start:weekDates[0], end:weekDates[6], study:sum.study, exercise:sum.exercise});
+    }
+    weekStart=fmtDate(addDays(parseDate(weekStart),-7));
+  }
+  return rows;
 }
 function renderStudy(){
   const el=document.getElementById('tab-study');
@@ -1632,12 +1773,11 @@ function renderStudy(){
     const label = labels[i] ? labels[i]+' · ' : '';
     return gap+`<th><div class="row" style="justify-content:space-between;flex-wrap:nowrap;gap:4px;">${label}${d.slice(5)}${isLast&&showNext?`<button class="iconbtn" id="studyNextBtn" style="font-size:13px;width:20px;height:20px;flex-shrink:0;">▶</button>`:''}</div></th>`;
   }).join('');
-  const weekDates=weekRangeContaining(studyAnchor);
-  const weekSummary=weekDates.reduce((acc,d)=>{
-    const s=studySummary(studyBlocksFor(key,d));
-    acc.study+=s.study; acc.exercise+=s.exercise;
-    return acc;
-  },{study:0,exercise:0});
+  const summaryCells=days.map((d,di)=>{
+    const gap=di>0?'<td class="dt-gap"></td>':'';
+    return gap+`<td class="sb-summary-cell">공부 ${fmtStudyMin(summaries[di].study)}<br>운동 ${fmtStudyMin(summaries[di].exercise)}</td>`;
+  }).join('');
+  const logRows=weeklyLogRows(key);
   el.innerHTML=`
     <div class="card">
       <div class="row" style="gap:10px;margin-bottom:10px;flex-wrap:wrap;justify-content:flex-end;">
@@ -1648,19 +1788,25 @@ function renderStudy(){
       <div style="overflow-x:auto;">
         <table class="dt-table sb-table">
           <thead><tr><th class="dt-time-col"><button class="iconbtn" id="studyPrevBtn" style="font-size:13px;width:20px;height:20px;">◀</button></th>${headCells}</tr></thead>
-          <tbody>${rows}</tbody>
+          <tbody>
+            <tr class="sb-summary-row"><td class="dt-time-col"></td>${summaryCells}</tr>
+            ${rows}
+          </tbody>
         </table>
-      </div>
-      <div class="stat-grid" style="margin-top:12px;">
-        ${days.map((d,i)=>`<div class="stat">${labels[i]?`<div class="l">${labels[i]}</div>`:''}<div class="v" style="font-size:12px;line-height:1.5;margin-top:2px;">공부 ${fmtStudyMin(summaries[i].study)}<br>운동 ${fmtStudyMin(summaries[i].exercise)}</div></div>`).join('')}
       </div>
     </div>
     <div class="card">
-      <h3>📅 이번주 합계 (${weekDates[0].slice(5)} ~ ${weekDates[6].slice(5)})</h3>
-      <div class="stat-grid">
-        <div class="stat"><div class="v">${fmtStudyMin(weekSummary.study)}</div><div class="l">학습</div></div>
-        <div class="stat"><div class="v">${fmtStudyMin(weekSummary.exercise)}</div><div class="l">운동</div></div>
-        <div class="stat"><div class="v">${fmtStudyMin(weekSummary.study+weekSummary.exercise)}</div><div class="l">합계</div></div>
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <tbody>
+            ${logRows.map((w,i)=>`
+              <tr>
+                <td style="white-space:nowrap;padding:4px 10px 4px 0;font-weight:${i===0?'700':'400'};color:${i===0?'var(--text)':'var(--muted)'};">${i===0?'📅 This Week':''}</td>
+                <td style="white-space:nowrap;padding:4px 10px;color:var(--muted);">(${w.start.slice(5)} ~ ${w.end.slice(5)})</td>
+                <td style="padding:4px 0;white-space:nowrap;">총 ${fmtStudyMin(w.study+w.exercise)}(학습 ${fmtStudyMin(w.study)} / 운동 ${fmtStudyMin(w.exercise)})</td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
       </div>
     </div>
   `;
