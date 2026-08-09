@@ -630,15 +630,12 @@ function dtHl(hhmm){
   return [9,12,15,18,21,0].includes(h) ? `<span class="dt-hl">${hhmm}</span>` : hhmm;
 }
 function renderDayTimelines(){
-  const isDaughter = effectiveRole()==='daughter';
   const dayLabels=['오늘','내일','모레'];
-  const days = isDaughter
-    ? [0,1,2].map(n=>fmtDate(addDays(parseDate(ukTodayStr()), n)))
-    : [0,1,2].map(n=>fmtDate(addDays(new Date(), n)));
-  const layouts = days.map(d => isDaughter ? computeDayLayoutFromItems(myVisibleScheduleItemsUK(d)) : computeDayLayout(d));
+  const days=[0,1,2].map(n=>fmtDate(addDays(new Date(), n)));
+  const layouts=days.map(d=>computeDayLayout(d));
   const refDate=days[0];
-  const otherLabel = localTime => isDaughter ? ukToKorea(localTime, refDate) : koreaToUK(localTime, refDate);
-  const toAddInfo = (localTime, dayIdx) => isDaughter ? ukToKoreaFull(localTime, days[dayIdx]) : {date:days[dayIdx], time:localTime};
+  const otherLabel = korTime => koreaToUK(korTime, refDate);
+  const toAddInfo = (korTime, dayIdx) => ({date:days[dayIdx], time:korTime});
   let rows='';
   rows += `<tr class="dt-edge-row">
     <td class="dt-time-col"><div>${dtHl('08:00')}</div><div>이전</div></td>
@@ -647,11 +644,11 @@ function renderDayTimelines(){
   </tr>`;
   for(let i=0;i<DT_ROWS;i++){
     const totalMin=DT_START_MIN+i*DT_STEP;
-    const localTime=pad2(Math.floor(totalMin/60))+':'+pad2(totalMin%60);
+    const korTime=pad2(Math.floor(totalMin/60))+':'+pad2(totalMin%60);
     rows += `<tr>
-      <td class="dt-time-col">${dtHl(localTime)}</td>
-      ${days.map((d,di)=>dtCell(layouts[di], i, di, toAddInfo(localTime, di))).join('')}
-      <td class="dt-time-col dt-time-right">${dtHl(otherLabel(localTime))}</td>
+      <td class="dt-time-col">${dtHl(korTime)}</td>
+      ${days.map((d,di)=>dtCell(layouts[di], i, di, toAddInfo(korTime, di))).join('')}
+      <td class="dt-time-col dt-time-right">${dtHl(otherLabel(korTime))}</td>
     </tr>`;
   }
   rows += `<tr class="dt-edge-row">
@@ -662,9 +659,10 @@ function renderDayTimelines(){
   const headCells = days.map((d,i)=>`<th class="dt-day-${i}">${dayLabels[i]} · ${parseDate(d).toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'})}</th>`).join('');
   return `
     <div class="dt-panel">
+      <div class="meta" style="margin-bottom:6px;">시간은 한국시간(KST) 기준이며, 오른쪽 영국시간(UK)은 참고용입니다.</div>
       <div style="overflow-x:auto;">
         <table class="dt-table">
-          <thead><tr><th class="dt-time-col">${isDaughter?'UK':'KST'}</th>${headCells}<th class="dt-time-col dt-time-right">${isDaughter?'KST':'UK'}</th></tr></thead>
+          <thead><tr><th class="dt-time-col">KST</th>${headCells}<th class="dt-time-col dt-time-right">UK</th></tr></thead>
           <tbody>${rows}</tbody>
         </table>
       </div>
@@ -968,18 +966,11 @@ function openScheduleModal(existing, prefill){
   if(existing && !canManageSchedule(existing)){ showToast('공통 일정은 작성자만 수정·삭제할 수 있어요'); return; }
   const myOwners=getAllowedOwners();
   const role=effectiveRole();
-  const isDaughter = role==='daughter';
   const defaultOwner = (prefill&&prefill.owner) ? prefill.owner
     : (role && role!=='dad' && myOwners.some(o=>o.key===role)) ? role
     : ((scheduleFilter!=='all' && myOwners.some(o=>o.key===scheduleFilter)) ? scheduleFilter : (myOwners[0]?myOwners[0].key:'common'));
   const s=existing||{id:null,date:(prefill&&prefill.date)||scheduleSel,time:(prefill&&prefill.time)||'',endTime:(prefill&&prefill.endTime)||'',title:'',contacts:'',memo:'',owner:defaultOwner};
-  let displayDate=s.date, displayTime=s.time, displayEnd=s.endTime;
-  if(isDaughter && s.time){
-    const conv=koreaToUKFull(s.time, s.date);
-    displayDate=conv.date; displayTime=conv.time;
-    if(s.endTime) displayEnd=koreaToUKFull(s.endTime, s.date).time;
-  }
-  if(!s.id && displayTime && !displayEnd) displayEnd=addOneHour(displayTime);
+  if(!s.id && s.time && !s.endTime) s.endTime=addOneHour(s.time);
   const ownerOptions = myOwners.some(o=>o.key===(s.owner||'common')) ? myOwners : myOwners.concat([{key:s.owner||'common',label:ownerLabel(s.owner)}]);
   openModal(`
     <h3>${existing?'일정 수정':'일정 추가'}</h3>
@@ -990,10 +981,10 @@ function openScheduleModal(existing, prefill){
       </div>
     </div>
     <div class="grid2">
-      <div class="field"><label>날짜${isDaughter?' (영국 기준)':''}</label><input type="text" readonly class="date-input" placeholder="YYYY-MM-DD" id="mDate" value="${displayDate}"></div>
-      <div class="field"><label>시작 시간 (선택)${isDaughter?' (영국 기준)':''}</label><input type="time" step="600" id="mTime" value="${displayTime||''}"></div>
+      <div class="field"><label>날짜 (한국시간 기준)</label><input type="text" readonly class="date-input" placeholder="YYYY-MM-DD" id="mDate" value="${s.date}"></div>
+      <div class="field"><label>시작 시간 (선택)</label><input type="time" step="600" id="mTime" value="${s.time||''}"></div>
     </div>
-    <div class="field"><label>종료 시간 (선택, 시간표처럼 구간 표시)</label><input type="time" step="600" id="mEndTime" value="${displayEnd||''}"></div>
+    <div class="field"><label>종료 시간 (선택, 시간표처럼 구간 표시)</label><input type="time" step="600" id="mEndTime" value="${s.endTime||''}"></div>
     <div class="field"><label>제목</label><input id="mTitle" value="${escapeHtml(s.title)}"></div>
     <div class="field"><label>인맥 (쉼표로 구분, 예: 홍길동, 김철수)</label><input id="mContacts" value="${escapeHtml(s.contacts)}"></div>
     <div class="field"><label>메모</label><textarea id="mMemo">${escapeHtml(s.memo)}</textarea></div>
@@ -1009,22 +1000,14 @@ function openScheduleModal(existing, prefill){
     if(e.target.value) document.getElementById('mEndTime').value=addOneHour(e.target.value);
   });
   document.getElementById('mSave').onclick=()=>{
-    const formDate=document.getElementById('mDate').value;
-    const formTime=document.getElementById('mTime').value;
-    const formEnd=document.getElementById('mEndTime').value;
+    const date=document.getElementById('mDate').value;
     const title=document.getElementById('mTitle').value.trim();
-    if(!formDate||!title){ showToast('날짜와 제목을 입력해주세요'); return; }
-    let saveDate=formDate, saveTime=formTime, saveEnd=formEnd;
-    if(isDaughter && formTime){
-      const conv=ukToKoreaFull(formTime, formDate);
-      saveDate=conv.date; saveTime=conv.time;
-      if(formEnd) saveEnd=ukToKoreaFull(formEnd, formDate).time;
-    }
+    if(!date||!title){ showToast('날짜와 제목을 입력해주세요'); return; }
     const owner=(document.querySelector('input[name="mOwner"]:checked')||{}).value || 'common';
-    const rec={id:s.id||uid(),date:saveDate,time:saveTime,endTime:saveEnd,title,contacts:document.getElementById('mContacts').value,memo:document.getElementById('mMemo').value,owner,createdBy:s.createdBy||currentAuthorKey()};
+    const rec={id:s.id||uid(),date,time:document.getElementById('mTime').value,endTime:document.getElementById('mEndTime').value,title,contacts:document.getElementById('mContacts').value,memo:document.getElementById('mMemo').value,owner,createdBy:s.createdBy||currentAuthorKey()};
     if(s.id){ const idx=state.schedule.findIndex(x=>x.id===s.id); state.schedule[idx]=rec; }
     else state.schedule.push(rec);
-    scheduleSel=saveDate;
+    scheduleSel=date;
     queueSave(); closeModal(); renderSchedule(); renderHome();
   };
   const delBtn=document.getElementById('mDelete');
