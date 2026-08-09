@@ -562,8 +562,14 @@ document.getElementById('tabs').addEventListener('click', e=>{
   renderTabs();
 });
 
+function fmtShortDateDow(dateStr){
+  const d=parseDate(dateStr);
+  const dow=['일','월','화','수','목','금','토'][d.getDay()];
+  return `${d.getMonth()+1}.${d.getDate()}(${dow})`;
+}
 /* ---------- HOME ---------- */
 let homeDate = todayStr();
+let dtAnchor = todayStr();
 const MOODS=['😊','🥰','🙂','😐','😫','😢','😠','🤒'];
 let diaryArchiveOpen=false;
 function myVisibleScheduleItems(dateStr){
@@ -701,9 +707,15 @@ function myHomeVisibleScheduleItems(dateStr){
   });
   return visible.filter(it=>scheduleItemOccursOn(it,dateStr)).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
 }
+function homeDayLabel(dateStr){
+  const diff=Math.round((parseDate(dateStr)-parseDate(todayStr()))/86400000);
+  if(diff===0) return '오늘';
+  if(diff===1) return '내일';
+  if(diff===2) return '모레';
+  return '';
+}
 function renderDayTimelines(){
-  const dayLabels=['오늘','내일','모레'];
-  const days=[0,1,2].map(n=>fmtDate(addDays(new Date(), n)));
+  const days=[0,1,2].map(n=>fmtDate(addDays(parseDate(dtAnchor), n)));
   const layouts=days.map(d=>computeDayLayoutFromItems(myHomeVisibleScheduleItems(d)));
   const indices=[-1].concat(Array.from({length:DT_ROWS},(_,i)=>i)).concat([DT_ROWS]);
   let rows='';
@@ -722,9 +734,17 @@ function renderDayTimelines(){
     }).join('');
     rows += `<tr class="${meta.isEdge?'dt-edge-row':''}"><td class="dt-time-col">${meta.label}</td>${cells}</tr>`;
   });
+  const showPrev = dtAnchor!==todayStr();
   const headCells = days.map((d,i)=>{
     const gap = i>0 ? '<th class="dt-gap"></th>' : '';
-    return gap+`<th>${dayLabels[i]} · ${parseDate(d).toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'})}</th>`;
+    const isFirst = i===0;
+    const isLast = i===days.length-1;
+    const label = homeDayLabel(d);
+    const dateText = `${label?label+' · ':''}${fmtShortDateDow(d)}`;
+    const prevBtn = (isFirst && showPrev) ? `<button class="iconbtn" id="dtPrevBtn" style="font-size:13px;width:20px;height:20px;flex-shrink:0;">◀</button>` : '';
+    const nextBtn = isLast ? `<button class="iconbtn" id="dtNextBtn" style="font-size:13px;width:20px;height:20px;flex-shrink:0;">▶</button>` : '';
+    const justify = isFirst ? 'flex-start' : isLast ? 'flex-end' : 'center';
+    return gap+`<th><div class="row" style="justify-content:${justify};flex-wrap:nowrap;gap:4px;">${prevBtn}${dateText}${nextBtn}</div></th>`;
   }).join('');
   return `
     <div class="dt-panel">
@@ -756,6 +776,16 @@ function moveScheduleItem(id, newDate, newTime){
 }
 function bindDayTimelineEvents(){
   const el=document.getElementById('tab-home');
+  const dtPrevBtn=document.getElementById('dtPrevBtn');
+  if(dtPrevBtn) dtPrevBtn.onclick=()=>{
+    dtAnchor=fmtDate(addDays(parseDate(dtAnchor),-1));
+    renderHome();
+  };
+  const dtNextBtn=document.getElementById('dtNextBtn');
+  if(dtNextBtn) dtNextBtn.onclick=()=>{
+    dtAnchor=fmtDate(addDays(parseDate(dtAnchor),1));
+    renderHome();
+  };
   el.querySelectorAll('.dt-cell').forEach(td=>{
     td.addEventListener('click', e=>{
       if(e.target.closest('.dt-evt')) return;
@@ -1303,11 +1333,11 @@ function fmtKoreanDate(dateStr){
   const d=parseDate(dateStr);
   return `${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일`;
 }
-function projectedAchievementDate(currentWeight, targetWeight, weeklyLossKg){
-  if(currentWeight==null || !targetWeight || !weeklyLossKg || Number(weeklyLossKg)<=0) return null;
-  const diff = currentWeight - Number(targetWeight);
-  if(diff<=0) return todayStr();
-  const daysNeeded = Math.ceil((diff/Number(weeklyLossKg))*7);
+function projectedAchievementDate(currentWeight, targetWeight, weeklyLossGrams){
+  if(currentWeight==null || !targetWeight || !weeklyLossGrams || Number(weeklyLossGrams)<=0) return null;
+  const diffGrams = (currentWeight - Number(targetWeight))*1000;
+  if(diffGrams<=0) return todayStr();
+  const daysNeeded = Math.ceil((diffGrams/Number(weeklyLossGrams))*7);
   return fmtDate(addDays(parseDate(todayStr()), daysNeeded));
 }
 function renderHealth(){
@@ -1318,17 +1348,16 @@ function renderHealth(){
   const dLabel = parseDate(healthDate).toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'});
   const schedList = ((state.healthSchedule&&state.healthSchedule[healthPerson])||[]).map(it=>({...it,d:dday(it.date)})).sort((a,b)=>a.d-b.d);
   const otherMembers=FAMILY_MEMBERS.filter(m=>m.key!==healthPerson);
-  const isGoalMember = healthPerson==='daughter';
-  const goals = isGoalMember ? weightGoalsFor(healthPerson) : null;
-  const curWeight = isGoalMember ? latestWeightFor(healthPerson) : null;
-  const targetDate = isGoalMember ? projectedAchievementDate(curWeight, goals.target, goals.weeklyLoss) : null;
-  const finalDate = isGoalMember ? projectedAchievementDate(curWeight, goals.finalTarget, goals.weeklyLoss) : null;
-  const goalInputStyle='width:84px;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px 6px;font-size:11px;';
-  const goalLegendHtml = isGoalMember ? `
-    <input type="number" step="0.1" id="wgTarget" placeholder="목표(kg)" value="${goals.target}" style="${goalInputStyle}">
-    <input type="number" step="0.1" id="wgWeekly" placeholder="주당감량(kg)" value="${goals.weeklyLoss}" style="${goalInputStyle}">
-    <input type="number" step="0.1" id="wgFinal" placeholder="최종목표(kg)" value="${goals.finalTarget}" style="${goalInputStyle}">
-  ` : '';
+  const goals = weightGoalsFor(healthPerson);
+  const curWeight = latestWeightFor(healthPerson);
+  const targetDate = projectedAchievementDate(curWeight, goals.target, goals.weeklyLoss);
+  const finalDate = projectedAchievementDate(curWeight, goals.finalTarget, goals.weeklyLoss);
+  const goalInputStyle='width:60px;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px 6px;font-size:11px;';
+  const goalLegendHtml = `
+    <span class="meta">1차 목표</span><input type="number" step="0.1" id="wgTarget" value="${goals.target}" style="${goalInputStyle}"><span class="meta">kg</span>
+    <span class="meta">주당</span><input type="number" step="10" id="wgWeekly" value="${goals.weeklyLoss}" style="${goalInputStyle}"><span class="meta">g 감량</span>
+    <span class="meta">최종목표</span><input type="number" step="0.1" id="wgFinal" value="${goals.finalTarget}" style="${goalInputStyle}"><span class="meta">kg</span>
+  `;
   el.innerHTML=`
     <div class="card">
       <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
@@ -1337,9 +1366,9 @@ function renderHealth(){
           ${otherMembers.map(m=>`<label class="pill" style="cursor:pointer;"><input type="checkbox" class="weightExtraToggle" value="${m.key}" ${weightChartOthers.includes(m.key)?'checked':''} style="margin-right:4px;">${m.label}</label>`).join('')}
         </div>
       </div>
-      <div style="margin-top:10px;">${renderWeightChart([healthPerson].concat(weightChartOthers), goalLegendHtml)}</div>
-      ${targetDate?`<div class="meta" style="margin-top:8px;">🎯 ${goals.target}kg 달성일자는 ${fmtKoreanDate(targetDate)}</div>`:''}
-      ${finalDate?`<div class="meta" style="margin-top:2px;">🏁 ${goals.finalTarget}kg 달성일자는 ${fmtKoreanDate(finalDate)}</div>`:''}
+      <div style="margin-top:10px;">${renderWeightChart([healthPerson].concat(weightChartOthers), goalLegendHtml, {key:healthPerson, weeklyLoss:goals.weeklyLoss, finalTarget:goals.finalTarget})}</div>
+      ${targetDate?`<div class="meta" style="margin-top:8px;">🎯 1차 목표 ${goals.target}kg 달성일자는 ${fmtKoreanDate(targetDate)}</div>`:''}
+      ${finalDate?`<div class="meta" style="margin-top:2px;">🏁 최종목표 ${goals.finalTarget}kg 달성일자는 ${fmtKoreanDate(finalDate)}</div>`:''}
     </div>
     <div class="card">
       <div class="datebar"><button class="iconbtn" id="hPrev">‹</button><div class="d">${dLabel}</div><button class="iconbtn" id="hNext">›</button>
@@ -1348,6 +1377,10 @@ function renderHealth(){
       <div class="grid2">
         <div class="field"><label>체중 (kg)</label><input type="number" step="0.1" id="hWeight" value="${rec.weight||''}"></div>
         <div class="field"><label>수면 시간</label><input type="number" step="0.5" id="hSleep" value="${rec.sleep||''}"></div>
+      </div>
+      <div class="grid2" style="margin-top:10px;">
+        <div class="field"><label>공복시간</label><input type="number" step="0.5" id="hFasting" value="${rec.fasting||''}"></div>
+        <div class="field"><label>총칼로리 섭취량 (kcal)</label><input type="number" step="10" id="hCalories" value="${rec.calories||''}"></div>
       </div>
       <div class="row" style="margin-top:8px;">
         <label class="pill" style="cursor:pointer;"><input type="checkbox" id="hExercise" ${rec.exercise?'checked':''} style="margin-right:4px;">운동</label>
@@ -1369,12 +1402,10 @@ function renderHealth(){
         </div>`).join('') : `<div class="empty">건강검진, 정기검사 등 예정된 일정을 등록해보세요</div>`}
     </div>
   `;
-  if(isGoalMember){
-    const saveGoal=(k,v)=>{ weightGoalsFor(healthPerson)[k]=v; queueSave(); };
-    document.getElementById('wgTarget').addEventListener('change', e=>{ saveGoal('target', e.target.value); renderHealth(); });
-    document.getElementById('wgWeekly').addEventListener('change', e=>{ saveGoal('weeklyLoss', e.target.value); renderHealth(); });
-    document.getElementById('wgFinal').addEventListener('change', e=>{ saveGoal('finalTarget', e.target.value); renderHealth(); });
-  }
+  const saveGoal=(k,v)=>{ weightGoalsFor(healthPerson)[k]=v; queueSave(); };
+  document.getElementById('wgTarget').addEventListener('change', e=>{ saveGoal('target', e.target.value); renderHealth(); });
+  document.getElementById('wgWeekly').addEventListener('change', e=>{ saveGoal('weeklyLoss', e.target.value); renderHealth(); });
+  document.getElementById('wgFinal').addEventListener('change', e=>{ saveGoal('finalTarget', e.target.value); renderHealth(); });
   el.querySelectorAll('.weightExtraToggle').forEach(cb=>{
     cb.addEventListener('change', ()=>{
       const key=cb.value;
@@ -1395,6 +1426,8 @@ function renderHealth(){
   };
   document.getElementById('hWeight').addEventListener('change',e=>{ save('weight', e.target.value?Number(e.target.value):''); renderHealth(); });
   document.getElementById('hSleep').addEventListener('change',e=>save('sleep', e.target.value?Number(e.target.value):''));
+  document.getElementById('hFasting').addEventListener('change',e=>save('fasting', e.target.value?Number(e.target.value):''));
+  document.getElementById('hCalories').addEventListener('change',e=>save('calories', e.target.value?Number(e.target.value):''));
   document.getElementById('hExercise').addEventListener('change',e=>save('exercise', e.target.checked));
   document.getElementById('hMeds').addEventListener('change',e=>save('meds', e.target.checked));
   document.getElementById('hSymptom').addEventListener('change',e=>save('symptom', e.target.value));
@@ -1445,54 +1478,82 @@ function openHealthSchedModal(existing){
     queueSave(); closeModal(); renderHealth();
   };
 }
-function renderWeightChart(keys, extraLegendHtml){
-  const days=30;
+function renderWeightChart(keys, extraLegendHtml, goalProjection){
+  const pastDays=31, futureDays=10;
+  const totalDays=pastDays+futureDays;
+  const todayIdx=pastDays-1;
   const today=parseDate(todayStr());
-  const dateList=Array.from({length:days},(_,i)=>fmtDate(addDays(today,-(days-1-i))));
+  const dateList=Array.from({length:totalDays},(_,i)=>fmtDate(addDays(today, i-todayIdx)));
   const series=keys.map(key=>({
     key, label:memberLabel(key), color:ROLE_BADGE_COLOR[key]||'#8b7cf6',
-    pts:dateList.map(d=>{
+    pts:dateList.map((d,i)=>{
+      if(i>todayIdx) return null;
       const w=state.daily[d] && state.daily[d].health && state.daily[d].health[key] && state.daily[d].health[key].weight;
       return w?Number(w):null;
     })
   }));
-  const allVals=series.flatMap(s=>s.pts.filter(v=>v!=null));
+  let goalPts=null, goalColor=null;
+  if(goalProjection && goalProjection.weeklyLoss){
+    const anchorWeight=latestWeightFor(goalProjection.key);
+    if(anchorWeight!=null){
+      goalColor=ROLE_BADGE_COLOR[goalProjection.key]||'#8b7cf6';
+      goalPts=dateList.map((d,i)=>{
+        if(i<todayIdx) return null;
+        const daysAhead=i-todayIdx;
+        let w=anchorWeight-(Number(goalProjection.weeklyLoss)/1000)*(daysAhead/7);
+        if(goalProjection.finalTarget && w<Number(goalProjection.finalTarget)) w=Number(goalProjection.finalTarget);
+        return w;
+      });
+    }
+  }
+  const allVals=series.flatMap(s=>s.pts.filter(v=>v!=null)).concat(goalPts?goalPts.filter(v=>v!=null):[]);
   if(!allVals.length) return `<div class="empty">체중 기록이 아직 없어요</div>`;
   let min=Math.min(...allVals), max=Math.max(...allVals);
   if(min===max){ min-=1; max+=1; }
   const pad=(max-min)*0.15; min-=pad; max+=pad;
   const W=600,H=180,ML=32,MR=8,MT=8,MB=18;
   const plotW=W-ML-MR, plotH=H-MT-MB;
-  const x=i=>ML+(i/(days-1))*plotW;
+  const x=i=>ML+(i/(totalDays-1))*plotW;
   const y=v=>MT+plotH-((v-min)/(max-min))*plotH;
   const gridLines=[0,0.25,0.5,0.75,1].map(t=>{
     const val=min+(max-min)*t;
     const yy=MT+plotH-(t*plotH);
     return `<line x1="${ML}" y1="${yy}" x2="${W-MR}" y2="${yy}" stroke="var(--border)" stroke-width="1"/><text x="${ML-5}" y="${yy+3}" font-size="9" fill="var(--muted)" text-anchor="end">${val.toFixed(1)}</text>`;
   }).join('');
+  const todayX=x(todayIdx);
+  const todayLine=`<line x1="${todayX}" y1="${MT}" x2="${todayX}" y2="${MT+plotH}" stroke="var(--border)" stroke-width="1" stroke-dasharray="2 2"/>`;
   const seriesSvg=series.map(s=>{
-    let pathD='', started=false, dots='';
+    let pathD='', dots='';
     s.pts.forEach((v,i)=>{
-      if(v==null){ started=false; return; }
+      if(v==null) return;
       const px=x(i), py=y(v);
-      pathD += (started?'L':'M')+px+' '+py+' ';
-      started=true;
-      dots+=`<circle cx="${px}" cy="${py}" r="2.5" fill="${s.color}"/>`;
+      pathD += (pathD?'L':'M')+px+' '+py+' ';
+      dots+=`<circle cx="${px}" cy="${py}" r="3" fill="${s.color}"/>`;
     });
     return pathD ? `<path d="${pathD.trim()}" fill="none" stroke="${s.color}" stroke-width="2"/>${dots}` : '';
   }).join('');
+  let goalSvg='';
+  if(goalPts){
+    let pathD='';
+    goalPts.forEach((v,i)=>{
+      if(v==null) return;
+      pathD += (pathD?'L':'M')+x(i)+' '+y(v)+' ';
+    });
+    if(pathD) goalSvg=`<path d="${pathD.trim()}" fill="none" stroke="${goalColor}" stroke-width="2" stroke-dasharray="4 3" opacity="0.7"/>`;
+  }
   const xLabels=dateList.map((d,i)=>{
-    if(i%5!==0 && i!==days-1) return '';
+    if(i%7!==0 && i!==totalDays-1 && i!==todayIdx) return '';
     return `<text x="${x(i)}" y="${H-4}" font-size="9" fill="var(--muted)" text-anchor="middle">${d.slice(5)}</text>`;
   }).join('');
   return `
     <div style="overflow-x:auto;">
       <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;min-width:320px;">
-        ${gridLines}${seriesSvg}${xLabels}
+        ${gridLines}${todayLine}${goalSvg}${seriesSvg}${xLabels}
       </svg>
     </div>
     <div class="row" style="gap:14px;margin-top:6px;align-items:center;">
       ${series.map(s=>`<span class="meta" style="display:flex;align-items:center;gap:4px;"><span style="width:9px;height:9px;border-radius:50%;background:${s.color};display:inline-block;"></span>${s.label}</span>`).join('')}
+      ${goalPts?`<span class="meta" style="display:flex;align-items:center;gap:4px;"><span style="width:14px;height:0;border-top:2px dashed ${goalColor};display:inline-block;"></span>목표선</span>`:''}
       ${extraLegendHtml||''}
     </div>
   `;
@@ -1799,9 +1860,14 @@ function renderStudy(){
   const showNext = studyAnchor!==todayStr();
   const headCells=days.map((d,i)=>{
     const gap = i>0 ? '<th class="dt-gap"></th>' : '';
+    const isFirst = i===0;
     const isLast = i===days.length-1;
     const label = labels[i] ? labels[i]+' · ' : '';
-    return gap+`<th><div class="row" style="justify-content:space-between;flex-wrap:nowrap;gap:4px;">${label}${d.slice(5)}${isLast&&showNext?`<button class="iconbtn" id="studyNextBtn" style="font-size:13px;width:20px;height:20px;flex-shrink:0;">▶</button>`:''}</div></th>`;
+    const dateText = `${label}${fmtShortDateDow(d)}`;
+    const prevBtn = isFirst ? `<button class="iconbtn" id="studyPrevBtn" style="font-size:13px;width:20px;height:20px;flex-shrink:0;">◀</button>` : '';
+    const nextBtn = (isLast && showNext) ? `<button class="iconbtn" id="studyNextBtn" style="font-size:13px;width:20px;height:20px;flex-shrink:0;">▶</button>` : '';
+    const justify = isFirst ? 'flex-start' : isLast ? 'flex-end' : 'center';
+    return gap+`<th><div class="row" style="justify-content:${justify};flex-wrap:nowrap;gap:4px;">${prevBtn}${dateText}${nextBtn}</div></th>`;
   }).join('');
   const summaryCells=days.map((d,di)=>{
     const gap=di>0?'<td class="dt-gap"></td>':'';
@@ -1817,7 +1883,7 @@ function renderStudy(){
       </div>
       <div style="overflow-x:auto;">
         <table class="dt-table sb-table">
-          <thead><tr><th class="dt-time-col"><button class="iconbtn" id="studyPrevBtn" style="font-size:13px;width:20px;height:20px;">◀</button></th>${headCells}</tr></thead>
+          <thead><tr><th class="dt-time-col"></th>${headCells}</tr></thead>
           <tbody>
             <tr class="sb-summary-row"><td class="dt-time-col"></td>${summaryCells}</tr>
             ${rows}
