@@ -19,6 +19,35 @@ function koreaToUK(hhmm, dateStr){
   mins=((mins%1440)+1440)%1440;
   return pad2(Math.floor(mins/60))+':'+pad2(mins%60);
 }
+function ukToKorea(hhmm, dateStr){
+  const [h,mi]=hhmm.split(':').map(Number);
+  const ukOff=getUKOffsetMinutes(dateStr);
+  let mins=(h*60+mi)-ukOff+KST_OFFSET_MIN;
+  mins=((mins%1440)+1440)%1440;
+  return pad2(Math.floor(mins/60))+':'+pad2(mins%60);
+}
+function koreaToUKFull(hhmm, korDateStr){
+  const [h,mi]=hhmm.split(':').map(Number);
+  const ukOff=getUKOffsetMinutes(korDateStr);
+  let mins=(h*60+mi)-KST_OFFSET_MIN+ukOff;
+  let shift=0;
+  if(mins<0){ mins+=1440; shift=-1; }
+  else if(mins>=1440){ mins-=1440; shift=1; }
+  return { time: pad2(Math.floor(mins/60))+':'+pad2(mins%60), date: fmtDate(addDays(parseDate(korDateStr), shift)) };
+}
+function ukToKoreaFull(hhmm, ukDateStr){
+  const [h,mi]=hhmm.split(':').map(Number);
+  const ukOff=getUKOffsetMinutes(ukDateStr);
+  let mins=(h*60+mi)-ukOff+KST_OFFSET_MIN;
+  let shift=0;
+  if(mins<0){ mins+=1440; shift=-1; }
+  else if(mins>=1440){ mins-=1440; shift=1; }
+  return { time: pad2(Math.floor(mins/60))+':'+pad2(mins%60), date: fmtDate(addDays(parseDate(ukDateStr), shift)) };
+}
+function ukTodayStr(){
+  const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/London',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
+  return `${parts.find(p=>p.type==='year').value}-${parts.find(p=>p.type==='month').value}-${parts.find(p=>p.type==='day').value}`;
+}
 function todayStr(){ return fmtDate(new Date()); }
 function parseDate(s){ const [y,m,d]=s.split('-').map(Number); return new Date(y,m-1,d); }
 function addDays(d,n){ const r=new Date(d); r.setDate(r.getDate()+n); return r; }
@@ -153,6 +182,64 @@ function getHolidayMapForYear(year){
 }
 function getHolidaysAround(year){
   return Object.assign({}, getHolidayMapForYear(year-1), getHolidayMapForYear(year), getHolidayMapForYear(year+1));
+}
+/* ---------- UK holidays ---------- */
+function computeEasterSunday(year){
+  const a=year%19, b=Math.floor(year/100), c=year%100;
+  const d=Math.floor(b/4), e=b%4;
+  const f=Math.floor((b+8)/25);
+  const g=Math.floor((b-f+1)/3);
+  const h=(19*a+b-d-g+15)%30;
+  const i=Math.floor(c/4), k=c%4;
+  const l=(32+2*e+2*i-h-k)%7;
+  const mo=Math.floor((a+11*h+22*l)/451);
+  const month=Math.floor((h+l-7*mo+114)/31);
+  const day=((h+l-7*mo+114)%31)+1;
+  return new Date(year, month-1, day);
+}
+function nthWeekdayOfMonth(year, month, weekday, n){
+  const d=new Date(year,month,1);
+  let count=0;
+  while(true){
+    if(d.getDay()===weekday){ count++; if(count===n) return new Date(d); }
+    d.setDate(d.getDate()+1);
+  }
+}
+function lastWeekdayOfMonth(year, month, weekday){
+  const d=new Date(year,month+1,0);
+  while(d.getDay()!==weekday) d.setDate(d.getDate()-1);
+  return new Date(d);
+}
+function ukSubstitute(date){
+  const dow=date.getDay();
+  if(dow===6) return addDays(date,2);
+  if(dow===0) return addDays(date,1);
+  return date;
+}
+function getUKHolidayMapForYear(year){
+  const map={};
+  map[fmtDate(ukSubstitute(new Date(year,0,1)))]='신정';
+  const easter=computeEasterSunday(year);
+  map[fmtDate(addDays(easter,-2))]='성금요일';
+  map[fmtDate(addDays(easter,1))]='부활절 월요일';
+  map[fmtDate(nthWeekdayOfMonth(year,4,1,1))]='5월 초 공휴일';
+  map[fmtDate(lastWeekdayOfMonth(year,4,1))]='5월 말 공휴일';
+  map[fmtDate(lastWeekdayOfMonth(year,7,1))]='8월 말 공휴일';
+  const xmas=new Date(year,11,25), boxing=new Date(year,11,26);
+  let xmasDate=xmas, boxingDate=boxing;
+  if(xmas.getDay()===6){ xmasDate=addDays(xmas,2); boxingDate=addDays(boxing,2); }
+  else if(xmas.getDay()===0){ xmasDate=addDays(xmas,1); boxingDate=addDays(boxing,1); }
+  else if(boxing.getDay()===6){ boxingDate=addDays(boxing,2); }
+  else if(boxing.getDay()===0){ boxingDate=addDays(boxing,1); }
+  map[fmtDate(xmasDate)]='크리스마스';
+  map[fmtDate(boxingDate)]='박싱데이';
+  return map;
+}
+function getUKHolidaysAround(year){
+  return Object.assign({}, getUKHolidayMapForYear(year-1), getUKHolidayMapForYear(year), getUKHolidayMapForYear(year+1));
+}
+function getHolidaysForViewer(year){
+  return effectiveRole()==='daughter' ? getUKHolidaysAround(year) : getHolidaysAround(year);
 }
 
 /* ---------- state ---------- */
@@ -460,12 +547,29 @@ function myVisibleScheduleItems(dateStr){
   const visible = allowed.includes('all') ? allItems : allItems.filter(it=>allowed.includes(it.owner));
   return visible.filter(it=>it.date===dateStr).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
 }
+function myVisibleScheduleItemsUK(ukDateStr){
+  const candidates=[-1,0,1].map(off=>fmtDate(addDays(parseDate(ukDateStr), off)));
+  const results=[];
+  candidates.forEach(korDate=>{
+    myVisibleScheduleItems(korDate).forEach(it=>{
+      if(!it.time){
+        if(korDate===ukDateStr) results.push({...it});
+        return;
+      }
+      const conv=koreaToUKFull(it.time, korDate);
+      if(conv.date!==ukDateStr) return;
+      let newEnd=it.endTime;
+      if(it.endTime) newEnd=koreaToUKFull(it.endTime, korDate).time;
+      results.push({...it, time:conv.time, endTime:newEnd});
+    });
+  });
+  return results.sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+}
 const DT_START_MIN=480; // 08:00
 const DT_END_MIN=1080;  // 18:00
 const DT_STEP=60;
 const DT_ROWS=(DT_END_MIN-DT_START_MIN)/DT_STEP+1; // 11
-function computeDayLayout(dateStr){
-  const items=myVisibleScheduleItems(dateStr);
+function computeDayLayoutFromItems(items){
   const before=[], after=[];
   const mainStart={};
   const skip=new Set();
@@ -506,47 +610,50 @@ function computeDayLayout(dateStr){
   });
   return {before, after, mainStart, skip};
 }
+function computeDayLayout(dateStr){ return computeDayLayoutFromItems(myVisibleScheduleItems(dateStr)); }
 function dtChip(it){
   const isVirtual = typeof it.id==='string' && it.id.startsWith('evt-');
   if(isVirtual) return `<div class="dt-evt" data-virtual="1">${escapeHtml(it.title)}</div>`;
   return `<div class="dt-evt" data-item-id="${it.id}">${timeRangeLabel(it)?escapeHtml(timeRangeLabel(it))+' ':''}${escapeHtml(it.title)}</div>`;
 }
-function dtCell(dateStr, layout, rowIdx, slotTime, dayIdx){
+function dtCell(layout, rowIdx, dayIdx, addInfo){
   if(layout.skip.has(rowIdx)) return '';
   const cell=layout.mainStart[rowIdx];
   const dayClass='dt-day-'+dayIdx;
   if(cell){
-    return `<td class="dt-cell filled ${dayClass}" rowspan="${cell.span}" data-add-date="${dateStr}" data-add-time="${slotTime}">${cell.items.map(dtChip).join('')}</td>`;
+    return `<td class="dt-cell filled ${dayClass}" rowspan="${cell.span}" data-add-date="${addInfo.date}" data-add-time="${addInfo.time}">${cell.items.map(dtChip).join('')}</td>`;
   }
-  return `<td class="dt-cell ${dayClass}" data-add-date="${dateStr}" data-add-time="${slotTime}"></td>`;
+  return `<td class="dt-cell ${dayClass}" data-add-date="${addInfo.date}" data-add-time="${addInfo.time}"></td>`;
 }
 function renderDayTimelines(){
   const isDaughter = effectiveRole()==='daughter';
   const dayLabels=['오늘','내일','모레'];
-  const days=[0,1,2].map(n=>fmtDate(addDays(new Date(),n)));
-  const layouts=days.map(computeDayLayout);
+  const days = isDaughter
+    ? [0,1,2].map(n=>fmtDate(addDays(parseDate(ukTodayStr()), n)))
+    : [0,1,2].map(n=>fmtDate(addDays(new Date(), n)));
+  const layouts = days.map(d => isDaughter ? computeDayLayoutFromItems(myVisibleScheduleItemsUK(d)) : computeDayLayout(d));
   const refDate=days[0];
-  const leftLabel = korTime => isDaughter ? koreaToUK(korTime, refDate) : korTime;
-  const rightLabel = korTime => isDaughter ? korTime : koreaToUK(korTime, refDate);
+  const otherLabel = localTime => isDaughter ? ukToKorea(localTime, refDate) : koreaToUK(localTime, refDate);
+  const toAddInfo = (localTime, dayIdx) => isDaughter ? ukToKoreaFull(localTime, days[dayIdx]) : {date:days[dayIdx], time:localTime};
   let rows='';
   rows += `<tr class="dt-edge-row">
-    <td class="dt-time-col"><div>${leftLabel('08:00')}</div><div>이전</div></td>
-    ${days.map((d,i)=>`<td class="dt-cell dt-edge dt-day-${i}" data-add-date="${d}" data-add-time="07:00">${layouts[i].before.map(dtChip).join('')}</td>`).join('')}
-    <td class="dt-time-col dt-time-right"><div>${rightLabel('08:00')}</div><div>이전</div></td>
+    <td class="dt-time-col"><div>08:00</div><div>이전</div></td>
+    ${days.map((d,i)=>{ const a=toAddInfo('07:00', i); return `<td class="dt-cell dt-edge dt-day-${i}" data-add-date="${a.date}" data-add-time="${a.time}">${layouts[i].before.map(dtChip).join('')}</td>`; }).join('')}
+    <td class="dt-time-col dt-time-right"><div>${otherLabel('08:00')}</div><div>이전</div></td>
   </tr>`;
   for(let i=0;i<DT_ROWS;i++){
     const totalMin=DT_START_MIN+i*DT_STEP;
-    const korTime=pad2(Math.floor(totalMin/60))+':'+pad2(totalMin%60);
+    const localTime=pad2(Math.floor(totalMin/60))+':'+pad2(totalMin%60);
     rows += `<tr>
-      <td class="dt-time-col">${leftLabel(korTime)}</td>
-      ${days.map((d,di)=>dtCell(d, layouts[di], i, korTime, di)).join('')}
-      <td class="dt-time-col dt-time-right">${rightLabel(korTime)}</td>
+      <td class="dt-time-col">${localTime}</td>
+      ${days.map((d,di)=>dtCell(layouts[di], i, di, toAddInfo(localTime, di))).join('')}
+      <td class="dt-time-col dt-time-right">${otherLabel(localTime)}</td>
     </tr>`;
   }
   rows += `<tr class="dt-edge-row">
-    <td class="dt-time-col"><div>${leftLabel('18:00')}</div><div>이후</div></td>
-    ${days.map((d,i)=>`<td class="dt-cell dt-edge dt-day-${i}" data-add-date="${d}" data-add-time="19:00">${layouts[i].after.map(dtChip).join('')}</td>`).join('')}
-    <td class="dt-time-col dt-time-right"><div>${rightLabel('18:00')}</div><div>이후</div></td>
+    <td class="dt-time-col"><div>18:00</div><div>이후</div></td>
+    ${days.map((d,i)=>{ const a=toAddInfo('19:00', i); return `<td class="dt-cell dt-edge dt-day-${i}" data-add-date="${a.date}" data-add-time="${a.time}">${layouts[i].after.map(dtChip).join('')}</td>`; }).join('')}
+    <td class="dt-time-col dt-time-right"><div>${otherLabel('18:00')}</div><div>이후</div></td>
   </tr>`;
   const headCells = days.map((d,i)=>`<th class="dt-day-${i}">${dayLabels[i]} · ${parseDate(d).toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'})}</th>`).join('');
   return `
@@ -788,7 +895,7 @@ function renderSchedule(){
   const eventsByDate={};
   filtered.forEach(s=>{ (eventsByDate[s.date]=eventsByDate[s.date]||[]).push(s); });
   Object.values(eventsByDate).forEach(list=>list.sort((a,b)=>(a.time||'').localeCompare(b.time||'')));
-  const holidays=getHolidaysAround(y);
+  const holidays=getHolidaysForViewer(y);
   const todayS=todayStr();
   const MAX_SHOWN=3;
   let grid='';
@@ -806,21 +913,27 @@ function renderSchedule(){
     </div>`;
   }
   const dayItems = filtered.filter(s=>s.date===scheduleSel).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+  const myKeyForDelete=currentAuthorKey();
   el.innerHTML=`
-    <div class="member-row" id="schedFilterRow">
-      ${allowedFilters.map(f=>`<button data-owner="${f}" class="${scheduleFilter===f?'active':''}">${scheduleFilterLabel(f)}</button>`).join('')}
-    </div>
     <div class="card">
-      <div class="datebar"><button class="iconbtn" id="sPrev">‹</button><div class="d">${y}년 ${m+1}월</div><button class="iconbtn" id="sNext">›</button></div>
-      <div class="cal-grid">${['일','월','화','수','목','금','토'].map(d=>`<div class="cal-head">${d}</div>`).join('')}${grid}</div>
+      <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+        <div class="datebar" style="margin-bottom:0;"><button class="iconbtn" id="sPrev">‹</button><div class="d">${y}년 ${m+1}월</div><button class="iconbtn" id="sNext">›</button></div>
+        <div class="row" id="schedFilterRow" style="gap:6px;">
+          ${allowedFilters.map(f=>`<button class="btn small ${scheduleFilter===f?'active':''}" data-owner="${f}">${scheduleFilterLabel(f)}</button>`).join('')}
+        </div>
+      </div>
+      <div class="cal-grid" style="margin-top:10px;">${['일','월','화','수','목','금','토'].map(d=>`<div class="cal-head">${d}</div>`).join('')}${grid}</div>
     </div>
     <div class="card">
       <div class="row" style="justify-content:space-between;"><h3 style="margin:0;">${scheduleSel} 일정${holidays[scheduleSel]?` <span class="pill">${escapeHtml(holidays[scheduleSel])}</span>`:''}</h3><button class="btn primary small" id="addSchedBtn">+ 일정 추가</button></div>
-      ${dayItems.length? dayItems.map(s=>`
+      ${dayItems.length? dayItems.map(s=>{
+        const canDelete = !s.virtual && (s.owner!=='common' || !s.createdBy || s.createdBy===myKeyForDelete);
+        return `
         <div class="list-item">
           <div><div>${timeRangeLabel(s)?`<b>${timeRangeLabel(s)}</b> `:''}${escapeHtml(s.title)} <span class="pill">${ownerLabel(s.owner)}</span></div>${s.memo?`<div class="meta">${escapeHtml(s.memo)}</div>`:''}</div>
-          <div class="row">${s.virtual? `<span class="meta">경조사 탭에서 수정</span>` : `<button class="btn small" data-edit="${s.id}">수정</button><button class="btn small danger" data-del="${s.id}">삭제</button>`}</div>
-        </div>`).join('') : `<div class="empty">일정이 없어요</div>`}
+          <div class="row">${s.virtual? `<span class="meta">경조사 탭에서 수정</span>` : `<button class="btn small" data-edit="${s.id}">수정</button>${canDelete?`<button class="btn small danger" data-del="${s.id}">삭제</button>`:''}`}</div>
+        </div>`;
+      }).join('') : `<div class="empty">일정이 없어요</div>`}
     </div>
   `;
   document.getElementById('sPrev').onclick=()=>{ scheduleMonth=new Date(y,m-1,1); renderSchedule(); };
@@ -882,7 +995,7 @@ function openScheduleModal(existing, prefill){
     const title=document.getElementById('mTitle').value.trim();
     if(!date||!title){ showToast('날짜와 제목을 입력해주세요'); return; }
     const owner=(document.querySelector('input[name="mOwner"]:checked')||{}).value || 'common';
-    const rec={id:s.id||uid(),date,time:document.getElementById('mTime').value,endTime:document.getElementById('mEndTime').value,title,contacts:document.getElementById('mContacts').value,memo:document.getElementById('mMemo').value,owner};
+    const rec={id:s.id||uid(),date,time:document.getElementById('mTime').value,endTime:document.getElementById('mEndTime').value,title,contacts:document.getElementById('mContacts').value,memo:document.getElementById('mMemo').value,owner,createdBy:s.createdBy||currentAuthorKey()};
     if(s.id){ const idx=state.schedule.findIndex(x=>x.id===s.id); state.schedule[idx]=rec; }
     else state.schedule.push(rec);
     scheduleSel=date;
