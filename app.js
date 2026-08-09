@@ -685,6 +685,7 @@ function unifiedRowMeta(idx){
   return {label:dtHl(t), isEdge:false, addTime:t};
 }
 let showCommonOnHome=false;
+let studyAnchor=todayStr();
 function myHomeVisibleScheduleItems(dateStr){
   const role=effectiveRole();
   const virtualEventItems=state.events
@@ -710,19 +711,21 @@ function renderDayTimelines(){
     const cells=days.map((d,di)=>{
       const layout=layouts[di];
       const gap = di>0 ? '<td class="dt-gap"></td>' : '';
+      const colClass = di%2===1?' dt-col-b':'';
       if(layout.skip.has(idx)) return gap;
       const cell=layout.mainStart[idx];
       const edgeClass=meta.isEdge?' dt-edge':'';
       if(cell){
-        return gap+`<td class="dt-cell filled${edgeClass}" rowspan="${cell.span}" data-add-date="${d}" data-add-time="${meta.addTime}">${cell.items.map(dtChip).join('')}</td>`;
+        return gap+`<td class="dt-cell filled${edgeClass}${colClass}" rowspan="${cell.span}" data-add-date="${d}" data-add-time="${meta.addTime}">${cell.items.map(dtChip).join('')}</td>`;
       }
-      return gap+`<td class="dt-cell${edgeClass}" data-add-date="${d}" data-add-time="${meta.addTime}"></td>`;
+      return gap+`<td class="dt-cell${edgeClass}${colClass}" data-add-date="${d}" data-add-time="${meta.addTime}"></td>`;
     }).join('');
     rows += `<tr class="${meta.isEdge?'dt-edge-row':''}"><td class="dt-time-col">${meta.label}</td>${cells}</tr>`;
   });
   const headCells = days.map((d,i)=>{
     const gap = i>0 ? '<th class="dt-gap"></th>' : '';
-    return gap+`<th>${dayLabels[i]} · ${parseDate(d).toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'})}</th>`;
+    const colClass = i%2===1?' dt-col-b':'';
+    return gap+`<th class="${colClass.trim()}">${dayLabels[i]} · ${parseDate(d).toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'})}</th>`;
   }).join('');
   return `
     <div class="dt-panel">
@@ -1167,8 +1170,8 @@ function renderSchedule(){
       ${dayItems.length? dayItems.map(s=>{
         const canManage = !s.virtual && canManageSchedule(s);
         return `
-        <div class="list-item">
-          <div><div>${timeRangeLabel(s)?`<b>${timeRangeLabel(s)}</b> `:''}${escapeHtml(s.title)} <span class="pill">${ownerLabel(s.owner)}</span></div>${s.memo?`<div class="content-text">${escapeHtml(s.memo)}</div>`:''}</div>
+        <div class="list-item sched-item">
+          <div><div style="font-size:14px;">${timeRangeLabel(s)?`<b>${timeRangeLabel(s)}</b> `:''}${escapeHtml(s.title)} <span class="pill">${ownerLabel(s.owner)}</span></div>${s.memo?`<div class="content-text" style="font-size:12.5px;">${escapeHtml(s.memo)}</div>`:''}</div>
           <div class="row">${s.virtual? `<span class="meta">경조사 탭에서 수정</span>` : (canManage?`<button class="btn small" data-edit="${s.id}">수정</button><button class="btn small danger" data-del="${s.id}">삭제</button>`:`<span class="meta">작성자만 관리 가능</span>`)}</div>
         </div>`;
       }).join('') : `<div class="empty">일정이 없어요</div>`}
@@ -1554,41 +1557,58 @@ function studySummary(arr){
   return {study, exercise};
 }
 function fmtStudyMin(min){ return `${Math.floor(min/60)}시간 ${min%60}분`; }
+function relDayLabel(dateStr){
+  const diff=Math.round((parseDate(todayStr())-parseDate(dateStr))/86400000);
+  if(diff===0) return 'Today';
+  if(diff===1) return '어제';
+  if(diff===2) return '그제';
+  return diff+'일 전';
+}
 function renderStudy(){
   const el=document.getElementById('tab-study');
   if(!el) return;
   const key=currentAuthorKey();
-  const dayLabels=['그제','어제','오늘'];
-  const days=[2,1,0].map(n=>fmtDate(addDays(new Date(), -n)));
+  const days=[2,1,0].map(n=>fmtDate(addDays(parseDate(studyAnchor), -n)));
+  const labels=days.map(relDayLabel);
   const arrays=days.map(d=>studyBlocksFor(key,d));
   const summaries=arrays.map(studySummary);
   let rows='';
   for(let h=0; h<24; h++){
     const cells=days.map((d,di)=>{
+      const gap=di>0?'<td class="dt-gap"></td>':'';
+      const colClass=di%2===1?' dt-col-b':'';
       let segs='';
       for(let s=0;s<6;s++){
         const idx=h*6+s;
         const val=arrays[di][idx];
         segs+=`<div class="sb-seg${val?' sb-'+val:''}" data-day="${di}" data-idx="${idx}"></div>`;
       }
-      return `<td class="sb-cell"><div class="sb-row">${segs}</div></td>`;
+      return gap+`<td class="sb-cell${colClass}"><div class="sb-row">${segs}</div></td>`;
     }).join('');
     rows+=`<tr><td class="dt-time-col">${pad2(h)}:00</td>${cells}</tr>`;
   }
-  const headCells=days.map((d,i)=>`<th>${dayLabels[i]} · ${d.slice(5)}</th>`).join('');
+  const showNext = studyAnchor!==todayStr();
+  const headCells=days.map((d,i)=>{
+    const gap = i>0 ? '<th class="dt-gap"></th>' : '';
+    const colClass = i%2===1?' dt-col-b':'';
+    const isLast = i===days.length-1;
+    return gap+`<th class="${colClass.trim()}"><div class="row" style="justify-content:space-between;flex-wrap:nowrap;gap:4px;">${labels[i]} · ${d.slice(5)}${isLast&&showNext?`<button class="iconbtn" id="studyNextBtn" style="font-size:13px;width:20px;height:20px;flex-shrink:0;">▶</button>`:''}</div></th>`;
+  }).join('');
   el.innerHTML=`
     <div class="card">
-      <div class="row" style="gap:10px;margin-bottom:10px;flex-wrap:wrap;">
-        <span class="pill" style="background:${SB_COLORS.study};color:#3a2e00;border:none;">🟡 공부</span>
-        <span class="pill" style="background:${SB_COLORS.exercise};color:#08321a;border:none;">🟢 운동</span>
+      <div class="row" style="gap:10px;margin-bottom:10px;flex-wrap:wrap;justify-content:space-between;">
+        <div class="row" style="gap:10px;">
+          <span class="pill" style="background:${SB_COLORS.study};color:#3a2e00;border:none;">🟡 공부</span>
+          <span class="pill" style="background:${SB_COLORS.exercise};color:#08321a;border:none;">🟢 운동</span>
+        </div>
         <span class="meta">칸을 눌러 색칠 (공부 → 운동 → 지우기)</span>
       </div>
       <div class="stat-grid">
-        ${days.map((d,i)=>`<div class="stat"><div class="v" style="font-size:12px;line-height:1.5;">공부 ${fmtStudyMin(summaries[i].study)}<br>운동 ${fmtStudyMin(summaries[i].exercise)}</div><div class="l">${dayLabels[i]}</div></div>`).join('')}
+        ${days.map((d,i)=>`<div class="stat"><div class="l">${labels[i]}</div><div class="v" style="font-size:12px;line-height:1.5;margin-top:2px;">공부 ${fmtStudyMin(summaries[i].study)}<br>운동 ${fmtStudyMin(summaries[i].exercise)}</div></div>`).join('')}
       </div>
       <div style="overflow-x:auto;margin-top:12px;">
         <table class="dt-table sb-table">
-          <thead><tr><th class="dt-time-col"></th>${headCells}</tr></thead>
+          <thead><tr><th class="dt-time-col"><button class="iconbtn" id="studyPrevBtn" style="font-size:13px;width:20px;height:20px;">◀</button></th>${headCells}</tr></thead>
           <tbody>${rows}</tbody>
         </table>
       </div>
@@ -1603,6 +1623,16 @@ function renderStudy(){
       queueSave(); renderStudy();
     });
   });
+  document.getElementById('studyPrevBtn').onclick=()=>{
+    studyAnchor=fmtDate(addDays(parseDate(studyAnchor),-1));
+    renderStudy();
+  };
+  const nextBtn=document.getElementById('studyNextBtn');
+  if(nextBtn) nextBtn.onclick=()=>{
+    studyAnchor=fmtDate(addDays(parseDate(studyAnchor),1));
+    if(studyAnchor>todayStr()) studyAnchor=todayStr();
+    renderStudy();
+  };
 }
 
 /* ---------- VEHICLE ---------- */
