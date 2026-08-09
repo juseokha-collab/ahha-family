@@ -1325,6 +1325,30 @@ function weightGoalsFor(key){
   if(!state.weightGoals[key]) state.weightGoals[key]={target:'',weeklyLoss:'',finalTarget:''};
   return state.weightGoals[key];
 }
+function weightGoalSummaryText(goals){
+  const parts=[];
+  if(goals.target) parts.push(`1차 목표 ${goals.target}kg`);
+  if(goals.weeklyLoss) parts.push(`주당 ${goals.weeklyLoss}g 감량`);
+  if(goals.finalTarget) parts.push(`최종목표 ${goals.finalTarget}kg`);
+  return parts.length ? parts.join(', ') : '목표 미설정';
+}
+function openWeightGoalModal(key){
+  const goals=weightGoalsFor(key);
+  openModal(`
+    <h3>${memberLabel(key)} 체중 목표 설정</h3>
+    <div class="field"><label>1차 목표 (kg)</label><input type="number" step="0.1" id="mWgTarget" value="${goals.target}"></div>
+    <div class="field"><label>주당 감량 목표 (g)</label><input type="number" step="10" id="mWgWeekly" value="${goals.weeklyLoss}"></div>
+    <div class="field"><label>최종 목표 (kg)</label><input type="number" step="0.1" id="mWgFinal" value="${goals.finalTarget}"></div>
+    <div class="modal-actions"><button class="btn" id="mCancel">취소</button><button class="btn primary" id="mSave">저장</button></div>
+  `);
+  document.getElementById('mCancel').onclick=closeModal;
+  document.getElementById('mSave').onclick=()=>{
+    goals.target=document.getElementById('mWgTarget').value;
+    goals.weeklyLoss=document.getElementById('mWgWeekly').value;
+    goals.finalTarget=document.getElementById('mWgFinal').value;
+    queueSave(); closeModal(); renderHealth();
+  };
+}
 function latestWeightEntryFor(key){
   const dates=Object.keys(state.daily).filter(d=>state.daily[d].health && state.daily[d].health[key] && state.daily[d].health[key].weight).sort();
   if(!dates.length) return null;
@@ -1358,11 +1382,9 @@ function renderHealth(){
   const curWeight = latestWeightFor(healthPerson);
   const targetDate = projectedAchievementDate(curWeight, goals.target, goals.weeklyLoss);
   const finalDate = projectedAchievementDate(curWeight, goals.finalTarget, goals.weeklyLoss);
-  const goalInputStyle=v=>`width:${Math.max(String(v||'').length,2)+1.5}ch;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px 6px;font-size:11px;`;
   const goalLegendHtml = `
-    <span class="meta">1차 목표</span><input type="number" step="0.1" class="wg-input" id="wgTarget" value="${goals.target}" style="${goalInputStyle(goals.target)}"><span class="meta">kg</span>
-    <span class="meta">주당</span><input type="number" step="10" class="wg-input" id="wgWeekly" value="${goals.weeklyLoss}" style="${goalInputStyle(goals.weeklyLoss)}"><span class="meta">g 감량</span>
-    <span class="meta">최종목표</span><input type="number" step="0.1" class="wg-input" id="wgFinal" value="${goals.finalTarget}" style="${goalInputStyle(goals.finalTarget)}"><span class="meta">kg</span>
+    <span class="meta">${weightGoalSummaryText(goals)}</span>
+    <button class="icon-btn" id="editWeightGoalBtn" title="목표 수정" style="padding:0 2px;font-size:13px;">✏️</button>
   `;
   el.innerHTML=`
     <div class="card">
@@ -1406,13 +1428,7 @@ function renderHealth(){
         </div>`).join('') : `<div class="empty">건강검진, 정기검사 등 예정된 일정을 등록해보세요</div>`}
     </div>
   `;
-  const saveGoal=(k,v)=>{ weightGoalsFor(healthPerson)[k]=v; queueSave(); };
-  document.getElementById('wgTarget').addEventListener('change', e=>{ saveGoal('target', e.target.value); renderHealth(); });
-  document.getElementById('wgWeekly').addEventListener('change', e=>{ saveGoal('weeklyLoss', e.target.value); renderHealth(); });
-  document.getElementById('wgFinal').addEventListener('change', e=>{ saveGoal('finalTarget', e.target.value); renderHealth(); });
-  el.querySelectorAll('.wg-input').forEach(inp=>{
-    inp.addEventListener('input', e=>{ e.target.style.width=(Math.max(e.target.value.length,2)+1.5)+'ch'; });
-  });
+  document.getElementById('editWeightGoalBtn').onclick=()=>openWeightGoalModal(healthPerson);
   el.querySelectorAll('.weightExtraToggle').forEach(cb=>{
     cb.addEventListener('change', ()=>{
       const key=cb.value;
@@ -1598,14 +1614,26 @@ function myIncomeCategories(){
   return state.incomeCategories[key];
 }
 function fmtCurrency(v,cur){ return cur==='GBP' ? '£'+Number(v).toLocaleString() : Number(v).toLocaleString()+'원'; }
-function renderIncomeEstimateCard(){
-  const week=weekRangeContaining(todayStr());
-  const weekMinutes=week.reduce((acc,d)=>{
-    const s=studySummary(studyBlocksFor('daughter',d));
+function mondayWeekRange(dateStr){
+  const d=parseDate(dateStr);
+  const dow=d.getDay();
+  const offset = dow===0 ? -6 : 1-dow;
+  const start=addDays(d, offset);
+  return Array.from({length:7},(_,i)=>fmtDate(addDays(start,i)));
+}
+function weekActivityMinutes(key, weekDates){
+  return weekDates.reduce((acc,d)=>{
+    const s=studySummary(studyBlocksFor(key,d));
     return acc+s.study+s.exercise;
   },0);
-  const hours=weekMinutes/60;
-  const incentiveGBP=Math.round(hours*2*100)/100;
+}
+function renderIncomeEstimateCard(){
+  const thisWeek=mondayWeekRange(todayStr());
+  const lastWeek=mondayWeekRange(fmtDate(addDays(parseDate(todayStr()),-7)));
+  const lastWeekMin=weekActivityMinutes('daughter', lastWeek);
+  const thisWeekMin=weekActivityMinutes('daughter', thisWeek);
+  const lastIncentive=Math.round((lastWeekMin/60)*2*100)/100;
+  const thisIncentive=Math.round((thisWeekMin/60)*2*100)/100;
   const latestWeight = latestWeightFor('daughter');
   const milestones=[{w:49,bonus:20},{w:48,bonus:50},{w:45,bonus:100}];
   const loggedTexts=state.budget.filter(b=>b.type==='income'&&b.category==='체중감량 인센티브').map(b=>(b.memo||'')+' '+b.amount);
@@ -1613,11 +1641,9 @@ function renderIncomeEstimateCard(){
   const unpaid=reached.filter(ms=>!loggedTexts.some(t=>t.includes(String(ms.w))));
   return `
     <div class="card">
-      <h3>💡 이번 주 예상 수입</h3>
-      <div class="row" style="gap:20px;flex-wrap:wrap;">
-        <div><div class="meta">주급</div><div style="font-size:15px;font-weight:700;">₩200,000 + £50</div></div>
-        <div><div class="meta">학습·운동 인센티브 (${hours.toFixed(1)}시간 × £2)</div><div style="font-size:15px;font-weight:700;">£${incentiveGBP.toFixed(2)}</div></div>
-      </div>
+      <h3 style="font-size:13px;">💡 예상 수입 = 주급 ₩200,000 + 지난주(월~일) 운동시간 × £2 + Weight Incentive</h3>
+      <div class="meta" style="margin-top:6px;">이번 주 예상 수입: 주급 ₩200,000 + 지난주(${lastWeek[0].slice(5)}~${lastWeek[6].slice(5)}) 운동시간 ${fmtStudyMin(lastWeekMin)} × £2 = <b style="color:var(--text);">₩200,000 + £${lastIncentive.toFixed(2)}</b></div>
+      <div class="meta" style="margin-top:4px;">다음 주 예상 수입: 주급 ₩200,000 + 이번주(${thisWeek[0].slice(5)}~${thisWeek[6].slice(5)}) 운동시간 ${fmtStudyMin(thisWeekMin)} × £2 = <b style="color:var(--text);">₩200,000 + £${thisIncentive.toFixed(2)}</b></div>
       ${unpaid.length?`<div class="meta" style="margin-top:10px;color:var(--good);">🎉 체중 감량 목표 달성: ${unpaid.map(ms=>`${ms.w}kg 이하 → £${ms.bonus}`).join(', ')} (아직 수입 내역에 기록 안 됨)</div>`:''}
     </div>
   `;
