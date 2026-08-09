@@ -800,16 +800,18 @@ function renderHome(){
   el.innerHTML = `
     ${renderDayTimelines()}
     <div class="card">
-      <div class="datebar">
-        <button class="iconbtn" id="homePrev">‹</button>
-        <div class="d">${dLabel}</div>
-        <button class="iconbtn" id="homeNext">›</button>
-        ${homeDate!==todayStr()?`<button class="btn small" id="homeToday">오늘</button>`:''}
+      <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:nowrap;gap:8px;">
+        <div class="row" style="gap:4px;flex-shrink:0;">
+          <button class="iconbtn" id="homePrev">‹</button>
+          <div class="d" style="white-space:nowrap;">${dLabel}</div>
+          <button class="iconbtn" id="homeNext">›</button>
+          ${homeDate!==todayStr()?`<button class="btn small" id="homeToday">오늘</button>`:''}
+        </div>
+        <div class="mood-row" id="moodRow" style="flex:1;justify-content:flex-end;min-width:0;overflow-x:auto;">
+          ${MOODS.map(m=>`<button data-m="${m}" class="${mine.mood===m?'sel':''}">${m}</button>`).join('')}
+        </div>
       </div>
-      <div class="meta" style="margin-bottom:6px;">${escapeHtml(authorLabel(mine,myKey))}의 기록</div>
-      <div class="mood-row" id="moodRow">
-        ${MOODS.map(m=>`<button data-m="${m}" class="${mine.mood===m?'sel':''}">${m}</button>`).join('')}
-      </div>
+      <div class="meta" style="margin:6px 0;">${escapeHtml(authorLabel(mine,myKey))}의 기록</div>
       <div class="field" style="margin-top:10px;">
         <div class="row" style="justify-content:space-between;align-items:center;">
           <label style="margin:0;">Comment</label>
@@ -836,7 +838,7 @@ function renderHome(){
         <div class="list-item" style="align-items:center;">
           <div class="row" style="flex:1;gap:8px;min-width:0;">
             <input type="checkbox" data-todo-id="${t.id}" ${t.done?'checked':''}>
-            <span style="${t.done?'text-decoration:line-through;color:var(--muted);':''}overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(t.task)}</span>
+            <span style="font-size:12.5px;opacity:.88;${t.done?'text-decoration:line-through;color:var(--muted);':''}overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(t.task)}</span>
           </div>
           <div class="row" style="flex-shrink:0;">
             <span class="pill ${ddayPillClass(d)}">${ddayLabel(d)}</span>
