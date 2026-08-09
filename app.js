@@ -934,7 +934,7 @@ function renderHome(){
       <h3>💌 가족 기록</h3>
       ${others.map(k=>`
         <div class="list-item">
-          <div><div>${entries[k].mood?entries[k].mood+' ':''}<b>${escapeHtml(authorLabel(entries[k],k))}</b></div>${entries[k].diary?`<div class="meta">${escapeHtml(entries[k].diary)}</div>`:''}</div>
+          <div><div>${entries[k].mood?entries[k].mood+' ':''}<b>${escapeHtml(authorLabel(entries[k],k))}</b></div>${entries[k].diary?`<div class="content-text">${escapeHtml(entries[k].diary)}</div>`:''}</div>
         </div>`).join('')}
     </div>`:''}
 
@@ -947,7 +947,7 @@ function renderHome(){
 
     <div class="card">
       <h3>📅 오늘 일정</h3>
-      ${todaySchedule.length? todaySchedule.map(s=>`<div class="list-item"><div><div>${timeRangeLabel(s)?`<b>${timeRangeLabel(s)}</b> `:''}${escapeHtml(s.title)}</div>${s.memo?`<div class="meta">${escapeHtml(s.memo)}</div>`:''}</div></div>`).join('') : `<div class="empty">등록된 일정이 없어요</div>`}
+      ${todaySchedule.length? todaySchedule.map(s=>`<div class="list-item"><div><div>${timeRangeLabel(s)?`<b>${timeRangeLabel(s)}</b> `:''}${escapeHtml(s.title)}</div>${s.memo?`<div class="content-text">${escapeHtml(s.memo)}</div>`:''}</div></div>`).join('') : `<div class="empty">등록된 일정이 없어요</div>`}
     </div>
   `;
   document.getElementById('homePrev').onclick=()=>{ homeDate=fmtDate(addDays(parseDate(homeDate),-1)); renderHome(); };
@@ -1025,7 +1025,7 @@ function diaryArchiveRowsHtml(){
     <div class="list-item" data-jump="${r.date}" style="cursor:pointer;">
       <div>
         <div><b>${r.date}</b> ${r.mood||''} <span class="pill">${escapeHtml(authorLabel(r,r.key))}</span></div>
-        ${r.diary?`<div class="meta">${escapeHtml(r.diary)}</div>`:''}
+        ${r.diary?`<div class="content-text">${escapeHtml(r.diary)}</div>`:''}
       </div>
       ${r.key===myKey?`<button class="icon-btn" data-edit-diary="${escapeHtml(r.date)}|${escapeHtml(r.key)}" title="수정">✏️</button>`:''}
     </div>`).join('');
@@ -1143,8 +1143,11 @@ function renderSchedule(){
     const holidayName=holidays[dateStr];
     const shown=dayEvents.slice(0,MAX_SHOWN).map(s=>`<span class="cal-evt">${timeRangeLabel(s)?escapeHtml(timeRangeLabel(s))+' ':''}${escapeHtml(s.title)}</span>`).join('');
     const more = dayEvents.length>MAX_SHOWN ? `<span class="cal-evt more">+${dayEvents.length-MAX_SHOWN}개 더</span>` : '';
+    const dayEntry=((state.daily[dateStr]||{}).entries||{})[currentAuthorKey()];
+    const commentText=dayEntry&&dayEntry.diary?dayEntry.diary:'';
+    const commentHtml=commentText?`<div class="cal-comment" title="${escapeHtml(commentText)}">📝 ${escapeHtml(commentText)}</div>`:'';
     grid += `<div class="cal-cell ${inMonth?'':'other'} ${dateStr===todayS?'today':''} ${dateStr===scheduleSel?'sel':''} ${holidayName?'holiday':''}" data-date="${dateStr}">
-      <div class="day-row"><span class="day-num">${dateObj.getDate()}</span>${holidayName?`<span class="cal-holiday">${escapeHtml(holidayName)}</span>`:''}</div>${shown}${more}
+      <div class="day-row"><span class="day-num">${dateObj.getDate()}</span>${holidayName?`<span class="cal-holiday">${escapeHtml(holidayName)}</span>`:''}</div>${commentHtml}${shown}${more}
     </div>`;
   }
   const dayItems = filtered.filter(s=>scheduleItemOccursOn(s,scheduleSel)).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
@@ -1165,7 +1168,7 @@ function renderSchedule(){
         const canManage = !s.virtual && canManageSchedule(s);
         return `
         <div class="list-item">
-          <div><div>${timeRangeLabel(s)?`<b>${timeRangeLabel(s)}</b> `:''}${escapeHtml(s.title)} <span class="pill">${ownerLabel(s.owner)}</span></div>${s.memo?`<div class="meta">${escapeHtml(s.memo)}</div>`:''}</div>
+          <div><div>${timeRangeLabel(s)?`<b>${timeRangeLabel(s)}</b> `:''}${escapeHtml(s.title)} <span class="pill">${ownerLabel(s.owner)}</span></div>${s.memo?`<div class="content-text">${escapeHtml(s.memo)}</div>`:''}</div>
           <div class="row">${s.virtual? `<span class="meta">경조사 탭에서 수정</span>` : (canManage?`<button class="btn small" data-edit="${s.id}">수정</button><button class="btn small danger" data-del="${s.id}">삭제</button>`:`<span class="meta">작성자만 관리 가능</span>`)}</div>
         </div>`;
       }).join('') : `<div class="empty">일정이 없어요</div>`}
