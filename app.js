@@ -253,8 +253,33 @@ function defaultState(){
     events:[],
     healthSchedule:{dad:[],mom:[],daughter:[]},
     budgetCategories:{},
-    study:[]
+    study:[],
+    todos:{}
   };
+}
+const SEED_DUE_DATE='2026-11-13';
+const SEED_CREATED_DATE='2026-08-08';
+function seedDaughterTodos(){
+  const tasks=[
+    'UCLH - Mandatory Training: Learning Disability & Autism',
+    'UCLH - Mandatory Training: Safeguarding Adults',
+    'UCLH - Mandatory Training: NEWS',
+    'UCLH - Mandatory Training: Equality, Diversity, Human Rights',
+    'UCLH - Mandatory Training: Fire Training eLearning',
+    'UCLH - Mandatory Training: Infection Prevention and Control',
+    'UCLH - Mandatory Training: Safeguarding Children Level 2',
+    'UCLH - Mandatory Training: Understanding Sexual Misconduct',
+    'UCLH - Mandatory Training: Workshop Raising Awareness of Prevent'
+  ];
+  return tasks.map(task=>({id:uid(), task, dueDate:SEED_DUE_DATE, done:true, doneDate:SEED_CREATED_DATE, createdDate:SEED_CREATED_DATE}));
+}
+function migrateTodos(st){
+  if(!st.todos) st.todos={};
+  if(!st.todosSeeded){ st.todos.daughter=seedDaughterTodos(); st.todosSeeded=true; }
+  if(!st.todos.daughter) st.todos.daughter=[];
+  if(!st.todos.dad) st.todos.dad=[];
+  if(!st.todos.mom) st.todos.mom=[];
+  return st;
 }
 const MAINT_ITEMS=['엔진오일 및 필터','에어컨필터','미션오일','구동벨트','타이어','와이퍼','브레이크오일','배터리','점화플러그','기타'];
 function matchMaintItem(text){
@@ -331,7 +356,7 @@ function loadLocal(){
       const parsed=JSON.parse(raw);
       const base=defaultState();
       base.vehicle=Object.assign(base.vehicle, parsed.vehicle||{});
-      return migrateVehicle(migrateDaily(Object.assign(base, parsed, {vehicle:base.vehicle})));
+      return migrateTodos(migrateVehicle(migrateDaily(Object.assign(base, parsed, {vehicle:base.vehicle}))));
     }
   }catch(e){}
   return defaultState();
@@ -391,7 +416,7 @@ function initAuth(){
           const data=doc.data();
           const base=defaultState();
           base.vehicle=Object.assign(base.vehicle, data.vehicle||{});
-          state=migrateVehicle(migrateDaily(Object.assign(base, data, {vehicle:base.vehicle})));
+          state=migrateTodos(migrateVehicle(migrateDaily(Object.assign(base, data, {vehicle:base.vehicle}))));
         } else {
           await familyDocRef().set(state);
         }
@@ -691,6 +716,71 @@ function bindDayTimelineEvents(){
     });
   });
 }
+function myTodos(){
+  const key=currentAuthorKey();
+  if(!state.todos) state.todos={};
+  if(!state.todos[key]) state.todos[key]=[];
+  return state.todos[key];
+}
+function todosForToday(){
+  const today=todayStr();
+  return myTodos().filter(t=>t.dueDate>=today).sort((a,b)=>a.dueDate.localeCompare(b.dueDate));
+}
+function todoProgressPct(list){
+  if(!list.length) return null;
+  const done=list.filter(t=>t.done).length;
+  return Math.round(done/list.length*100);
+}
+function computeDailyProgress(dateStr, authorKey){
+  const list=(state.todos&&state.todos[authorKey])||[];
+  const active=list.filter(t=>t.createdDate<=dateStr && t.dueDate>=dateStr);
+  if(!active.length) return null;
+  const done=active.filter(t=>t.doneDate && t.doneDate<=dateStr).length;
+  return Math.round(done/active.length*100);
+}
+function commitNewTodo(){
+  const taskEl=document.getElementById('newTodoTask');
+  const dueEl=document.getElementById('newTodoDue');
+  if(!taskEl||!dueEl) return;
+  const task=taskEl.value.trim();
+  const due=dueEl.value||todayStr();
+  if(!task) return;
+  myTodos().push({id:uid(), task, dueDate:due, done:false, doneDate:'', createdDate:todayStr()});
+  queueSave(); renderHome();
+}
+function openTodoEditModal(id){
+  const list=myTodos();
+  const t=list.find(x=>x.id===id);
+  if(!t) return;
+  openModal(`
+    <h3>To do 수정</h3>
+    <div class="field"><label>할 일</label><input id="mTask" value="${escapeHtml(t.task)}"></div>
+    <div class="field"><label>D-day 날짜</label><input type="text" readonly class="date-input" id="mDue" value="${t.dueDate}"></div>
+    <label class="pill" style="cursor:pointer;display:inline-block;margin:6px 0;"><input type="checkbox" id="mDone" ${t.done?'checked':''} style="margin-right:4px;">완료</label>
+    <div class="modal-actions">
+      <button class="btn danger" id="mDelete">삭제</button>
+      <button class="btn" id="mCancel">취소</button>
+      <button class="btn primary" id="mSave">저장</button>
+    </div>
+  `);
+  attachDatePicker('mDue');
+  document.getElementById('mCancel').onclick=closeModal;
+  document.getElementById('mSave').onclick=()=>{
+    t.task=document.getElementById('mTask').value.trim()||t.task;
+    t.dueDate=document.getElementById('mDue').value||t.dueDate;
+    const doneNow=document.getElementById('mDone').checked;
+    if(doneNow && !t.done) t.doneDate=todayStr();
+    if(!doneNow) t.doneDate='';
+    t.done=doneNow;
+    queueSave(); closeModal(); renderHome();
+  };
+  document.getElementById('mDelete').onclick=()=>{
+    if(!confirm('이 할 일을 삭제할까요?')) return;
+    const key=currentAuthorKey();
+    state.todos[key]=state.todos[key].filter(x=>x.id!==id);
+    queueSave(); closeModal(); renderHome();
+  };
+}
 function renderHome(){
   const day = state.daily[homeDate] || {};
   const entries = day.entries || {};
@@ -704,6 +794,8 @@ function renderHome(){
   const monthBudget = state.budget.filter(b=>b.date.startsWith(ym)).reduce((s,b)=>s+Number(b.amount||0),0);
   const upcomingEvent = state.events.filter(ev=>!(ev.hiddenFromDaughter && effectiveRole()==='daughter')).map(ev=>({...ev,d:ddayFromDate(eventOccurrence(ev))})).filter(e=>e.d>=0).sort((a,b)=>a.d-b.d)[0];
   const upcomingRenew = state.vehicle.renewals.map(r=>({...r,d:dday(r.date)})).filter(r=>r.d>=0).sort((a,b)=>a.d-b.d)[0];
+  const todayTodos = todosForToday();
+  const todoPct = todoProgressPct(todayTodos);
 
   el.innerHTML = `
     ${renderDayTimelines()}
@@ -720,15 +812,44 @@ function renderHome(){
       </div>
       <div class="field" style="margin-top:10px;">
         <div class="row" style="justify-content:space-between;align-items:center;">
-          <label style="margin:0;">한 줄 일기</label>
+          <label style="margin:0;">Comment</label>
           <div class="row" style="gap:8px;">
             <span class="meta" id="diarySaveStatus">${mine.diary?'✓ 저장됨':''}</span>
             <button class="btn small primary" id="diarySaveBtn">저장</button>
           </div>
         </div>
         <textarea id="diaryInput" placeholder="오늘 하루는 어땠나요?">${escapeHtml(mine.diary)}</textarea>
-        <label id="diaryArchiveToggle" style="cursor:pointer;margin-top:8px;display:inline-block;">${diaryArchiveOpen?'▲':'▼'} 일기 모아보기</label>
+        <label id="diaryArchiveToggle" style="cursor:pointer;margin-top:8px;display:inline-block;">${diaryArchiveOpen?'▲':'▼'} Comment 모아보기</label>
         ${diaryArchiveOpen?`<div id="diaryArchiveBox" style="margin-top:6px;">${diaryArchiveRowsHtml()}</div>`:''}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="row" style="justify-content:space-between;align-items:center;">
+        <h3 style="margin:0;">✅ To do list</h3>
+        ${todoPct!=null?`<span class="meta">오늘 진행률 ${todoPct}%</span>`:''}
+      </div>
+      ${todoPct!=null?`<div class="bar-track" style="margin:8px 0;"><div class="bar-fill" style="width:${todoPct}%"></div></div>`:''}
+      ${todayTodos.map(t=>{
+        const d=dday(t.dueDate);
+        return `
+        <div class="list-item" style="align-items:center;">
+          <div class="row" style="flex:1;gap:8px;min-width:0;">
+            <input type="checkbox" data-todo-id="${t.id}" ${t.done?'checked':''}>
+            <span style="${t.done?'text-decoration:line-through;color:var(--muted);':''}overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(t.task)}</span>
+          </div>
+          <div class="row" style="flex-shrink:0;">
+            <span class="pill ${ddayPillClass(d)}">${ddayLabel(d)}</span>
+            <button class="icon-btn" data-edit-todo="${t.id}" title="수정">✏️</button>
+          </div>
+        </div>`;
+      }).join('')}
+      <div class="list-item" style="align-items:center;">
+        <div class="row" style="flex:1;gap:8px;">
+          <span style="width:16px;flex-shrink:0;"></span>
+          <input id="newTodoTask" placeholder="할 일을 입력하고 Enter" style="flex:1;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:13px;">
+        </div>
+        <input type="text" readonly class="date-input" id="newTodoDue" style="width:110px;flex-shrink:0;" value="${todayStr()}">
       </div>
     </div>
 
@@ -794,6 +915,23 @@ function renderHome(){
       openDiaryEntryEditModal(d,k);
     });
   }
+  el.querySelectorAll('[data-todo-id]').forEach(cb=>cb.addEventListener('change', e=>{
+    const t=myTodos().find(x=>x.id===cb.dataset.todoId);
+    if(!t) return;
+    t.done=cb.checked;
+    t.doneDate = cb.checked ? todayStr() : '';
+    queueSave(); renderHome();
+  }));
+  el.querySelectorAll('[data-edit-todo]').forEach(btn=>btn.onclick=()=>openTodoEditModal(btn.dataset.editTodo));
+  const newTodoDueEl=document.getElementById('newTodoDue');
+  if(newTodoDueEl){
+    attachDatePicker('newTodoDue');
+    newTodoDueEl.addEventListener('change', commitNewTodo);
+  }
+  const newTodoTaskEl=document.getElementById('newTodoTask');
+  if(newTodoTaskEl){
+    newTodoTaskEl.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); commitNewTodo(); } });
+  }
   bindDayTimelineEvents();
 }
 function diaryArchiveRowsHtml(){
@@ -805,7 +943,7 @@ function diaryArchiveRowsHtml(){
       if(e && (e.mood || e.diary)) rows.push({date:d, key:k, ...e});
     });
   });
-  if(!rows.length) return `<div class="empty">아직 작성된 일기가 없어요</div>`;
+  if(!rows.length) return `<div class="empty">아직 작성된 Comment가 없어요</div>`;
   const myKey=currentAuthorKey();
   return rows.map(r=>`
     <div class="list-item" data-jump="${r.date}" style="cursor:pointer;">
@@ -820,12 +958,12 @@ function openDiaryEntryEditModal(date, key){
   const day=state.daily[date]||{};
   const e=(day.entries&&day.entries[key])||{};
   openModal(`
-    <h3>${date} · ${escapeHtml(authorLabel(e,key))} 일기 수정</h3>
+    <h3>${date} · ${escapeHtml(authorLabel(e,key))} Comment 수정</h3>
     <div class="mood-row" id="editMoodRow">
       ${MOODS.map(m=>`<button data-m="${m}" class="${e.mood===m?'sel':''}">${m}</button>`).join('')}
     </div>
     <div class="field" style="margin-top:10px;">
-      <label>한 줄 일기</label>
+      <label>Comment</label>
       <textarea id="editDiaryInput">${escapeHtml(e.diary)}</textarea>
     </div>
     <div class="modal-actions">
@@ -883,6 +1021,28 @@ function scheduleFilterLabel(key){
   if(key==='all') return '전체';
   return ownerLabel(key);
 }
+function renderProgressChart(y, m){
+  const key=currentAuthorKey();
+  const daysInMonth=new Date(y,m+1,0).getDate();
+  const todayS=todayStr();
+  const pcts=[];
+  let bars='';
+  for(let d=1; d<=daysInMonth; d++){
+    const dateStr=`${y}-${pad2(m+1)}-${pad2(d)}`;
+    let pct=null;
+    if(dateStr<=todayS) pct=computeDailyProgress(dateStr, key);
+    if(pct!=null) pcts.push(pct);
+    const h = pct==null ? 3 : Math.max(3, Math.round(pct*0.6));
+    bars += `<div title="${dateStr}: ${pct==null?'기록 없음':pct+'%'}" style="flex:1;min-width:3px;height:${h}px;border-radius:2px;background:${pct==null?'var(--border)':'linear-gradient(180deg,var(--accent),var(--accent2))'};"></div>`;
+  }
+  const avg = pcts.length ? Math.round(pcts.reduce((a,b)=>a+b,0)/pcts.length) : null;
+  return `
+    <div class="card">
+      <div class="row" style="justify-content:space-between;"><h3 style="margin:0;">📊 월별 To do 진행률</h3>${avg!=null?`<span class="meta">월 평균 ${avg}%</span>`:''}</div>
+      <div style="display:flex;align-items:flex-end;gap:2px;height:64px;">${bars}</div>
+    </div>
+  `;
+}
 function renderSchedule(){
   const el=document.getElementById('tab-schedule');
   const y=scheduleMonth.getFullYear(), m=scheduleMonth.getMonth();
@@ -925,6 +1085,7 @@ function renderSchedule(){
       </div>
       <div class="cal-grid" style="margin-top:10px;">${['일','월','화','수','목','금','토'].map(d=>`<div class="cal-head">${d}</div>`).join('')}${grid}</div>
     </div>
+    ${renderProgressChart(y, m)}
     <div class="card">
       <div class="row" style="justify-content:space-between;"><h3 style="margin:0;">${scheduleSel} 일정${holidays[scheduleSel]?` <span class="pill">${escapeHtml(holidays[scheduleSel])}</span>`:''}</h3><button class="btn primary small" id="addSchedBtn">+ 일정 추가</button></div>
       ${dayItems.length? dayItems.map(s=>{
