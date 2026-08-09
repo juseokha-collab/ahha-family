@@ -912,7 +912,7 @@ function renderHome(){
         <div class="list-item" style="align-items:center;">
           <div class="row" style="flex:1;gap:8px;min-width:0;">
             <input type="checkbox" data-todo-id="${t.id}" ${t.done?'checked':''}>
-            <span style="font-size:12.5px;opacity:.88;${t.done?'text-decoration:line-through;color:var(--muted);':''}overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(t.task)}</span>
+            <span class="content-text" style="${t.done?'text-decoration:line-through;color:var(--muted);':''}overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(t.task)}</span>
           </div>
           <div class="row" style="flex-shrink:0;">
             <span class="pill ${ddayPillClass(d)}">${ddayLabel(d)}</span>
@@ -1141,7 +1141,7 @@ function renderSchedule(){
     const inMonth = dayNum>=1 && dayNum<=daysInMonth;
     const dayEvents=filtered.filter(s=>scheduleItemOccursOn(s,dateStr)).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
     const holidayName=holidays[dateStr];
-    const shown=dayEvents.slice(0,MAX_SHOWN).map(s=>`<span class="cal-evt">${timeRangeLabel(s)?escapeHtml(timeRangeLabel(s))+' ':''}${escapeHtml(s.title)}</span>`).join('');
+    const shown=dayEvents.slice(0,MAX_SHOWN).map(s=>`<span class="cal-evt">${s.time?escapeHtml(s.time)+' ':''}${escapeHtml(s.title)}</span>`).join('');
     const more = dayEvents.length>MAX_SHOWN ? `<span class="cal-evt more">+${dayEvents.length-MAX_SHOWN}개 더</span>` : '';
     const dayEntry=((state.daily[dateStr]||{}).entries||{})[currentAuthorKey()];
     const commentText=dayEntry&&dayEntry.diary?dayEntry.diary:'';
