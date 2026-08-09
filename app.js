@@ -572,7 +572,7 @@ function myVisibleScheduleItems(dateStr){
     .map(ev=>({id:'evt-'+ev.id, date:fmtDate(eventOccurrence(ev)), time:'', title:'🎉 '+ev.name, owner:'common'}));
   const allItems=state.schedule.map(s=>({...s, owner:s.owner||'common'})).concat(virtualEventItems);
   const visible = allowed.includes('all') ? allItems : allItems.filter(it=>allowed.includes(it.owner));
-  return visible.filter(it=>it.date===dateStr).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+  return visible.filter(it=>scheduleItemOccursOn(it,dateStr)).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
 }
 function myVisibleScheduleItemsUK(ukDateStr){
   const candidates=[-1,0,1].map(off=>fmtDate(addDays(parseDate(ukDateStr), off)));
@@ -648,9 +648,30 @@ function authorBadge(key){
 }
 function dtChip(it){
   const isVirtual = typeof it.id==='string' && it.id.startsWith('evt-');
-  if(isVirtual) return `<div class="dt-evt" data-virtual="1"${it.memo?` title="${escapeHtml(it.memo)}"`:''}>${escapeHtml(it.title)}</div>`;
+  const memoAttr = it.memo ? ` data-memo="${escapeHtml(it.memo)}"` : '';
+  if(isVirtual) return `<div class="dt-evt" data-virtual="1"${memoAttr}>${escapeHtml(it.title)}</div>`;
   const badge = it.owner==='common' ? authorBadge(it.createdBy) : '';
-  return `<div class="dt-evt" draggable="true" data-item-id="${it.id}"${it.memo?` title="${escapeHtml(it.memo)}"`:''}>${badge}${timeRangeLabel(it)?escapeHtml(timeRangeLabel(it))+' ':''}${escapeHtml(it.title)}</div>`;
+  return `<div class="dt-evt" draggable="true" data-item-id="${it.id}"${memoAttr}>${badge}${timeRangeLabel(it)?escapeHtml(timeRangeLabel(it))+' ':''}${escapeHtml(it.title)}</div>`;
+}
+let dtTooltipEl=null;
+function showDtTooltip(target, text){
+  hideDtTooltip();
+  const el=document.createElement('div');
+  el.className='dt-tooltip';
+  el.textContent=text;
+  document.body.appendChild(el);
+  const rect=target.getBoundingClientRect();
+  let top=rect.top-el.offsetHeight-6;
+  if(top<4) top=rect.bottom+6;
+  let left=rect.left;
+  if(left+el.offsetWidth>window.innerWidth-8) left=window.innerWidth-el.offsetWidth-8;
+  if(left<4) left=4;
+  el.style.top=top+'px';
+  el.style.left=left+'px';
+  dtTooltipEl=el;
+}
+function hideDtTooltip(){
+  if(dtTooltipEl){ dtTooltipEl.remove(); dtTooltipEl=null; }
 }
 function dtHl(hhmm){
   const h=Number(hhmm.split(':')[0]);
@@ -676,7 +697,7 @@ function myHomeVisibleScheduleItems(dateStr){
     if(it.owner==='common') return showCommonOnHome;
     return false;
   });
-  return visible.filter(it=>it.date===dateStr).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+  return visible.filter(it=>scheduleItemOccursOn(it,dateStr)).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
 }
 function renderDayTimelines(){
   const dayLabels=['오늘','내일','모레'];
@@ -764,6 +785,10 @@ function bindDayTimelineEvents(){
       e.stopPropagation();
       showToast('경조사 탭에서 수정할 수 있어요');
     });
+  });
+  el.querySelectorAll('.dt-evt[data-memo]').forEach(chip=>{
+    chip.addEventListener('mouseenter', ()=>showDtTooltip(chip, chip.dataset.memo));
+    chip.addEventListener('mouseleave', hideDtTooltip);
   });
 }
 function myTodos(){
@@ -861,7 +886,6 @@ function renderHome(){
           ${MOODS.map(m=>`<button data-m="${m}" class="${mine.mood===m?'sel':''}">${m}</button>`).join('')}
         </div>
       </div>
-      <div class="meta" style="margin:6px 0;">${escapeHtml(authorLabel(mine,myKey))}의 기록</div>
       <div class="field" style="margin-top:10px;">
         <div class="row" style="justify-content:space-between;align-items:center;">
           <label style="margin:0;">Comment</label>
@@ -901,7 +925,7 @@ function renderHome(){
           <span style="width:16px;flex-shrink:0;"></span>
           <input id="newTodoTask" placeholder="할 일을 입력하고 Enter" style="flex:1;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:13px;">
         </div>
-        <input type="text" readonly class="date-input" id="newTodoDue" style="width:110px;flex-shrink:0;" value="${todayStr()}">
+        <input type="text" readonly class="date-input" id="newTodoDue" placeholder="D-day" style="width:110px;flex-shrink:0;" value="">
       </div>
     </div>
 
@@ -1106,9 +1130,6 @@ function renderSchedule(){
   const virtualEventItems=state.events.filter(ev=>!(ev.hiddenFromDaughter && effectiveRole()==='daughter')).map(ev=>({id:'evt-'+ev.id, date:fmtDate(eventOccurrence(ev)), time:'', title:'🎉 '+ev.name, memo:ev.memo, owner:'common', virtual:true}));
   const allItems=state.schedule.map(s=>({...s, owner:s.owner||'common'})).concat(virtualEventItems);
   const filtered = scheduleFilter==='all' ? allItems : allItems.filter(s=>s.owner===scheduleFilter);
-  const eventsByDate={};
-  filtered.forEach(s=>{ (eventsByDate[s.date]=eventsByDate[s.date]||[]).push(s); });
-  Object.values(eventsByDate).forEach(list=>list.sort((a,b)=>(a.time||'').localeCompare(b.time||'')));
   const holidays=getHolidaysForViewer(y);
   const todayS=todayStr();
   const MAX_SHOWN=3;
@@ -1118,7 +1139,7 @@ function renderSchedule(){
     const dateObj=new Date(y,m,dayNum);
     const dateStr=fmtDate(dateObj);
     const inMonth = dayNum>=1 && dayNum<=daysInMonth;
-    const dayEvents=eventsByDate[dateStr]||[];
+    const dayEvents=filtered.filter(s=>scheduleItemOccursOn(s,dateStr)).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
     const holidayName=holidays[dateStr];
     const shown=dayEvents.slice(0,MAX_SHOWN).map(s=>`<span class="cal-evt">${timeRangeLabel(s)?escapeHtml(timeRangeLabel(s))+' ':''}${escapeHtml(s.title)}</span>`).join('');
     const more = dayEvents.length>MAX_SHOWN ? `<span class="cal-evt more">+${dayEvents.length-MAX_SHOWN}개 더</span>` : '';
@@ -1126,7 +1147,7 @@ function renderSchedule(){
       <div class="day-row"><span class="day-num">${dateObj.getDate()}</span>${holidayName?`<span class="cal-holiday">${escapeHtml(holidayName)}</span>`:''}</div>${shown}${more}
     </div>`;
   }
-  const dayItems = filtered.filter(s=>s.date===scheduleSel).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+  const dayItems = filtered.filter(s=>scheduleItemOccursOn(s,scheduleSel)).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
   el.innerHTML=`
     <div class="card">
       <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
@@ -1175,6 +1196,18 @@ function addOneHour(timeStr){
 function canManageSchedule(item){
   return !item || item.owner!=='common' || !item.createdBy || item.createdBy===currentAuthorKey();
 }
+const REPEAT_LABELS={none:'안함',daily:'매일',weekly:'매주',yearly:'매년'};
+function scheduleItemOccursOn(item, dateStr){
+  if(item.date===dateStr) return true;
+  if(!item.repeat || item.repeat==='none') return false;
+  if(dateStr<item.date) return false;
+  if(item.repeatUntil && dateStr>item.repeatUntil) return false;
+  const base=parseDate(item.date), target=parseDate(dateStr);
+  if(item.repeat==='daily') return true;
+  if(item.repeat==='weekly') return base.getDay()===target.getDay();
+  if(item.repeat==='yearly') return base.getMonth()===target.getMonth() && base.getDate()===target.getDate();
+  return false;
+}
 function openScheduleModal(existing, prefill){
   if(existing && !canManageSchedule(existing)){ showToast('공통 일정은 작성자만 수정·삭제할 수 있어요'); return; }
   const myOwners=getAllowedOwners();
@@ -1182,9 +1215,10 @@ function openScheduleModal(existing, prefill){
   const defaultOwner = (prefill&&prefill.owner) ? prefill.owner
     : (role && role!=='dad' && myOwners.some(o=>o.key===role)) ? role
     : ((scheduleFilter!=='all' && myOwners.some(o=>o.key===scheduleFilter)) ? scheduleFilter : (myOwners[0]?myOwners[0].key:'common'));
-  const s=existing||{id:null,date:(prefill&&prefill.date)||scheduleSel,time:(prefill&&prefill.time)||'',endTime:(prefill&&prefill.endTime)||'',title:'',contacts:'',memo:'',owner:defaultOwner};
+  const s=existing||{id:null,date:(prefill&&prefill.date)||scheduleSel,time:(prefill&&prefill.time)||'',endTime:(prefill&&prefill.endTime)||'',title:'',contacts:'',memo:'',owner:defaultOwner,repeat:'none',repeatUntil:''};
   if(!s.id && s.time && !s.endTime) s.endTime=addOneHour(s.time);
   const ownerOptions = myOwners.some(o=>o.key===(s.owner||'common')) ? myOwners : myOwners.concat([{key:s.owner||'common',label:ownerLabel(s.owner)}]);
+  const curRepeat=s.repeat||'none';
   openModal(`
     <div class="row" style="justify-content:space-between;align-items:center;padding-right:30px;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
       <h3 style="margin:0;">${existing?'일정 수정':'일정 추가'}</h3>
@@ -1200,23 +1234,41 @@ function openScheduleModal(existing, prefill){
     <div class="field"><label>제목</label><input id="mTitle" value="${escapeHtml(s.title)}"></div>
     <div class="field"><label>인맥 (쉼표로 구분, 예: 홍길동, 김철수)</label><input id="mContacts" value="${escapeHtml(s.contacts)}"></div>
     <div class="field"><label>메모</label><textarea id="mMemo">${escapeHtml(s.memo)}</textarea></div>
-    <div class="modal-actions">
-      ${existing?`<button class="btn danger" id="mDelete">삭제</button>`:''}
-      <button class="btn" id="mCancel">취소</button>
-      <button class="btn primary" id="mSave">저장</button>
+    <div id="repeatOptions" style="display:${curRepeat!=='none'?'':'none'};margin-top:10px;padding-top:10px;border-top:1px solid var(--border);">
+      <div class="field"><label>반복</label>
+        <div class="row" style="gap:6px;">
+          ${['none','daily','weekly','yearly'].map(r=>`<label class="pill" style="cursor:pointer;"><input type="radio" name="mRepeat" value="${r}" ${curRepeat===r?'checked':''} style="margin-right:4px;">${REPEAT_LABELS[r]}</label>`).join('')}
+        </div>
+      </div>
+      <div class="field"><label>반복 기한 (선택, 비우면 계속 반복)</label><input type="text" readonly class="date-input" id="mRepeatUntil" value="${s.repeatUntil||''}"></div>
+    </div>
+    <div class="modal-actions" style="justify-content:space-between;">
+      <button type="button" class="btn small" id="repeatToggleBtn">🔁 반복${curRepeat!=='none'?': '+REPEAT_LABELS[curRepeat]:''}</button>
+      <div class="row" style="gap:8px;">
+        ${existing?`<button class="btn danger" id="mDelete">삭제</button>`:''}
+        <button class="btn" id="mCancel">취소</button>
+        <button class="btn primary" id="mSave">저장</button>
+      </div>
     </div>
   `);
   document.getElementById('mCancel').onclick=closeModal;
   attachDatePicker('mDate');
+  attachDatePicker('mRepeatUntil');
   document.getElementById('mTime').addEventListener('change', e=>{
     if(e.target.value) document.getElementById('mEndTime').value=addOneHour(e.target.value);
   });
+  document.getElementById('repeatToggleBtn').onclick=()=>{
+    const el=document.getElementById('repeatOptions');
+    el.style.display = el.style.display==='none' ? '' : 'none';
+  };
   document.getElementById('mSave').onclick=()=>{
     const date=document.getElementById('mDate').value;
     const title=document.getElementById('mTitle').value.trim();
     if(!date||!title){ showToast('날짜와 제목을 입력해주세요'); return; }
     const owner=(document.querySelector('input[name="mOwner"]:checked')||{}).value || 'common';
-    const rec={id:s.id||uid(),date,time:document.getElementById('mTime').value,endTime:document.getElementById('mEndTime').value,title,contacts:document.getElementById('mContacts').value,memo:document.getElementById('mMemo').value,owner,createdBy:s.createdBy||currentAuthorKey()};
+    const repeat=(document.querySelector('input[name="mRepeat"]:checked')||{}).value || 'none';
+    const repeatUntil=document.getElementById('mRepeatUntil').value;
+    const rec={id:s.id||uid(),date,time:document.getElementById('mTime').value,endTime:document.getElementById('mEndTime').value,title,contacts:document.getElementById('mContacts').value,memo:document.getElementById('mMemo').value,owner,repeat,repeatUntil,createdBy:s.createdBy||currentAuthorKey()};
     if(s.id){ const idx=state.schedule.findIndex(x=>x.id===s.id); state.schedule[idx]=rec; }
     else state.schedule.push(rec);
     scheduleSel=date;
