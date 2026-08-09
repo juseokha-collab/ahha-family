@@ -254,9 +254,11 @@ function defaultState(){
     healthSchedule:{dad:[],mom:[],daughter:[]},
     budgetCategories:{},
     study:[],
-    todos:{}
+    todos:{},
+    studyBlocks:{}
   };
 }
+const SB_COLORS={study:'#f5d76e', exercise:'#7ee787'};
 const SEED_DUE_DATE='2026-11-13';
 const SEED_CREATED_DATE='2026-08-08';
 function seedDaughterTodos(){
@@ -594,76 +596,72 @@ const DT_START_MIN=480; // 08:00
 const DT_END_MIN=1080;  // 18:00
 const DT_STEP=60;
 const DT_ROWS=(DT_END_MIN-DT_START_MIN)/DT_STEP+1; // 11
+function minsToIdx(mins){
+  if(mins<DT_START_MIN) return -1;
+  if(mins>=DT_START_MIN+DT_ROWS*DT_STEP) return DT_ROWS;
+  return Math.floor((mins-DT_START_MIN)/DT_STEP);
+}
 function computeDayLayoutFromItems(items){
-  const before=[], after=[];
   const mainStart={};
   const skip=new Set();
-  function addMainBlock(it, rangeStartMins, rangeEndMins){
-    const startIdx=Math.min(DT_ROWS-1, Math.floor((rangeStartMins-DT_START_MIN)/DT_STEP));
-    let endIdx=Math.ceil((rangeEndMins-DT_START_MIN)/DT_STEP);
+  function addBlock(it, startIdx, endIdx){
     if(endIdx<=startIdx) endIdx=startIdx+1;
-    endIdx=Math.min(DT_ROWS, endIdx);
-    const span=endIdx-startIdx;
+    endIdx=Math.min(DT_ROWS+1, endIdx);
     if(!mainStart[startIdx]) mainStart[startIdx]={items:[],span:1};
     mainStart[startIdx].items.push(it);
+    const span=endIdx-startIdx;
     if(span>mainStart[startIdx].span) mainStart[startIdx].span=span;
   }
   items.forEach(it=>{
-    if(!it.time){ before.push(it); return; }
+    if(!it.time){ addBlock(it, -1, 0); return; }
     const [h,mi]=it.time.split(':').map(Number);
     const startMins=h*60+mi;
-    let endMins=null;
+    const startIdx=minsToIdx(startMins);
+    let endIdx;
     if(it.endTime){
       const [eh,emi]=it.endTime.split(':').map(Number);
-      endMins=eh*60+emi;
+      const endMins=eh*60+emi;
+      endIdx=minsToIdx(Math.max(endMins-1, startMins))+1;
+    } else {
+      endIdx=startIdx+1;
     }
-    if(startMins<DT_START_MIN){
-      before.push(it);
-      if(endMins!=null && endMins>DT_START_MIN){
-        addMainBlock(it, DT_START_MIN, Math.min(endMins, DT_END_MIN));
-      }
-      return;
-    }
-    if(startMins>DT_END_MIN){ after.push(it); return; }
-    const rangeEnd = endMins!=null ? endMins : startMins+DT_STEP;
-    addMainBlock(it, startMins, Math.min(rangeEnd, DT_END_MIN));
-    if(endMins!=null && endMins>DT_END_MIN) after.push(it);
+    addBlock(it, startIdx, endIdx);
   });
   Object.entries(mainStart).forEach(([idx,val])=>{
     const s=Number(idx);
     for(let r=s+1;r<s+val.span;r++) skip.add(r);
   });
-  return {before, after, mainStart, skip};
+  return {mainStart, skip};
 }
 function computeDayLayout(dateStr){ return computeDayLayoutFromItems(myVisibleScheduleItems(dateStr)); }
 const ROLE_EMOJI={dad:'👨',mom:'👩',daughter:'👧'};
+const ROLE_BADGE_COLOR={dad:'#4d7fe0',mom:'#e0538f',daughter:'#9a5be0'};
 function authorRoleOf(key){
   if(!key) return null;
   if(key==='daughter') return 'daughter';
   return EMAIL_ROLE[key] || null;
 }
-function authorEmoji(key){
+function authorBadge(key){
   const role=authorRoleOf(key);
-  return role ? ROLE_EMOJI[role] : '';
+  if(!role) return '';
+  return `<span class="author-badge" style="background:${ROLE_BADGE_COLOR[role]};">${ROLE_EMOJI[role]}</span>`;
 }
 function dtChip(it){
   const isVirtual = typeof it.id==='string' && it.id.startsWith('evt-');
   if(isVirtual) return `<div class="dt-evt" data-virtual="1">${escapeHtml(it.title)}</div>`;
-  const emoji = it.owner==='common' ? authorEmoji(it.createdBy) : '';
-  return `<div class="dt-evt" draggable="true" data-item-id="${it.id}">${emoji?emoji+' ':''}${timeRangeLabel(it)?escapeHtml(timeRangeLabel(it))+' ':''}${escapeHtml(it.title)}</div>`;
-}
-function dtCell(layout, rowIdx, dayIdx, addInfo){
-  if(layout.skip.has(rowIdx)) return '';
-  const cell=layout.mainStart[rowIdx];
-  const dayClass='dt-day-'+dayIdx;
-  if(cell){
-    return `<td class="dt-cell filled ${dayClass}" rowspan="${cell.span}" data-add-date="${addInfo.date}" data-add-time="${addInfo.time}">${cell.items.map(dtChip).join('')}</td>`;
-  }
-  return `<td class="dt-cell ${dayClass}" data-add-date="${addInfo.date}" data-add-time="${addInfo.time}"></td>`;
+  const badge = it.owner==='common' ? authorBadge(it.createdBy) : '';
+  return `<div class="dt-evt" draggable="true" data-item-id="${it.id}">${badge}${timeRangeLabel(it)?escapeHtml(timeRangeLabel(it))+' ':''}${escapeHtml(it.title)}</div>`;
 }
 function dtHl(hhmm){
   const h=Number(hhmm.split(':')[0]);
   return [9,12,15,18,21,0].includes(h) ? `<span class="dt-hl">${hhmm}</span>` : hhmm;
+}
+function unifiedRowMeta(idx){
+  if(idx===-1) return {label:`<div>${dtHl('08:00')}</div><div>이전</div>`, isEdge:true, addTime:'07:00'};
+  if(idx===DT_ROWS) return {label:`<div>${dtHl('18:00')}</div><div>이후</div>`, isEdge:true, addTime:'19:00'};
+  const totalMin=DT_START_MIN+idx*DT_STEP;
+  const t=pad2(Math.floor(totalMin/60))+':'+pad2(totalMin%60);
+  return {label:dtHl(t), isEdge:false, addTime:t};
 }
 let showCommonOnHome=false;
 function myHomeVisibleScheduleItems(dateStr){
@@ -684,30 +682,29 @@ function renderDayTimelines(){
   const dayLabels=['오늘','내일','모레'];
   const days=[0,1,2].map(n=>fmtDate(addDays(new Date(), n)));
   const layouts=days.map(d=>computeDayLayoutFromItems(myHomeVisibleScheduleItems(d)));
-  const toAddInfo = (korTime, dayIdx) => ({date:days[dayIdx], time:korTime});
+  const indices=[-1].concat(Array.from({length:DT_ROWS},(_,i)=>i)).concat([DT_ROWS]);
   let rows='';
-  rows += `<tr class="dt-edge-row">
-    <td class="dt-time-col"><div>${dtHl('08:00')}</div><div>이전</div></td>
-    ${days.map((d,i)=>{ const a=toAddInfo('07:00', i); return `<td class="dt-cell dt-edge dt-day-${i}" data-add-date="${a.date}" data-add-time="${a.time}">${layouts[i].before.map(dtChip).join('')}</td>`; }).join('')}
-  </tr>`;
-  for(let i=0;i<DT_ROWS;i++){
-    const totalMin=DT_START_MIN+i*DT_STEP;
-    const korTime=pad2(Math.floor(totalMin/60))+':'+pad2(totalMin%60);
-    rows += `<tr>
-      <td class="dt-time-col">${dtHl(korTime)}</td>
-      ${days.map((d,di)=>dtCell(layouts[di], i, di, toAddInfo(korTime, di))).join('')}
-    </tr>`;
-  }
-  rows += `<tr class="dt-edge-row">
-    <td class="dt-time-col"><div>${dtHl('18:00')}</div><div>이후</div></td>
-    ${days.map((d,i)=>{ const a=toAddInfo('19:00', i); return `<td class="dt-cell dt-edge dt-day-${i}" data-add-date="${a.date}" data-add-time="${a.time}">${layouts[i].after.map(dtChip).join('')}</td>`; }).join('')}
-  </tr>`;
+  indices.forEach(idx=>{
+    const meta=unifiedRowMeta(idx);
+    const cells=days.map((d,di)=>{
+      const layout=layouts[di];
+      if(layout.skip.has(idx)) return '';
+      const cell=layout.mainStart[idx];
+      const dayClass='dt-day-'+di;
+      const edgeClass=meta.isEdge?' dt-edge':'';
+      if(cell){
+        return `<td class="dt-cell filled${edgeClass} ${dayClass}" rowspan="${cell.span}" data-add-date="${d}" data-add-time="${meta.addTime}">${cell.items.map(dtChip).join('')}</td>`;
+      }
+      return `<td class="dt-cell${edgeClass} ${dayClass}" data-add-date="${d}" data-add-time="${meta.addTime}"></td>`;
+    }).join('');
+    rows += `<tr class="${meta.isEdge?'dt-edge-row':''}"><td class="dt-time-col">${meta.label}</td>${cells}</tr>`;
+  });
   const headCells = days.map((d,i)=>`<th class="dt-day-${i}">${dayLabels[i]} · ${parseDate(d).toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'})}</th>`).join('');
   return `
     <div class="dt-panel">
       <div style="overflow-x:auto;">
         <table class="dt-table">
-          <thead><tr><th class="dt-time-col">KST</th>${headCells}</tr></thead>
+          <thead><tr><th class="dt-time-col"></th>${headCells}</tr></thead>
           <tbody>${rows}</tbody>
         </table>
       </div>
@@ -1488,60 +1485,67 @@ function openBudgetModal(existing){
 }
 
 /* ---------- STUDY ---------- */
-let studyMonth = todayStr().slice(0,7);
+function studyBlocksFor(authorKey, dateStr){
+  if(!state.studyBlocks) state.studyBlocks={};
+  if(!state.studyBlocks[authorKey]) state.studyBlocks[authorKey]={};
+  if(!state.studyBlocks[authorKey][dateStr]) state.studyBlocks[authorKey][dateStr]=new Array(144).fill('');
+  return state.studyBlocks[authorKey][dateStr];
+}
+function studySummary(arr){
+  let study=0, exercise=0;
+  arr.forEach(v=>{ if(v==='study') study+=10; else if(v==='exercise') exercise+=10; });
+  return {study, exercise};
+}
+function fmtStudyMin(min){ return `${Math.floor(min/60)}시간 ${min%60}분`; }
 function renderStudy(){
   const el=document.getElementById('tab-study');
   if(!el) return;
-  const items=(state.study||[]).filter(s=>s.date.startsWith(studyMonth)).sort((a,b)=>b.date.localeCompare(a.date));
-  const totalMin=items.reduce((s,x)=>s+Number(x.duration||0),0);
-  const [y,m]=studyMonth.split('-');
+  const key=currentAuthorKey();
+  const dayLabels=['그제','어제','오늘'];
+  const days=[2,1,0].map(n=>fmtDate(addDays(new Date(), -n)));
+  const arrays=days.map(d=>studyBlocksFor(key,d));
+  const summaries=arrays.map(studySummary);
+  let rows='';
+  for(let h=0; h<24; h++){
+    const cells=days.map((d,di)=>{
+      let segs='';
+      for(let s=0;s<6;s++){
+        const idx=h*6+s;
+        const val=arrays[di][idx];
+        segs+=`<div class="sb-seg${val?' sb-'+val:''}" data-day="${di}" data-idx="${idx}"></div>`;
+      }
+      return `<td class="sb-cell"><div class="sb-row">${segs}</div></td>`;
+    }).join('');
+    rows+=`<tr><td class="dt-time-col">${pad2(h)}:00</td>${cells}</tr>`;
+  }
+  const headCells=days.map((d,i)=>`<th>${dayLabels[i]} · ${d.slice(5)}</th>`).join('');
   el.innerHTML=`
     <div class="card">
-      <div class="datebar"><button class="iconbtn" id="stPrev">‹</button><div class="d">${y}년 ${Number(m)}월</div><button class="iconbtn" id="stNext">›</button></div>
-      <div class="stat-grid" style="grid-template-columns:1fr;"><div class="stat"><div class="v">${Math.floor(totalMin/60)}시간 ${totalMin%60}분</div><div class="l">이번달 학습시간</div></div></div>
-    </div>
-    <div class="card">
-      <div class="row" style="justify-content:space-between;"><h3 style="margin:0;">📚 학습 기록</h3><button class="btn primary small" id="addStudyBtn">+ 추가</button></div>
-      ${items.length? items.map(s=>`
-        <div class="list-item">
-          <div><div><span class="pill">${escapeHtml(s.subject)}</span>${s.duration?' '+s.duration+'분':''}</div><div class="meta">${s.date}${s.memo?' · '+escapeHtml(s.memo):''}</div></div>
-          <div class="row"><button class="btn small" data-edit="${s.id}">수정</button><button class="btn small danger" data-del="${s.id}">삭제</button></div>
-        </div>`).join('') : `<div class="empty">이번달 학습 기록이 없어요</div>`}
+      <div class="row" style="gap:10px;margin-bottom:10px;flex-wrap:wrap;">
+        <span class="pill" style="background:${SB_COLORS.study};color:#3a2e00;border:none;">🟡 공부</span>
+        <span class="pill" style="background:${SB_COLORS.exercise};color:#08321a;border:none;">🟢 운동</span>
+        <span class="meta">칸을 눌러 색칠 (공부 → 운동 → 지우기)</span>
+      </div>
+      <div class="stat-grid">
+        ${days.map((d,i)=>`<div class="stat"><div class="v" style="font-size:12px;line-height:1.5;">공부 ${fmtStudyMin(summaries[i].study)}<br>운동 ${fmtStudyMin(summaries[i].exercise)}</div><div class="l">${dayLabels[i]}</div></div>`).join('')}
+      </div>
+      <div style="overflow-x:auto;margin-top:12px;">
+        <table class="dt-table sb-table">
+          <thead><tr><th class="dt-time-col"></th>${headCells}</tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
     </div>
   `;
-  document.getElementById('stPrev').onclick=()=>{ studyMonth=shiftMonth(studyMonth,-1); renderStudy(); };
-  document.getElementById('stNext').onclick=()=>{ studyMonth=shiftMonth(studyMonth,1); renderStudy(); };
-  document.getElementById('addStudyBtn').onclick=()=>openStudyModal();
-  el.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>openStudyModal((state.study||[]).find(x=>x.id===b.dataset.edit)));
-  el.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{
-    if(confirm('삭제할까요?')){ state.study=(state.study||[]).filter(x=>x.id!==b.dataset.del); queueSave(); renderStudy(); }
+  el.querySelectorAll('.sb-seg').forEach(seg=>{
+    seg.addEventListener('click', ()=>{
+      const di=Number(seg.dataset.day), idx=Number(seg.dataset.idx);
+      const arr=arrays[di];
+      const cur=arr[idx];
+      arr[idx] = cur==='' ? 'study' : cur==='study' ? 'exercise' : '';
+      queueSave(); renderStudy();
+    });
   });
-}
-function openStudyModal(existing){
-  const s=existing||{id:null,date:studyMonth+'-'+pad2(new Date().getDate()),subject:'',duration:'',memo:''};
-  openModal(`
-    <h3>${existing?'학습 기록 수정':'학습 기록 추가'}</h3>
-    <div class="field"><label>날짜</label><input type="text" readonly class="date-input" placeholder="YYYY-MM-DD" id="mDate" value="${s.date}"></div>
-    <div class="grid2">
-      <div class="field"><label>과목</label><input id="mSubject" value="${escapeHtml(s.subject)}" placeholder="예: 수학, 영어, 독서"></div>
-      <div class="field"><label>시간 (분)</label><input type="number" id="mDuration" value="${s.duration}"></div>
-    </div>
-    <div class="field"><label>메모</label><input id="mMemo" value="${escapeHtml(s.memo)}"></div>
-    <div class="modal-actions"><button class="btn" id="mCancel">취소</button><button class="btn primary" id="mSave">저장</button></div>
-  `);
-  document.getElementById('mCancel').onclick=closeModal;
-  attachDatePicker('mDate');
-  document.getElementById('mSave').onclick=()=>{
-    const date=document.getElementById('mDate').value;
-    const subject=document.getElementById('mSubject').value.trim();
-    if(!date||!subject){ showToast('날짜와 과목을 입력해주세요'); return; }
-    const rec={id:s.id||uid(),date,subject,duration:document.getElementById('mDuration').value,memo:document.getElementById('mMemo').value};
-    if(!state.study) state.study=[];
-    if(s.id){ const idx=state.study.findIndex(x=>x.id===s.id); state.study[idx]=rec; }
-    else state.study.push(rec);
-    studyMonth=date.slice(0,7);
-    queueSave(); closeModal(); renderStudy();
-  };
 }
 
 /* ---------- VEHICLE ---------- */
