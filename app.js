@@ -862,7 +862,6 @@ function renderHome(){
   const entries = day.entries || {};
   const myKey = currentAuthorKey();
   const mine = entries[myKey] || {};
-  const others = Object.keys(entries).filter(k=>k!==myKey && (entries[k].mood||entries[k].diary));
   const el=document.getElementById('tab-home');
   const dLabel = parseDate(homeDate).toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'});
   const todaySchedule = state.schedule.filter(s=>s.date===homeDate).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
@@ -929,15 +928,6 @@ function renderHome(){
         <input type="text" readonly class="date-input" id="newTodoDue" placeholder="D-day" style="width:110px;flex-shrink:0;" value="">
       </div>
     </div>
-
-    ${others.length?`
-    <div class="card">
-      <h3>💌 가족 기록</h3>
-      ${others.map(k=>`
-        <div class="list-item">
-          <div><div>${entries[k].mood?entries[k].mood+' ':''}<b>${escapeHtml(authorLabel(entries[k],k))}</b></div>${entries[k].diary?`<div class="content-text">${escapeHtml(entries[k].diary)}</div>`:''}</div>
-        </div>`).join('')}
-    </div>`:''}
 
     <div class="stat-grid">
       <div class="stat"><div class="v">${todaySchedule.length}</div><div class="l">오늘 일정</div></div>
@@ -1299,6 +1289,26 @@ let healthDate = todayStr();
 let healthPerson = null;
 let weightChartOthers = [];
 function memberLabel(key){ const m=FAMILY_MEMBERS.find(x=>x.key===key); return m?m.label:key; }
+function weightGoalsFor(key){
+  if(!state.weightGoals) state.weightGoals={};
+  if(!state.weightGoals[key]) state.weightGoals[key]={target:'',weeklyLoss:'',finalTarget:''};
+  return state.weightGoals[key];
+}
+function latestWeightFor(key){
+  const dates=Object.keys(state.daily).filter(d=>state.daily[d].health && state.daily[d].health[key] && state.daily[d].health[key].weight).sort();
+  return dates.length ? Number(state.daily[dates[dates.length-1]].health[key].weight) : null;
+}
+function fmtKoreanDate(dateStr){
+  const d=parseDate(dateStr);
+  return `${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일`;
+}
+function projectedAchievementDate(currentWeight, targetWeight, weeklyLossKg){
+  if(currentWeight==null || !targetWeight || !weeklyLossKg || Number(weeklyLossKg)<=0) return null;
+  const diff = currentWeight - Number(targetWeight);
+  if(diff<=0) return todayStr();
+  const daysNeeded = Math.ceil((diff/Number(weeklyLossKg))*7);
+  return fmtDate(addDays(parseDate(todayStr()), daysNeeded));
+}
 function renderHealth(){
   healthPerson = effectiveRole() || 'mom';
   const day=state.daily[healthDate]||{};
@@ -1307,6 +1317,17 @@ function renderHealth(){
   const dLabel = parseDate(healthDate).toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'});
   const schedList = ((state.healthSchedule&&state.healthSchedule[healthPerson])||[]).map(it=>({...it,d:dday(it.date)})).sort((a,b)=>a.d-b.d);
   const otherMembers=FAMILY_MEMBERS.filter(m=>m.key!==healthPerson);
+  const isGoalMember = healthPerson==='daughter';
+  const goals = isGoalMember ? weightGoalsFor(healthPerson) : null;
+  const curWeight = isGoalMember ? latestWeightFor(healthPerson) : null;
+  const targetDate = isGoalMember ? projectedAchievementDate(curWeight, goals.target, goals.weeklyLoss) : null;
+  const finalDate = isGoalMember ? projectedAchievementDate(curWeight, goals.finalTarget, goals.weeklyLoss) : null;
+  const goalInputStyle='width:84px;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px 6px;font-size:11px;';
+  const goalLegendHtml = isGoalMember ? `
+    <input type="number" step="0.1" id="wgTarget" placeholder="목표(kg)" value="${goals.target}" style="${goalInputStyle}">
+    <input type="number" step="0.1" id="wgWeekly" placeholder="주당감량(kg)" value="${goals.weeklyLoss}" style="${goalInputStyle}">
+    <input type="number" step="0.1" id="wgFinal" placeholder="최종목표(kg)" value="${goals.finalTarget}" style="${goalInputStyle}">
+  ` : '';
   el.innerHTML=`
     <div class="card">
       <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
@@ -1315,17 +1336,9 @@ function renderHealth(){
           ${otherMembers.map(m=>`<label class="pill" style="cursor:pointer;"><input type="checkbox" class="weightExtraToggle" value="${m.key}" ${weightChartOthers.includes(m.key)?'checked':''} style="margin-right:4px;">${m.label}</label>`).join('')}
         </div>
       </div>
-      <div style="margin-top:10px;">${renderWeightChart([healthPerson].concat(weightChartOthers))}</div>
-    </div>
-    <div class="card">
-      <div class="row" style="justify-content:space-between;"><h3 style="margin:0;">🩺 ${memberLabel(healthPerson)} 주요 검진 일정</h3><button class="btn primary small" id="addHealthSchedBtn">+ 추가</button></div>
-      ${schedList.length? schedList.map(it=>`
-        <div class="list-item">
-          <div><div>${escapeHtml(it.name)}</div><div class="meta">${it.date}${it.memo?' · '+escapeHtml(it.memo):''}</div></div>
-          <div class="row"><span class="pill ${ddayPillClass(it.d)}">${ddayLabel(it.d)}</span>
-            <button class="icon-btn" data-edit-hsched="${it.id}" title="수정">✏️</button>
-            <button class="btn small danger" data-del-hsched="${it.id}">삭제</button></div>
-        </div>`).join('') : `<div class="empty">건강검진, 정기검사 등 예정된 일정을 등록해보세요</div>`}
+      <div style="margin-top:10px;">${renderWeightChart([healthPerson].concat(weightChartOthers), goalLegendHtml)}</div>
+      ${targetDate?`<div class="meta" style="margin-top:8px;">🎯 ${goals.target}kg 달성일자는 ${fmtKoreanDate(targetDate)}</div>`:''}
+      ${finalDate?`<div class="meta" style="margin-top:2px;">🏁 ${goals.finalTarget}kg 달성일자는 ${fmtKoreanDate(finalDate)}</div>`:''}
     </div>
     <div class="card">
       <div class="datebar"><button class="iconbtn" id="hPrev">‹</button><div class="d">${dLabel}</div><button class="iconbtn" id="hNext">›</button>
@@ -1344,7 +1357,23 @@ function renderHealth(){
         <textarea id="hSymptom" placeholder="컨디션, 증상 등을 기록해보세요">${escapeHtml(rec.symptom)}</textarea>
       </div>
     </div>
+    <div class="card">
+      <div class="row" style="justify-content:space-between;"><h3 style="margin:0;">🩺 ${memberLabel(healthPerson)} 주요 검진 일정</h3><button class="btn primary small" id="addHealthSchedBtn">+ 추가</button></div>
+      ${schedList.length? schedList.map(it=>`
+        <div class="list-item">
+          <div><div>${escapeHtml(it.name)}</div><div class="meta">${it.date}${it.memo?' · '+escapeHtml(it.memo):''}</div></div>
+          <div class="row"><span class="pill ${ddayPillClass(it.d)}">${ddayLabel(it.d)}</span>
+            <button class="icon-btn" data-edit-hsched="${it.id}" title="수정">✏️</button>
+            <button class="btn small danger" data-del-hsched="${it.id}">삭제</button></div>
+        </div>`).join('') : `<div class="empty">건강검진, 정기검사 등 예정된 일정을 등록해보세요</div>`}
+    </div>
   `;
+  if(isGoalMember){
+    const saveGoal=(k,v)=>{ weightGoalsFor(healthPerson)[k]=v; queueSave(); };
+    document.getElementById('wgTarget').addEventListener('change', e=>{ saveGoal('target', e.target.value); renderHealth(); });
+    document.getElementById('wgWeekly').addEventListener('change', e=>{ saveGoal('weeklyLoss', e.target.value); renderHealth(); });
+    document.getElementById('wgFinal').addEventListener('change', e=>{ saveGoal('finalTarget', e.target.value); renderHealth(); });
+  }
   el.querySelectorAll('.weightExtraToggle').forEach(cb=>{
     cb.addEventListener('change', ()=>{
       const key=cb.value;
@@ -1415,7 +1444,7 @@ function openHealthSchedModal(existing){
     queueSave(); closeModal(); renderHealth();
   };
 }
-function renderWeightChart(keys){
+function renderWeightChart(keys, extraLegendHtml){
   const days=30;
   const today=parseDate(todayStr());
   const dateList=Array.from({length:days},(_,i)=>fmtDate(addDays(today,-(days-1-i))));
@@ -1461,8 +1490,9 @@ function renderWeightChart(keys){
         ${gridLines}${seriesSvg}${xLabels}
       </svg>
     </div>
-    <div class="row" style="gap:14px;margin-top:6px;">
+    <div class="row" style="gap:14px;margin-top:6px;align-items:center;">
       ${series.map(s=>`<span class="meta" style="display:flex;align-items:center;gap:4px;"><span style="width:9px;height:9px;border-radius:50%;background:${s.color};display:inline-block;"></span>${s.label}</span>`).join('')}
+      ${extraLegendHtml||''}
     </div>
   `;
 }
@@ -1494,8 +1524,7 @@ function renderIncomeEstimateCard(){
   },0);
   const hours=weekMinutes/60;
   const incentiveGBP=Math.round(hours*2*100)/100;
-  const weightDates=Object.keys(state.daily).filter(d=>state.daily[d].health && state.daily[d].health.daughter && state.daily[d].health.daughter.weight).sort();
-  const latestWeight = weightDates.length? Number(state.daily[weightDates[weightDates.length-1]].health.daughter.weight) : null;
+  const latestWeight = latestWeightFor('daughter');
   const milestones=[{w:49,bonus:20},{w:48,bonus:50},{w:45,bonus:100}];
   const loggedTexts=state.budget.filter(b=>b.type==='income'&&b.category==='체중감량 인센티브').map(b=>(b.memo||'')+' '+b.amount);
   const reached=latestWeight==null?[]:milestones.filter(ms=>latestWeight<=ms.w);
