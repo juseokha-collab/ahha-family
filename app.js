@@ -447,31 +447,43 @@ function myVisibleScheduleItems(dateStr){
 }
 const DT_START_MIN=480; // 08:00
 const DT_END_MIN=1080;  // 18:00
-const DT_ROWS=(DT_END_MIN-DT_START_MIN)/30+1; // 21
+const DT_STEP=60;
+const DT_ROWS=(DT_END_MIN-DT_START_MIN)/DT_STEP+1; // 11
 function computeDayLayout(dateStr){
   const items=myVisibleScheduleItems(dateStr);
   const before=[], after=[];
   const mainStart={};
   const skip=new Set();
-  items.forEach(it=>{
-    if(!it.time){ before.push(it); return; }
-    const [h,mi]=it.time.split(':').map(Number);
-    const mins=h*60+mi;
-    if(mins<DT_START_MIN){ before.push(it); return; }
-    if(mins>DT_END_MIN){ after.push(it); return; }
-    const startIdx=Math.min(DT_ROWS-1, Math.floor((mins-DT_START_MIN)/30));
-    let span=1;
-    if(it.endTime){
-      const [eh,emi]=it.endTime.split(':').map(Number);
-      const endMins=Math.min(DT_END_MIN, eh*60+emi);
-      let endIdx=Math.ceil((endMins-DT_START_MIN)/30);
-      if(endIdx<=startIdx) endIdx=startIdx+1;
-      endIdx=Math.min(DT_ROWS, endIdx);
-      span=endIdx-startIdx;
-    }
+  function addMainBlock(it, rangeStartMins, rangeEndMins){
+    const startIdx=Math.min(DT_ROWS-1, Math.floor((rangeStartMins-DT_START_MIN)/DT_STEP));
+    let endIdx=Math.ceil((rangeEndMins-DT_START_MIN)/DT_STEP);
+    if(endIdx<=startIdx) endIdx=startIdx+1;
+    endIdx=Math.min(DT_ROWS, endIdx);
+    const span=endIdx-startIdx;
     if(!mainStart[startIdx]) mainStart[startIdx]={items:[],span:1};
     mainStart[startIdx].items.push(it);
     if(span>mainStart[startIdx].span) mainStart[startIdx].span=span;
+  }
+  items.forEach(it=>{
+    if(!it.time){ before.push(it); return; }
+    const [h,mi]=it.time.split(':').map(Number);
+    const startMins=h*60+mi;
+    let endMins=null;
+    if(it.endTime){
+      const [eh,emi]=it.endTime.split(':').map(Number);
+      endMins=eh*60+emi;
+    }
+    if(startMins<DT_START_MIN){
+      before.push(it);
+      if(endMins!=null && endMins>DT_START_MIN){
+        addMainBlock(it, DT_START_MIN, Math.min(endMins, DT_END_MIN));
+      }
+      return;
+    }
+    if(startMins>DT_END_MIN){ after.push(it); return; }
+    const rangeEnd = endMins!=null ? endMins : startMins+DT_STEP;
+    addMainBlock(it, startMins, Math.min(rangeEnd, DT_END_MIN));
+    if(endMins!=null && endMins>DT_END_MIN) after.push(it);
   });
   Object.entries(mainStart).forEach(([idx,val])=>{
     const s=Number(idx);
@@ -506,7 +518,7 @@ function renderDayTimelines(){
     <td class="dt-cell dt-edge" data-add-date="${tomorrow}" data-add-time="07:00">${layoutTomorrow.before.map(dtChip).join('')}</td>
   </tr>`;
   for(let i=0;i<DT_ROWS;i++){
-    const totalMin=DT_START_MIN+i*30;
+    const totalMin=DT_START_MIN+i*DT_STEP;
     const tlabel=pad2(Math.floor(totalMin/60))+':'+pad2(totalMin%60);
     rows += `<tr>
       <td class="dt-time-col">${tlabel}</td>
@@ -799,10 +811,20 @@ function renderSchedule(){
     if(confirm('일정을 삭제할까요?')){ state.schedule=state.schedule.filter(x=>x.id!==b.dataset.del); queueSave(); renderSchedule(); renderHome(); }
   });
 }
+function addOneHour(timeStr){
+  if(!timeStr) return '';
+  const [h,mi]=timeStr.split(':').map(Number);
+  const total=(h*60+mi+60)%1440;
+  return pad2(Math.floor(total/60))+':'+pad2(total%60);
+}
 function openScheduleModal(existing, prefill){
   const myOwners=getAllowedOwners();
-  const defaultOwner = (prefill&&prefill.owner) ? prefill.owner : ((scheduleFilter!=='all' && myOwners.some(o=>o.key===scheduleFilter)) ? scheduleFilter : (myOwners[0]?myOwners[0].key:'common'));
-  const s=existing||{id:null,date:(prefill&&prefill.date)||scheduleSel,time:(prefill&&prefill.time)||'',endTime:(prefill&&prefill.endTime)||'',title:'',memo:'',owner:defaultOwner};
+  const role=effectiveRole();
+  const defaultOwner = (prefill&&prefill.owner) ? prefill.owner
+    : (role && role!=='dad' && myOwners.some(o=>o.key===role)) ? role
+    : ((scheduleFilter!=='all' && myOwners.some(o=>o.key===scheduleFilter)) ? scheduleFilter : (myOwners[0]?myOwners[0].key:'common'));
+  const s=existing||{id:null,date:(prefill&&prefill.date)||scheduleSel,time:(prefill&&prefill.time)||'',endTime:(prefill&&prefill.endTime)||'',title:'',contacts:'',memo:'',owner:defaultOwner};
+  if(!existing && s.time && !s.endTime) s.endTime=addOneHour(s.time);
   const ownerOptions = myOwners.some(o=>o.key===(s.owner||'common')) ? myOwners : myOwners.concat([{key:s.owner||'common',label:ownerLabel(s.owner)}]);
   openModal(`
     <h3>${existing?'일정 수정':'일정 추가'}</h3>
@@ -814,21 +836,25 @@ function openScheduleModal(existing, prefill){
     </div>
     <div class="grid2">
       <div class="field"><label>날짜</label><input type="text" readonly class="date-input" placeholder="YYYY-MM-DD" id="mDate" value="${s.date}"></div>
-      <div class="field"><label>시작 시간 (선택)</label><input type="time" id="mTime" value="${s.time||''}"></div>
+      <div class="field"><label>시작 시간 (선택)</label><input type="time" step="600" id="mTime" value="${s.time||''}"></div>
     </div>
-    <div class="field"><label>종료 시간 (선택, 시간표처럼 구간 표시)</label><input type="time" id="mEndTime" value="${s.endTime||''}"></div>
+    <div class="field"><label>종료 시간 (선택, 시간표처럼 구간 표시)</label><input type="time" step="600" id="mEndTime" value="${s.endTime||''}"></div>
     <div class="field"><label>제목</label><input id="mTitle" value="${escapeHtml(s.title)}"></div>
+    <div class="field"><label>인맥 (쉼표로 구분, 예: 홍길동, 김철수)</label><input id="mContacts" value="${escapeHtml(s.contacts)}"></div>
     <div class="field"><label>메모</label><textarea id="mMemo">${escapeHtml(s.memo)}</textarea></div>
     <div class="modal-actions"><button class="btn" id="mCancel">취소</button><button class="btn primary" id="mSave">저장</button></div>
   `);
   document.getElementById('mCancel').onclick=closeModal;
   attachDatePicker('mDate');
+  document.getElementById('mTime').addEventListener('change', e=>{
+    if(e.target.value) document.getElementById('mEndTime').value=addOneHour(e.target.value);
+  });
   document.getElementById('mSave').onclick=()=>{
     const date=document.getElementById('mDate').value;
     const title=document.getElementById('mTitle').value.trim();
     if(!date||!title){ showToast('날짜와 제목을 입력해주세요'); return; }
     const owner=(document.querySelector('input[name="mOwner"]:checked')||{}).value || 'common';
-    const rec={id:s.id||uid(),date,time:document.getElementById('mTime').value,endTime:document.getElementById('mEndTime').value,title,memo:document.getElementById('mMemo').value,owner};
+    const rec={id:s.id||uid(),date,time:document.getElementById('mTime').value,endTime:document.getElementById('mEndTime').value,title,contacts:document.getElementById('mContacts').value,memo:document.getElementById('mMemo').value,owner};
     if(s.id){ const idx=state.schedule.findIndex(x=>x.id===s.id); state.schedule[idx]=rec; }
     else state.schedule.push(rec);
     scheduleSel=date;

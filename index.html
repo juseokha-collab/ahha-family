@@ -9,12 +9,12 @@
 :root{
   --bg:#12121a; --panel:#1b1b26; --panel2:#232331; --text:#eeeef2; --muted:#9a97ab;
   --accent:#ff7a94; --accent2:#8b7cf6; --border:#2b2b3a; --good:#4ade80; --warn:#fbbf24; --bad:#f87171;
-  --weekend-sun:#ff9494; --weekend-sat:#8ab4ff; --sel-bg:#2a2130;
+  --weekend-sun:#ff9494; --weekend-sat:#8ab4ff; --sel-bg:#2a2130; --accent-soft:rgba(255,122,148,.16);
 }
 :root[data-theme="light"]{
   --bg:#f6f5fa; --panel:#ffffff; --panel2:#f1eef8; --text:#201f2b; --muted:#726f82;
   --accent:#b25a78; --accent2:#7a70a8; --border:#e3e0ee; --good:#1f9d55; --warn:#b8790a; --bad:#d63c3c;
-  --weekend-sun:#c73a5c; --weekend-sat:#3b6fd4; --sel-bg:#ece4f3;
+  --weekend-sun:#c73a5c; --weekend-sat:#3b6fd4; --sel-bg:#ece4f3; --accent-soft:rgba(178,90,120,.14);
 }
 *{box-sizing:border-box;}
 body{margin:0;background:var(--bg);color:var(--text);font-family:'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif;transition:background .2s,color .2s;}
@@ -129,9 +129,10 @@ nav.tabs button.active{background:var(--panel2);color:var(--text);border-color:v
 .dt-cell{cursor:pointer;}
 .dt-cell:hover{background:var(--panel2);}
 .dt-cell.dt-edge{background:var(--panel2);}
-.dt-evt{background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:2px 6px;font-size:11px;margin-bottom:2px;cursor:pointer;}
-.dt-evt:hover{border-color:var(--accent);}
-.dt-cell.dt-edge .dt-evt{background:var(--panel);}
+.dt-cell.filled{background:var(--accent-soft);}
+.dt-evt{background:linear-gradient(90deg,var(--accent),var(--accent2));color:#181820;border:none;border-radius:6px;padding:2px 6px;font-size:11px;font-weight:600;margin-bottom:2px;cursor:pointer;display:inline-block;}
+.dt-evt:hover{filter:brightness(1.08);}
+.dt-evt[data-virtual]{background:var(--panel2);color:var(--text);border:1px solid var(--border);font-weight:400;}
 </style>
 </head>
 <body>
@@ -175,7 +176,7 @@ nav.tabs button.active{background:var(--panel2);color:var(--text);border-color:v
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-<script src="firebase-config.js?v=20260808t"></script>
-<script src="app.js?v=20260808t"></script>
+<script src="firebase-config.js?v=20260809b"></script>
+<script src="app.js?v=20260809b"></script>
 </body>
 </html>
