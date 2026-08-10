@@ -1882,6 +1882,38 @@ function weekActivityMinutes(key, weekDates){
     return acc+s.study+s.exercise;
   },0);
 }
+function weeklyPayableBreakdown(){
+  const thisWeek=mondayWeekRange(todayStr());
+  const lastWeek=mondayWeekRange(fmtDate(addDays(parseDate(todayStr()),-7)));
+  const lastWeekMin=weekActivityMinutes('daughter', lastWeek);
+  const gbpIncentive=Math.round((lastWeekMin/60)*2*100)/100;
+  const gbpAllowance=50;
+  return {
+    weekStart: thisWeek[0],
+    weekEnd: thisWeek[6],
+    krw: 200000,
+    gbpAllowance,
+    gbpIncentive,
+    gbpTotal: Math.round((gbpAllowance+gbpIncentive)*100)/100
+  };
+}
+function isWeeklyPaymentPaid(weekStart){
+  return !!(state.weeklyPaymentStatus && state.weeklyPaymentStatus[weekStart]);
+}
+function markWeeklyPaymentPaid(){
+  const b=weeklyPayableBreakdown();
+  const dateStr=todayStr();
+  const label=`딸 주급 (${b.weekStart.slice(5)}~${b.weekEnd.slice(5)})`;
+  state.budget.push({id:uid(), date:dateStr, category:'용돈', amount:b.krw, currency:'KRW', memo:label, type:'expense'});
+  if(b.gbpTotal>0) state.budget.push({id:uid(), date:dateStr, category:'용돈', amount:b.gbpTotal, currency:'GBP', memo:label, type:'expense'});
+  state.budget.push({id:uid(), date:dateStr, category:'주급(토스)', amount:b.krw, currency:'KRW', memo:'', type:'income'});
+  state.budget.push({id:uid(), date:dateStr, category:'주급(로이드)', amount:b.gbpAllowance, currency:'GBP', memo:'', type:'income'});
+  if(b.gbpIncentive>0) state.budget.push({id:uid(), date:dateStr, category:'학습·운동 인센티브', amount:b.gbpIncentive, currency:'GBP', memo:'지난주 활동 기준', type:'income'});
+  if(!state.weeklyPaymentStatus) state.weeklyPaymentStatus={};
+  state.weeklyPaymentStatus[b.weekStart]=true;
+  queueSave();
+  showToast('딸 주급 지급 완료로 기록했어요');
+}
 function renderIncomeEstimateCard(){
   const thisWeek=mondayWeekRange(todayStr());
   const lastWeek=mondayWeekRange(fmtDate(addDays(parseDate(todayStr()),-7)));
@@ -1910,27 +1942,34 @@ function renderBudget(){
   const monthItems=state.budget.filter(b=>b.date.startsWith(budgetMonth));
   const items=monthItems.filter(b=>b.type!=='income').sort((a,b)=>b.date.localeCompare(a.date));
   const incomeItems=monthItems.filter(b=>b.type==='income').sort((a,b)=>b.date.localeCompare(a.date));
-  const total=items.reduce((s,b)=>s+Number(b.amount||0),0);
+  const expenseByCur={KRW:0,GBP:0};
+  items.forEach(b=>{ const cur=b.currency||'KRW'; expenseByCur[cur]=(expenseByCur[cur]||0)+Number(b.amount||0); });
   const incomeByCur={KRW:0,GBP:0};
   incomeItems.forEach(b=>{ const cur=b.currency||'KRW'; incomeByCur[cur]=(incomeByCur[cur]||0)+Number(b.amount||0); });
   const byCat={};
-  items.forEach(b=>{ byCat[b.category]=(byCat[b.category]||0)+Number(b.amount||0); });
+  items.filter(b=>(b.currency||'KRW')==='KRW').forEach(b=>{ byCat[b.category]=(byCat[b.category]||0)+Number(b.amount||0); });
   const [y,m]=budgetMonth.split('-');
-  const isDaughter=effectiveRole()==='daughter';
-  const monthBalanceKRW = incomeByCur.KRW - total;
+  const myRole=effectiveRole();
+  const isDaughter=myRole==='daughter';
+  const isMom=myRole==='mom';
+  const monthBalanceKRW = incomeByCur.KRW - expenseByCur.KRW;
+  const monthBalanceGBP = incomeByCur.GBP - expenseByCur.GBP;
   const allIncomeByCur={KRW:0,GBP:0};
   state.budget.filter(b=>b.type==='income').forEach(b=>{ const cur=b.currency||'KRW'; allIncomeByCur[cur]=(allIncomeByCur[cur]||0)+Number(b.amount||0); });
-  const allExpenseKRW = state.budget.filter(b=>b.type!=='income').reduce((s,b)=>s+Number(b.amount||0),0);
+  const allExpenseByCur={KRW:0,GBP:0};
+  state.budget.filter(b=>b.type!=='income').forEach(b=>{ const cur=b.currency||'KRW'; allExpenseByCur[cur]=(allExpenseByCur[cur]||0)+Number(b.amount||0); });
   const carryover=budgetCarryoverFor(currentAuthorKey());
-  const totalBalanceKRW = carryover.KRW + allIncomeByCur.KRW - allExpenseKRW;
-  const totalBalanceGBP = carryover.GBP + allIncomeByCur.GBP;
+  const totalBalanceKRW = carryover.KRW + allIncomeByCur.KRW - allExpenseByCur.KRW;
+  const totalBalanceGBP = carryover.GBP + allIncomeByCur.GBP - allExpenseByCur.GBP;
+  const pendingPayment = isMom ? weeklyPayableBreakdown() : null;
+  const showPendingPayment = pendingPayment && !isWeeklyPaymentPaid(pendingPayment.weekStart);
   el.innerHTML=`
     <div class="card">
       <div class="datebar"><button class="iconbtn" id="bPrev">‹</button><div class="d">${y}년 ${Number(m)}월</div><button class="iconbtn" id="bNext">›</button></div>
       <div class="stat-grid">
-        <div class="stat"><div class="v">${total.toLocaleString()}원</div><div class="l">이번달 총 지출</div></div>
+        <div class="stat"><div class="v">${expenseByCur.KRW.toLocaleString()}원${expenseByCur.GBP?' / £'+expenseByCur.GBP.toLocaleString():''}</div><div class="l">이번달 총 지출</div></div>
         <div class="stat"><div class="v">${incomeByCur.KRW.toLocaleString()}원${incomeByCur.GBP?' / £'+incomeByCur.GBP.toLocaleString():''}</div><div class="l">이번달 총 수입</div></div>
-        <div class="stat"><div class="v">${monthBalanceKRW.toLocaleString()}원${incomeByCur.GBP?' / £'+incomeByCur.GBP.toLocaleString():''}</div><div class="l">이번달 잔액</div></div>
+        <div class="stat"><div class="v">${monthBalanceKRW.toLocaleString()}원${monthBalanceGBP?' / £'+monthBalanceGBP.toLocaleString():''}</div><div class="l">이번달 잔액</div></div>
         <div class="stat" id="totalBalanceStat" style="cursor:pointer;" title="클릭해서 전월 이월 금액 입력"><div class="v">${totalBalanceKRW.toLocaleString()}원${totalBalanceGBP?' / £'+totalBalanceGBP.toLocaleString():''}</div><div class="l">총잔액(전월 이월 포함)</div></div>
       </div>
     </div>
@@ -1949,17 +1988,22 @@ function renderBudget(){
     <div class="card">
       <h3>지출 카테고리별</h3>
       ${Object.keys(byCat).length? Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([c,v])=>`
-        <div class="bar-row"><span style="width:70px;">${c}</span><div class="bar-track"><div class="bar-fill" style="width:${total?Math.round(v/total*100):0}%"></div></div><span style="width:80px;text-align:right;">${v.toLocaleString()}원</span></div>
+        <div class="bar-row"><span style="width:70px;">${c}</span><div class="bar-track"><div class="bar-fill" style="width:${expenseByCur.KRW?Math.round(v/expenseByCur.KRW*100):0}%"></div></div><span style="width:80px;text-align:right;">${v.toLocaleString()}원</span></div>
       `).join('') : `<div class="empty">지출 내역이 없어요</div>`}
     </div>
     <div class="card">
       <div class="row" style="justify-content:space-between;"><h3 style="margin:0;">지출 내역</h3>
         <div class="row"><button class="btn small" id="manageCatBtn">카테고리 관리</button><button class="btn primary small" id="addBudgetBtn">+ 지출 추가</button></div>
       </div>
+      ${showPendingPayment?`
+        <div class="list-item sched-item">
+          <div><div class="content-text"><b>딸 주급 (${pendingPayment.weekStart.slice(5)}~${pendingPayment.weekEnd.slice(5)})</b></div><div class="meta" style="margin-top:2px;">토스 ₩${pendingPayment.krw.toLocaleString()} · 로이드 £${pendingPayment.gbpAllowance} · 인센티브 £${pendingPayment.gbpIncentive.toFixed(2)}</div></div>
+          <button class="btn small primary" id="markWeeklyPaidBtn">지출완료로 표시</button>
+        </div>`:''}
       ${items.length? items.map(b=>`
         <div class="list-item">
           <div><div><span class="pill">${b.category}</span> ${escapeHtml(b.memo)}</div><div class="meta">${b.date}</div></div>
-          <div class="row"><b>${Number(b.amount).toLocaleString()}원</b>
+          <div class="row"><b>${fmtCurrency(b.amount,b.currency||'KRW')}</b>
             <button class="btn small" data-edit="${b.id}">수정</button><button class="btn small danger" data-del="${b.id}">삭제</button></div>
         </div>`).join('') : `<div class="empty">이번달 지출 내역이 없어요</div>`}
     </div>
@@ -1967,6 +2011,8 @@ function renderBudget(){
   document.getElementById('bPrev').onclick=()=>{ budgetMonth=shiftMonth(budgetMonth,-1); renderBudget(); };
   document.getElementById('bNext').onclick=()=>{ budgetMonth=shiftMonth(budgetMonth,1); renderBudget(); };
   document.getElementById('totalBalanceStat').onclick=()=>openCarryoverModal();
+  const markWeeklyPaidBtn=document.getElementById('markWeeklyPaidBtn');
+  if(markWeeklyPaidBtn) markWeeklyPaidBtn.onclick=()=>{ markWeeklyPaymentPaid(); renderBudget(); };
   document.getElementById('addBudgetBtn').onclick=()=>openBudgetModal();
   document.getElementById('manageCatBtn').onclick=()=>openCategoryManageModal();
   document.getElementById('addIncomeBtn').onclick=()=>openIncomeModal();
@@ -2023,13 +2069,16 @@ function shiftMonth(ym, delta){
 }
 function openBudgetModal(existing){
   const myCats=myBudgetCategories();
-  const b=existing||{id:null,date:budgetMonth+'-'+pad2(new Date().getDate()),category:myCats[0]||'기타',amount:'',memo:''};
+  const b=existing||{id:null,date:budgetMonth+'-'+pad2(new Date().getDate()),category:myCats[0]||'기타',amount:'',currency:'KRW',memo:''};
   const catOptions = myCats.includes(b.category) ? myCats : myCats.concat([b.category]);
   openModal(`
     <h3>${existing?'지출 수정':'지출 추가'}</h3>
     <div class="field"><label>날짜</label><input type="text" readonly class="date-input" placeholder="YYYY-MM-DD" id="mDate" value="${b.date}"></div>
     <div class="field"><label>카테고리</label><select id="mCat">${catOptions.map(c=>`<option ${c===b.category?'selected':''}>${escapeHtml(c)}</option>`).join('')}</select></div>
-    <div class="field"><label>금액</label><input type="number" id="mAmount" value="${b.amount}"></div>
+    <div class="grid2">
+      <div class="field"><label>금액</label><input type="number" id="mAmount" value="${b.amount}"></div>
+      <div class="field"><label>통화</label><select id="mCurrency"><option value="KRW" ${(b.currency||'KRW')==='KRW'?'selected':''}>원 (KRW)</option><option value="GBP" ${b.currency==='GBP'?'selected':''}>£ (GBP)</option></select></div>
+    </div>
     <div class="field"><label>메모</label><input id="mMemo" value="${escapeHtml(b.memo)}"></div>
     <div class="modal-actions"><button class="btn" id="mCancel">취소</button><button class="btn primary" id="mSave">저장</button></div>
   `);
@@ -2039,7 +2088,7 @@ function openBudgetModal(existing){
     const date=document.getElementById('mDate').value;
     const amount=Number(document.getElementById('mAmount').value||0);
     if(!date||!amount){ showToast('날짜와 금액을 입력해주세요'); return; }
-    const rec={id:b.id||uid(),date,category:document.getElementById('mCat').value,amount,memo:document.getElementById('mMemo').value};
+    const rec={id:b.id||uid(),date,category:document.getElementById('mCat').value,amount,currency:document.getElementById('mCurrency').value,memo:document.getElementById('mMemo').value};
     if(b.id){ const idx=state.budget.findIndex(x=>x.id===b.id); state.budget[idx]=rec; }
     else state.budget.push(rec);
     budgetMonth=date.slice(0,7);
