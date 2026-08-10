@@ -1363,6 +1363,7 @@ const EMAIL_ROLE={'juseok.ha@gmail.com':'dad','jinahkim2023@gmail.com':'mom','lo
 let healthDate = todayStr();
 let healthPerson = null;
 let weightChartOthers = [];
+let showActivityTrend = false;
 function memberLabel(key){ const m=FAMILY_MEMBERS.find(x=>x.key===key); return m?m.label:key; }
 function weightGoalsFor(key){
   if(!state.weightGoals) state.weightGoals={};
@@ -1455,6 +1456,7 @@ function renderHealth(){
       </div>
       <div class="row" style="justify-content:flex-end;align-items:center;gap:8px;margin-bottom:8px;">
         <span class="meta" id="healthSaveStatus">${(rec.weight||rec.sleep||rec.fasting||rec.calories)?'✓ 저장됨':''}</span>
+        <button class="icon-btn" id="toggleActivityTrendBtn" title="추이 그래프">📈</button>
         <button class="btn small primary" id="healthSaveBtn">저장</button>
       </div>
       <div class="grid4">
@@ -1463,6 +1465,7 @@ function renderHealth(){
         <div class="field"><label>공복시간</label><input type="number" step="0.5" id="hFasting" value="${rec.fasting||''}"></div>
         <div class="field"><label>총칼로리 (kcal)</label><input type="number" step="10" id="hCalories" value="${rec.calories||''}"></div>
       </div>
+      ${showActivityTrend?renderActivityTrendPanel(healthPerson):''}
       <div class="field" style="margin-top:8px;">
         <label>Activity Comment</label>
         <textarea id="hSymptom" placeholder="컨디션, 증상 등을 기록해보세요" style="overflow:hidden;">${escapeHtml(rec.symptom)}</textarea>
@@ -1549,6 +1552,10 @@ function renderHealth(){
       document.getElementById('healthSaveStatus').textContent='';
     });
   });
+  document.getElementById('toggleActivityTrendBtn').onclick=()=>{
+    showActivityTrend=!showActivityTrend;
+    renderHealth();
+  };
   document.getElementById('healthSaveBtn').onclick=()=>{
     save('weight', document.getElementById('hWeight').value?Number(document.getElementById('hWeight').value):'');
     save('sleep', document.getElementById('hSleep').value?Number(document.getElementById('hSleep').value):'');
@@ -1709,6 +1716,53 @@ function renderWeightChart(keys, goalProjections){
     <div class="row" style="gap:14px;margin-top:6px;align-items:center;">
       ${series.map(s=>`<span class="meta" style="display:flex;align-items:center;gap:4px;"><span style="width:9px;height:9px;border-radius:50%;background:${s.color};display:inline-block;"></span>${s.label}</span>`).join('')}
       ${goals.map(g=>`<span class="meta" style="display:flex;align-items:center;gap:4px;"><span style="width:14px;height:0;border-top:2px dashed ${g.color};display:inline-block;"></span>${memberLabel(g.key)} 목표선</span>`).join('')}
+    </div>
+  `;
+}
+function renderMiniTrendChart(label, values, dateList, color, suffix){
+  const pts=values.map((v,i)=>({i,v})).filter(p=>p.v!=null);
+  if(!pts.length) return `<div class="meta" style="padding:3px 0;">${label}: 기록 없음</div>`;
+  const vals=pts.map(p=>p.v);
+  let min=Math.min(...vals), max=Math.max(...vals);
+  if(min===max){ min-=1; max+=1; }
+  const pad=(max-min)*0.15; min-=pad; max+=pad;
+  const n=values.length;
+  const W=560,H=54,ML=2,MR=2,MT=6,MB=6;
+  const x=i=>ML+(i/(n-1))*(W-ML-MR);
+  const y=v=>MT+(H-MT-MB)-((v-min)/(max-min))*(H-MT-MB);
+  let pathD='', dots='';
+  pts.forEach(p=>{
+    const px=x(p.i), py=y(p.v);
+    pathD += (pathD?'L':'M')+px+' '+py+' ';
+    dots+=`<circle cx="${px}" cy="${py}" r="2.5" fill="${color}"/>`;
+  });
+  const last=pts[pts.length-1];
+  return `
+    <div style="margin-top:8px;">
+      <div class="meta">${label} · ${dateList[last.i].slice(5)} 기준 ${last.v}${suffix}</div>
+      <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:${H}px;display:block;">
+        <path d="${pathD.trim()}" fill="none" stroke="${color}" stroke-width="2"/>${dots}
+      </svg>
+    </div>
+  `;
+}
+function renderActivityTrendPanel(key){
+  const days=14;
+  const today=parseDate(todayStr());
+  const dateList=Array.from({length:days},(_,i)=>fmtDate(addDays(today,-(days-1-i))));
+  const getVal=(d,field)=>{
+    const rec=state.daily[d] && state.daily[d].health && state.daily[d].health[key];
+    const v=rec ? rec[field] : '';
+    return (v===''||v==null) ? null : Number(v);
+  };
+  const sleepVals=dateList.map(d=>getVal(d,'sleep'));
+  const fastingVals=dateList.map(d=>getVal(d,'fasting'));
+  const calVals=dateList.map(d=>getVal(d,'calories'));
+  return `
+    <div class="card" style="margin-top:8px;">
+      ${renderMiniTrendChart('수면 시간', sleepVals, dateList, '#8b7cf6', '시간')}
+      ${renderMiniTrendChart('공복시간', fastingVals, dateList, '#4dd0c4', '시간')}
+      ${renderMiniTrendChart('총칼로리', calVals, dateList, '#ff7a94', 'kcal')}
     </div>
   `;
 }
