@@ -567,6 +567,18 @@ function fmtShortDateDow(dateStr){
   const dow=['일','월','화','수','목','금','토'][d.getDay()];
   return `${d.getMonth()+1}.${d.getDate()}(${dow})`;
 }
+function headerDateHtml(dateStr){
+  const isToday = dateStr===todayStr();
+  const dow=parseDate(dateStr).getDay();
+  const holidays=getHolidaysForViewer(parseDate(dateStr).getFullYear());
+  const isHoliday=!!holidays[dateStr];
+  let color='';
+  if(isHoliday || dow===0) color='var(--weekend-sun)';
+  else if(dow===6) color='var(--weekend-sat)';
+  const dateHtml = color ? `<span style="color:${color};">${fmtShortDateDow(dateStr)}</span>` : fmtShortDateDow(dateStr);
+  if(isToday) return `<div style="line-height:1.25;"><div style="font-weight:700;">Today</div><div>${dateHtml}</div></div>`;
+  return dateHtml;
+}
 /* ---------- HOME ---------- */
 let homeDate = todayStr();
 let dtAnchor = todayStr();
@@ -732,7 +744,7 @@ function renderDayTimelines(){
     const gap = i>0 ? '<th class="dt-gap"></th>' : '';
     const isFirst = i===0;
     const isLast = i===days.length-1;
-    const dateText = fmtShortDateDow(d);
+    const dateText = headerDateHtml(d);
     const prevBtn = isFirst ? `<button class="iconbtn" id="dtPrevBtn" style="font-size:13px;width:20px;height:20px;flex-shrink:0;">◀</button>` : '';
     const nextBtn = isLast ? `<button class="iconbtn" id="dtNextBtn" style="font-size:13px;width:20px;height:20px;flex-shrink:0;">▶</button>` : '';
     const justify = isFirst ? 'flex-start' : isLast ? 'flex-end' : 'center';
@@ -2213,9 +2225,6 @@ function studySummary(arr){
   return {study, exercise};
 }
 function fmtStudyMin(min){ return `${Math.floor(min/60)}시간 ${min%60}분`; }
-function relDayLabel(dateStr){
-  return dateStr===todayStr() ? 'Today' : '';
-}
 function weekRangeContaining(dateStr){
   const d=parseDate(dateStr);
   const start=addDays(d,-d.getDay());
@@ -2249,7 +2258,6 @@ function renderStudy(){
   const key=currentAuthorKey();
   const streakInfo=currentStreak(key);
   const days=[2,1,0].map(n=>fmtDate(addDays(parseDate(studyAnchor), -n)));
-  const labels=days.map(relDayLabel);
   const arrays=days.map(d=>studyBlocksFor(key,d));
   const summaries=arrays.map(studySummary);
   let rows='';
@@ -2271,7 +2279,7 @@ function renderStudy(){
     const gap = i>0 ? '<th class="dt-gap"></th>' : '';
     const isFirst = i===0;
     const isLast = i===days.length-1;
-    const dateText = labels[i]==='Today' ? 'Today' : `${labels[i]?labels[i]+' · ':''}${fmtShortDateDow(d)}`;
+    const dateText = headerDateHtml(d);
     const prevBtn = isFirst ? `<button class="iconbtn" id="studyPrevBtn" style="font-size:13px;width:20px;height:20px;flex-shrink:0;">◀</button>` : '';
     const nextBtn = (isLast && showNext) ? `<button class="iconbtn" id="studyNextBtn" style="font-size:13px;width:20px;height:20px;flex-shrink:0;">▶</button>` : '';
     const justify = isFirst ? 'flex-start' : isLast ? 'flex-end' : 'center';
