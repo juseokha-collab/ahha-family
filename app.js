@@ -405,6 +405,66 @@ try{
   }
 }catch(e){ console.warn('firebase init skipped', e); }
 
+function mergeById(localArr, cloudArr){
+  const cloud=(cloudArr||[]).slice();
+  const cloudIds=new Set(cloud.map(x=>x&&x.id));
+  const onlyLocal=(localArr||[]).filter(x=>x && x.id && !cloudIds.has(x.id));
+  return cloud.concat(onlyLocal);
+}
+function mergeKeyedArrays(localObj, cloudObj){
+  const merged={};
+  const keys=new Set([...Object.keys(localObj||{}), ...Object.keys(cloudObj||{})]);
+  keys.forEach(k=>{ merged[k]=mergeById((localObj||{})[k], (cloudObj||{})[k]); });
+  return merged;
+}
+function mergeCategoryLists(localObj, cloudObj){
+  const merged={};
+  const keys=new Set([...Object.keys(localObj||{}), ...Object.keys(cloudObj||{})]);
+  keys.forEach(k=>{
+    const cloudList=(cloudObj||{})[k]||[];
+    const localList=(localObj||{})[k]||[];
+    merged[k]=cloudList.concat(localList.filter(x=>!cloudList.includes(x)));
+  });
+  return merged;
+}
+function mergeDaily(localDaily, cloudDaily){
+  const merged=JSON.parse(JSON.stringify(cloudDaily||{}));
+  Object.keys(localDaily||{}).forEach(date=>{
+    const ld=localDaily[date]||{};
+    if(!merged[date]) merged[date]={entries:{},health:{}};
+    if(!merged[date].entries) merged[date].entries={};
+    if(!merged[date].health) merged[date].health={};
+    Object.keys(ld.entries||{}).forEach(k=>{ if(merged[date].entries[k]===undefined) merged[date].entries[k]=ld.entries[k]; });
+    Object.keys(ld.health||{}).forEach(k=>{ if(merged[date].health[k]===undefined) merged[date].health[k]=ld.health[k]; });
+  });
+  return merged;
+}
+function mergeStudyBlocks(localSB, cloudSB){
+  const merged=JSON.parse(JSON.stringify(cloudSB||{}));
+  Object.keys(localSB||{}).forEach(key=>{
+    if(!merged[key]) merged[key]={};
+    Object.keys(localSB[key]).forEach(date=>{
+      const localArr=localSB[key][date]||[];
+      const cloudArr=merged[key][date];
+      if(!cloudArr || !cloudArr.length){ merged[key][date]=localArr.slice(); return; }
+      merged[key][date]=cloudArr.map((v,i)=> (v && String(v).length) ? v : (localArr[i]||v));
+    });
+  });
+  return merged;
+}
+function mergeStates(localState, cloudState){
+  const merged=JSON.parse(JSON.stringify(cloudState));
+  merged.schedule=mergeById(localState.schedule, cloudState.schedule);
+  merged.budget=mergeById(localState.budget, cloudState.budget);
+  merged.events=mergeById(localState.events, cloudState.events);
+  merged.study=mergeById(localState.study, cloudState.study);
+  merged.todos=mergeKeyedArrays(localState.todos, cloudState.todos);
+  merged.healthSchedule=mergeKeyedArrays(localState.healthSchedule, cloudState.healthSchedule);
+  merged.budgetCategories=mergeCategoryLists(localState.budgetCategories, cloudState.budgetCategories);
+  merged.daily=mergeDaily(localState.daily, cloudState.daily);
+  merged.studyBlocks=mergeStudyBlocks(localState.studyBlocks, cloudState.studyBlocks);
+  return merged;
+}
 function initAuth(){
   renderAuthArea();
   if(!auth) return;
@@ -414,13 +474,17 @@ function initAuth(){
     if(u && db){
       setSyncStatus('syncing');
       try{
+        const localState=state;
         const doc = await familyDocRef().get();
         if(doc.exists){
           const data=doc.data();
           const base=defaultState();
           base.vehicle=Object.assign(base.vehicle, data.vehicle||{});
-          state=migrateTodos(migrateVehicle(migrateDaily(Object.assign(base, data, {vehicle:base.vehicle}))));
+          const cloudState=migrateTodos(migrateVehicle(migrateDaily(Object.assign(base, data, {vehicle:base.vehicle}))));
+          state=mergeStates(localState, cloudState);
+          await familyDocRef().set(state);
         } else {
+          state=localState;
           await familyDocRef().set(state);
         }
         setSyncStatus('synced');
