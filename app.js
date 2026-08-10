@@ -1950,6 +1950,15 @@ function myIncomeCategories(){
   return state.incomeCategories[key];
 }
 function fmtCurrency(v,cur){ return cur==='GBP' ? '£'+Number(v).toLocaleString() : Number(v).toLocaleString()+'원'; }
+function fmtCurrencyColored(v,cur){
+  const text=fmtCurrency(v,cur);
+  return Number(v)<0 ? `<span style="color:var(--bad);">${text}</span>` : text;
+}
+function ensureBudgetOwnershipMigrated(){
+  const before=JSON.stringify(state.budget);
+  migrateBudgetOwnership(state);
+  if(JSON.stringify(state.budget)!==before) queueSave();
+}
 function budgetCarryoverFor(key){
   if(!state.budgetCarryover) state.budgetCarryover={};
   if(!state.budgetCarryover[key]) state.budgetCarryover[key]={KRW:0,GBP:0};
@@ -2091,6 +2100,7 @@ function renderIncomeEstimateCard(){
 }
 function renderBudget(){
   const el=document.getElementById('tab-budget');
+  ensureBudgetOwnershipMigrated();
   const myKey=currentAuthorKey();
   const myRole=effectiveRole();
   const isDaughter=myRole==='daughter';
@@ -2123,10 +2133,10 @@ function renderBudget(){
     <div class="card">
       <div class="datebar"><button class="iconbtn" id="bPrev">‹</button><div class="d">${y}년 ${Number(m)}월</div><button class="iconbtn" id="bNext">›</button></div>
       <div class="stat-grid">
-        <div class="stat"><div class="v">${expenseByCur.KRW.toLocaleString()}원${expenseByCur.GBP?' / £'+expenseByCur.GBP.toLocaleString():''}</div><div class="l">이번달 총 지출</div></div>
-        <div class="stat"><div class="v">${incomeByCur.KRW.toLocaleString()}원${incomeByCur.GBP?' / £'+incomeByCur.GBP.toLocaleString():''}</div><div class="l">이번달 총 수입</div></div>
-        <div class="stat"><div class="v">${monthBalanceKRW.toLocaleString()}원${monthBalanceGBP?' / £'+monthBalanceGBP.toLocaleString():''}</div><div class="l">이번달 잔액</div></div>
-        <div class="stat" id="totalBalanceStat" style="cursor:pointer;" title="클릭해서 전월 이월 금액 입력"><div class="v">${totalBalanceKRW.toLocaleString()}원${totalBalanceGBP?' / £'+totalBalanceGBP.toLocaleString():''}</div><div class="l">총잔액(전월 이월 포함)</div></div>
+        <div class="stat"><div class="v">${fmtCurrencyColored(expenseByCur.KRW,'KRW')}${expenseByCur.GBP?' / '+fmtCurrencyColored(expenseByCur.GBP,'GBP'):''}</div><div class="l">이번달 총 지출</div></div>
+        <div class="stat"><div class="v">${fmtCurrencyColored(incomeByCur.KRW,'KRW')}${incomeByCur.GBP?' / '+fmtCurrencyColored(incomeByCur.GBP,'GBP'):''}</div><div class="l">이번달 총 수입</div></div>
+        <div class="stat"><div class="v">${fmtCurrencyColored(monthBalanceKRW,'KRW')}${monthBalanceGBP?' / '+fmtCurrencyColored(monthBalanceGBP,'GBP'):''}</div><div class="l">이번달 잔액</div></div>
+        <div class="stat" id="totalBalanceStat" style="cursor:pointer;" title="클릭해서 전월 이월 금액 입력"><div class="v">${fmtCurrencyColored(totalBalanceKRW,'KRW')}${totalBalanceGBP?' / '+fmtCurrencyColored(totalBalanceGBP,'GBP'):''}</div><div class="l">총잔액(전월 이월 포함)</div></div>
       </div>
     </div>
     ${isDaughter?renderIncomeEstimateCard():''}
@@ -2138,9 +2148,7 @@ function renderBudget(){
         <div class="list-item">
           <div><div><span class="pill">${escapeHtml(b.category)}</span> ${escapeHtml(b.memo)}</div><div class="meta">${b.date}${b.confirmed===false?' · 입금 전':''}</div></div>
           <div class="row"><b>${fmtCurrency(b.amount,b.currency||'KRW')}</b>
-            ${b.confirmed===false
-              ? `<button class="btn small primary" data-confirm-inc="${b.id}">입금확정</button><button class="btn small danger" data-del-inc="${b.id}">삭제</button>`
-              : `<button class="btn small" data-edit-inc="${b.id}">수정</button><button class="btn small danger" data-del-inc="${b.id}">삭제</button>`}</div>
+            <button class="btn small ${b.confirmed===false?'primary':''}" data-edit-inc="${b.id}">${b.confirmed===false?'입금확정':'수정'}</button><button class="btn small danger" data-del-inc="${b.id}">삭제</button></div>
         </div>`).join('') : `<div class="empty">이번달 수입 내역이 없어요</div>`}
     </div>
     <div class="card">
@@ -2154,12 +2162,12 @@ function renderBudget(){
         <div class="row"><button class="btn small" id="manageCatBtn">카테고리 관리</button><button class="btn primary small" id="addBudgetBtn">+ 지출 추가</button></div>
       </div>
       ${showPendingPayment?`
-        <div class="list-item sched-item">
+        <div class="list-item sched-item" style="margin:12px 0;">
           <div><div class="content-text"><b>딸 주급 (${pendingPayment.weekStart.slice(5)}~${pendingPayment.weekEnd.slice(5)})</b></div><div class="meta" style="margin-top:2px;">토스 ₩${pendingPayment.krw.toLocaleString()} · 로이드 £${pendingPayment.gbpAllowance} · 인센티브 £${pendingPayment.gbpIncentive.toFixed(2)}</div></div>
           <button class="btn small primary" id="markWeeklyPaidBtn">지급하시겠습니까?</button>
         </div>`:''}
       ${weeklyPaymentIsPaid?`
-        <div class="list-item sched-item">
+        <div class="list-item sched-item" style="margin:12px 0;">
           <div><div class="content-text"><b>딸 주급 (${pendingPayment.weekStart.slice(5)}~${pendingPayment.weekEnd.slice(5)})</b></div><div class="meta" style="margin-top:2px;color:var(--good);">✅ 지급완료</div></div>
           <div class="row"><button class="btn small" id="editWeeklyPaidBtn">수정</button><button class="btn small danger" id="revertWeeklyPaidBtn">지급전으로 되돌리기</button></div>
         </div>`:''}
@@ -2195,10 +2203,6 @@ function renderBudget(){
   el.querySelectorAll('[data-edit-inc]').forEach(b=>b.onclick=()=>openIncomeModal(state.budget.find(x=>x.id===b.dataset.editInc)));
   el.querySelectorAll('[data-del-inc]').forEach(b=>b.onclick=()=>{
     if(confirm('삭제할까요?')){ state.budget=state.budget.filter(x=>x.id!==b.dataset.delInc); queueSave(); renderBudget(); renderHome(); }
-  });
-  el.querySelectorAll('[data-confirm-inc]').forEach(b=>b.onclick=()=>{
-    const item=state.budget.find(x=>x.id===b.dataset.confirmInc);
-    if(item){ item.confirmed=true; queueSave(); renderBudget(); renderHome(); }
   });
 }
 function openCategoryManageModal(){
@@ -2283,6 +2287,7 @@ function incomeCategoryDefaults(key, category){
 }
 function openIncomeModal(existing){
   const myCats=myIncomeCategories();
+  const isConfirmStep = !!(existing && existing.confirmed===false);
   const b=existing||{id:null,date:budgetMonth+'-'+pad2(new Date().getDate()),category:myCats[0]||'기타',amount:'',currency:'KRW',memo:''};
   const catOptions = myCats.includes(b.category) ? myCats : myCats.concat([b.category]);
   if(!existing){
@@ -2290,7 +2295,7 @@ function openIncomeModal(existing){
     if(d){ b.amount=d.amount; b.currency=d.currency; b.memo=d.memo; }
   }
   openModal(`
-    <h3>${existing?'수입 수정':'수입 추가'}</h3>
+    <h3>${isConfirmStep?'입금 확정':(existing?'수입 수정':'수입 추가')}</h3>
     <div class="field"><label>날짜</label><input type="text" readonly class="date-input" placeholder="YYYY-MM-DD" id="mDate" value="${b.date}"></div>
     <div class="field"><label>카테고리</label><select id="mCat">${catOptions.map(c=>`<option ${c===b.category?'selected':''}>${escapeHtml(c)}</option>`).join('')}</select></div>
     <div class="grid2">
@@ -2298,7 +2303,7 @@ function openIncomeModal(existing){
       <div class="field"><label>통화</label><select id="mCurrency"><option value="KRW" ${(b.currency||'KRW')==='KRW'?'selected':''}>원 (KRW)</option><option value="GBP" ${b.currency==='GBP'?'selected':''}>£ (GBP)</option></select></div>
     </div>
     <div class="field"><label>메모</label><input id="mMemo" value="${escapeHtml(b.memo)}"></div>
-    <div class="modal-actions"><button class="btn" id="mCancel">취소</button><button class="btn primary" id="mSave">저장</button></div>
+    <div class="modal-actions"><button class="btn" id="mCancel">취소</button><button class="btn primary" id="mSave">${isConfirmStep?'입금확정':'저장'}</button></div>
   `);
   document.getElementById('mCancel').onclick=closeModal;
   attachDatePicker('mDate');
@@ -2317,6 +2322,7 @@ function openIncomeModal(existing){
     const amount=Number(document.getElementById('mAmount').value||0);
     if(!date||!amount){ showToast('날짜와 금액을 입력해주세요'); return; }
     const rec={...b,id:b.id||uid(),date,category:document.getElementById('mCat').value,amount,currency:document.getElementById('mCurrency').value,memo:document.getElementById('mMemo').value,type:'income',owner:b.owner||currentAuthorKey()};
+    if(isConfirmStep) rec.confirmed=true;
     if(b.id){ const idx=state.budget.findIndex(x=>x.id===b.id); state.budget[idx]=rec; }
     else state.budget.push(rec);
     budgetMonth=date.slice(0,7);
