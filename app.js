@@ -1306,7 +1306,37 @@ function renderSchedule(){
   document.getElementById('addSchedBtn').onclick=()=>openScheduleModal();
   el.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>openScheduleModal(state.schedule.find(x=>x.id===b.dataset.edit)));
   el.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{
-    if(confirm('일정을 삭제할까요?')){ state.schedule=state.schedule.filter(x=>x.id!==b.dataset.del); queueSave(); renderSchedule(); renderHome(); }
+    const item=state.schedule.find(x=>x.id===b.dataset.del);
+    if(!item) return;
+    const occurDate=scheduleSel;
+    const isRepeating = item.repeat && item.repeat!=='none';
+    if(!isRepeating){
+      if(confirm('일정을 삭제할까요?')){ state.schedule=state.schedule.filter(x=>x.id!==item.id); queueSave(); renderSchedule(); renderHome(); }
+      return;
+    }
+    openModal(`
+      <h3>반복 일정 삭제</h3>
+      <div class="content-text" style="margin-bottom:14px;">'${escapeHtml(item.title)}'은(는) 반복되는 일정이에요. 어떻게 삭제할까요?</div>
+      <div class="modal-actions" style="flex-direction:column;align-items:stretch;gap:8px;">
+        <button class="btn danger" id="delOne">${occurDate} 이 날짜만 삭제</button>
+        <button class="btn danger" id="delFuture">${occurDate}부터 이후 반복 모두 삭제</button>
+        <button class="btn" id="delCancel">취소</button>
+      </div>
+    `);
+    document.getElementById('delCancel').onclick=closeModal;
+    document.getElementById('delOne').onclick=()=>{
+      if(!item.excludeDates) item.excludeDates=[];
+      if(!item.excludeDates.includes(occurDate)) item.excludeDates.push(occurDate);
+      queueSave(); closeModal(); renderSchedule(); renderHome();
+    };
+    document.getElementById('delFuture').onclick=()=>{
+      if(occurDate===item.date){
+        state.schedule=state.schedule.filter(x=>x.id!==item.id);
+      } else {
+        item.repeatUntil=fmtDate(addDays(parseDate(occurDate),-1));
+      }
+      queueSave(); closeModal(); renderSchedule(); renderHome();
+    };
   });
 }
 function addOneHour(timeStr){
@@ -1320,6 +1350,7 @@ function canManageSchedule(item){
 }
 const REPEAT_LABELS={none:'안함',weekday:'매일(평일)',daily:'매일(휴일포함)',weekly:'매주',yearly:'매년'};
 function scheduleItemOccursOn(item, dateStr){
+  if(item.excludeDates && item.excludeDates.includes(dateStr)) return false;
   if(item.date===dateStr) return true;
   if(!item.repeat || item.repeat==='none') return false;
   if(dateStr<item.date) return false;
