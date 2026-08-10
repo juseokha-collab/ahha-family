@@ -1349,9 +1349,13 @@ function openWeightGoalModal(key){
   `);
   document.getElementById('mCancel').onclick=closeModal;
   document.getElementById('mSave').onclick=()=>{
+    const oldTarget=goals.target, oldFinal=goals.finalTarget;
     goals.target=document.getElementById('mWgTarget').value;
     goals.weeklyLoss=document.getElementById('mWgWeekly').value;
     goals.finalTarget=document.getElementById('mWgFinal').value;
+    const flags=gamificationFlags(key);
+    if(goals.target!==oldTarget) flags.weightGoalCelebrated.target=false;
+    if(goals.finalTarget!==oldFinal) flags.weightGoalCelebrated.finalTarget=false;
     queueSave(); closeModal(); renderHealth();
   };
 }
@@ -1457,7 +1461,12 @@ function renderHealth(){
     state.daily[healthDate].health[healthPerson][k]=v;
     queueSave();
   };
-  document.getElementById('hWeight').addEventListener('change',e=>{ save('weight', e.target.value?Number(e.target.value):''); renderHealth(); });
+  document.getElementById('hWeight').addEventListener('change',e=>{
+    const newVal=e.target.value?Number(e.target.value):'';
+    save('weight', newVal);
+    if(newVal) checkWeightGoalReached(healthPerson, newVal);
+    renderHealth();
+  });
   document.getElementById('hSleep').addEventListener('change',e=>save('sleep', e.target.value?Number(e.target.value):''));
   document.getElementById('hFasting').addEventListener('change',e=>save('fasting', e.target.value?Number(e.target.value):''));
   document.getElementById('hCalories').addEventListener('change',e=>save('calories', e.target.value?Number(e.target.value):''));
@@ -1865,6 +1874,106 @@ function openIncomeCategoryManageModal(){
   });
 }
 
+/* ---------- GAMIFICATION ---------- */
+function gamificationFlags(key){
+  if(!state.gamification) state.gamification={};
+  if(!state.gamification[key]) state.gamification[key]={studyHourMilestone:{}, weightGoalCelebrated:{target:false,finalTarget:false}, lastNudgeDate:''};
+  if(!state.gamification[key].weightGoalCelebrated) state.gamification[key].weightGoalCelebrated={target:false,finalTarget:false};
+  return state.gamification[key];
+}
+function celebrate(title, message){
+  openModal(`
+    <div style="text-align:center;padding:20px 10px;position:relative;overflow:hidden;">
+      <div class="confetti-burst">${Array.from({length:24},(_,i)=>`<span class="confetti-piece" style="--i:${i};--hue:${(i*47)%360};"></span>`).join('')}</div>
+      <div style="font-size:40px;">🎉</div>
+      <h3 style="margin:10px 0 4px;">${title}</h3>
+      <div style="font-size:14px;color:var(--text);">${message}</div>
+      <button class="btn primary" style="margin-top:16px;" id="celebrateCloseBtn">좋아요!</button>
+    </div>
+  `);
+  document.getElementById('celebrateCloseBtn').onclick=closeModal;
+}
+function encourageNudge(title, message){
+  openModal(`
+    <div style="text-align:center;padding:20px 10px;">
+      <div style="font-size:36px;">💪</div>
+      <h3 style="margin:10px 0 4px;">${title}</h3>
+      <div style="font-size:14px;color:var(--text);">${message}</div>
+      <button class="btn primary" style="margin-top:16px;" id="nudgeCloseBtn">알겠어요!</button>
+    </div>
+  `);
+  document.getElementById('nudgeCloseBtn').onclick=closeModal;
+}
+function checkStudyHourMilestone(key, dateStr){
+  const s=studySummary(studyBlocksFor(key,dateStr));
+  const totalMin=s.study+s.exercise;
+  const hours=Math.floor(totalMin/60);
+  if(hours<1) return;
+  const flags=gamificationFlags(key);
+  const prevCelebrated=flags.studyHourMilestone[dateStr]||0;
+  if(hours>prevCelebrated){
+    flags.studyHourMilestone[dateStr]=hours;
+    queueSave();
+    celebrate('기록 달성! 🎉', `${dateStr===todayStr()?'오늘':dateStr} 학습·운동 ${hours}시간을 기록했어요!`);
+  }
+}
+function checkWeightGoalReached(key, newWeight){
+  const goals=weightGoalsFor(key);
+  const flags=gamificationFlags(key);
+  if(goals.target && Number(newWeight)<=Number(goals.target) && !flags.weightGoalCelebrated.target){
+    flags.weightGoalCelebrated.target=true;
+    queueSave();
+    celebrate('1차 목표 달성! 🎯', `${memberLabel(key)} ${goals.target}kg 목표를 달성했어요!`);
+    return;
+  }
+  if(goals.finalTarget && Number(newWeight)<=Number(goals.finalTarget) && !flags.weightGoalCelebrated.finalTarget){
+    flags.weightGoalCelebrated.finalTarget=true;
+    queueSave();
+    celebrate('최종 목표 달성! 🏁', `${memberLabel(key)} 최종 목표 ${goals.finalTarget}kg 달성! 정말 대단해요!`);
+  }
+}
+function weeklyWeightTrend(key){
+  const today=todayStr();
+  const weekAgo=fmtDate(addDays(parseDate(today),-7));
+  const dates=Object.keys(state.daily)
+    .filter(d=>d>=weekAgo && d<=today && state.daily[d].health && state.daily[d].health[key] && state.daily[d].health[key].weight)
+    .sort();
+  if(dates.length<2) return null;
+  const startW=Number(state.daily[dates[0]].health[key].weight);
+  const endW=Number(state.daily[dates[dates.length-1]].health[key].weight);
+  return {changeGrams:(startW-endW)*1000};
+}
+function checkWeightPaceNudge(key){
+  if(!key) return;
+  const goals=weightGoalsFor(key);
+  if(!goals.weeklyLoss) return;
+  const flags=gamificationFlags(key);
+  const today=todayStr();
+  if(flags.lastNudgeDate===today) return;
+  const trend=weeklyWeightTrend(key);
+  if(!trend) return;
+  flags.lastNudgeDate=today;
+  queueSave();
+  if(trend.changeGrams < Number(goals.weeklyLoss)*0.5){
+    const changeText = trend.changeGrams>=0 ? Math.round(trend.changeGrams)+'g 감량' : Math.round(-trend.changeGrams)+'g 증가';
+    encourageNudge('조금만 더 힘내요! 💪', `최근 일주일간 ${changeText}했어요. 목표(주당 ${goals.weeklyLoss}g 감량)까지 조금 더 힘내봐요!`);
+  }
+}
+function currentStreak(key){
+  let streakThroughYesterday=0;
+  let d=fmtDate(addDays(parseDate(todayStr()),-1));
+  while(true){
+    const arr = state.studyBlocks && state.studyBlocks[key] && state.studyBlocks[key][d];
+    const hasLog = arr && arr.some(v=>v!=='');
+    if(!hasLog) break;
+    streakThroughYesterday++;
+    d=fmtDate(addDays(parseDate(d),-1));
+  }
+  const todayArr = state.studyBlocks && state.studyBlocks[key] && state.studyBlocks[key][todayStr()];
+  const todayLogged = !!(todayArr && todayArr.some(v=>v!==''));
+  return { streak: todayLogged ? streakThroughYesterday+1 : streakThroughYesterday, todayLogged };
+}
+
 /* ---------- STUDY ---------- */
 function studyBlocksFor(authorKey, dateStr){
   if(!state.studyBlocks) state.studyBlocks={};
@@ -1907,6 +2016,7 @@ function renderStudy(){
   const el=document.getElementById('tab-study');
   if(!el) return;
   const key=currentAuthorKey();
+  const streakInfo=currentStreak(key);
   const days=[2,1,0].map(n=>fmtDate(addDays(parseDate(studyAnchor), -n)));
   const labels=days.map(relDayLabel);
   const arrays=days.map(d=>studyBlocksFor(key,d));
@@ -1944,6 +2054,7 @@ function renderStudy(){
   const logRows=weeklyLogRows(key);
   el.innerHTML=`
     <div class="card">
+      ${streakInfo.streak>0?`<div class="row" style="margin-bottom:8px;"><span class="pill" style="background:var(--panel2);">🔥 ${streakInfo.streak}일 연속 기록${!streakInfo.todayLogged?' (오늘 기록하면 갱신!)':''}</span></div>`:''}
       <div class="row" style="gap:10px;margin-bottom:10px;flex-wrap:wrap;justify-content:flex-end;">
         <span class="pill" style="background:${SB_COLORS.study};color:#3a2e00;border:none;">🟡 공부</span>
         <span class="pill" style="background:${SB_COLORS.exercise};color:#08321a;border:none;">🟢 운동</span>
@@ -1980,7 +2091,9 @@ function renderStudy(){
       const arr=arrays[di];
       const cur=arr[idx];
       arr[idx] = cur==='' ? 'study' : cur==='study' ? 'exercise' : '';
-      queueSave(); renderStudy();
+      queueSave();
+      checkStudyHourMilestone(key, days[di]);
+      renderStudy();
     });
   });
   document.getElementById('studyPrevBtn').onclick=()=>{
@@ -2299,6 +2412,7 @@ function initShowCommonToggle(){
 function renderAll(){
   renderTabs();
   renderHome(); renderSchedule(); renderHealth(); renderBudget(); renderVehicle(); renderEvents(); renderStudy();
+  if(!viewAsOverride) checkWeightPaceNudge(effectiveRole());
 }
 initTheme();
 initViewAs();

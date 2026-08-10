@@ -155,6 +155,12 @@ input.date-input{cursor:pointer;background:var(--panel2) url('data:image/svg+xml
 .sb-seg.sb-exercise{background:#7ee787;}
 .dt-evt:hover{filter:brightness(1.08);}
 .dt-evt[data-virtual]{background:var(--panel2);color:var(--text);border:1px solid var(--border);font-weight:400;}
+.confetti-burst{position:absolute;inset:0;pointer-events:none;overflow:hidden;}
+.confetti-piece{position:absolute;top:-10px;left:calc(50% + (var(--i) - 12) * 14px);width:8px;height:14px;border-radius:2px;background:hsl(var(--hue) 80% 60%);opacity:0;animation:confetti-fall 1.4s ease-in forwards;animation-delay:calc(var(--i) * 0.02s);}
+@keyframes confetti-fall{
+  0%{opacity:1;transform:translateY(0) rotate(0deg);}
+  100%{opacity:0;transform:translateY(170px) rotate(420deg);}
+}
 </style>
 </head>
 <body>
@@ -201,7 +207,7 @@ input.date-input{cursor:pointer;background:var(--panel2) url('data:image/svg+xml
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-<script src="firebase-config.js?v=20260810d"></script>
-<script src="app.js?v=20260810d"></script>
+<script src="firebase-config.js?v=20260810e"></script>
+<script src="app.js?v=20260810e"></script>
 </body>
 </html>
