@@ -1418,12 +1418,8 @@ function renderHealth(){
         <div class="field"><label>공복시간</label><input type="number" step="0.5" id="hFasting" value="${rec.fasting||''}"></div>
         <div class="field"><label>총칼로리 (kcal)</label><input type="number" step="10" id="hCalories" value="${rec.calories||''}"></div>
       </div>
-      <div class="row" style="margin-top:8px;">
-        <label class="pill" style="cursor:pointer;"><input type="checkbox" id="hExercise" ${rec.exercise?'checked':''} style="margin-right:4px;">운동</label>
-        <label class="pill" style="cursor:pointer;"><input type="checkbox" id="hMeds" ${rec.meds?'checked':''} style="margin-right:4px;">복약</label>
-      </div>
       <div class="field" style="margin-top:8px;">
-        <label>증상 / 컨디션 메모</label>
+        <label>Activity Comment</label>
         <textarea id="hSymptom" placeholder="컨디션, 증상 등을 기록해보세요">${escapeHtml(rec.symptom)}</textarea>
       </div>
     </div>
@@ -1465,10 +1461,8 @@ function renderHealth(){
   document.getElementById('hSleep').addEventListener('change',e=>save('sleep', e.target.value?Number(e.target.value):''));
   document.getElementById('hFasting').addEventListener('change',e=>save('fasting', e.target.value?Number(e.target.value):''));
   document.getElementById('hCalories').addEventListener('change',e=>save('calories', e.target.value?Number(e.target.value):''));
-  document.getElementById('hExercise').addEventListener('change',e=>save('exercise', e.target.checked));
-  document.getElementById('hMeds').addEventListener('change',e=>save('meds', e.target.checked));
   document.getElementById('hSymptom').addEventListener('change',e=>save('symptom', e.target.value));
-  ['hWeight','hSleep','hFasting','hCalories','hExercise','hMeds','hSymptom'].forEach(id=>{
+  ['hWeight','hSleep','hFasting','hCalories','hSymptom'].forEach(id=>{
     document.getElementById(id).addEventListener('input', ()=>{
       document.getElementById('healthSaveStatus').textContent='';
     });
@@ -1478,8 +1472,6 @@ function renderHealth(){
     save('sleep', document.getElementById('hSleep').value?Number(document.getElementById('hSleep').value):'');
     save('fasting', document.getElementById('hFasting').value?Number(document.getElementById('hFasting').value):'');
     save('calories', document.getElementById('hCalories').value?Number(document.getElementById('hCalories').value):'');
-    save('exercise', document.getElementById('hExercise').checked);
-    save('meds', document.getElementById('hMeds').checked);
     save('symptom', document.getElementById('hSymptom').value);
     const now=new Date();
     document.getElementById('healthSaveStatus').textContent = `✓ 저장됨 (${now.getHours()}:${pad2(now.getMinutes())})`;
