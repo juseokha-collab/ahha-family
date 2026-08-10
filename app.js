@@ -1227,7 +1227,7 @@ function addOneHour(timeStr){
 function canManageSchedule(item){
   return !item || item.owner!=='common' || !item.createdBy || item.createdBy===currentAuthorKey();
 }
-const REPEAT_LABELS={none:'안함',daily:'매일',weekly:'매주',yearly:'매년'};
+const REPEAT_LABELS={none:'안함',weekday:'매일(평일)',daily:'매일(휴일포함)',weekly:'매주',yearly:'매년'};
 function scheduleItemOccursOn(item, dateStr){
   if(item.date===dateStr) return true;
   if(!item.repeat || item.repeat==='none') return false;
@@ -1235,6 +1235,12 @@ function scheduleItemOccursOn(item, dateStr){
   if(item.repeatUntil && dateStr>item.repeatUntil) return false;
   const base=parseDate(item.date), target=parseDate(dateStr);
   if(item.repeat==='daily') return true;
+  if(item.repeat==='weekday'){
+    const dow=target.getDay();
+    if(dow===0||dow===6) return false;
+    const holidays=getHolidaysForViewer(target.getFullYear());
+    return !holidays[dateStr];
+  }
   if(item.repeat==='weekly') return base.getDay()===target.getDay();
   if(item.repeat==='yearly') return base.getMonth()===target.getMonth() && base.getDate()===target.getDate();
   return false;
@@ -1268,7 +1274,7 @@ function openScheduleModal(existing, prefill){
     <div id="repeatOptions" style="display:${curRepeat!=='none'?'':'none'};margin-top:10px;padding-top:10px;border-top:1px solid var(--border);">
       <div class="field"><label>반복</label>
         <div class="row" style="gap:6px;">
-          ${['none','daily','weekly','yearly'].map(r=>`<label class="pill" style="cursor:pointer;"><input type="radio" name="mRepeat" value="${r}" ${curRepeat===r?'checked':''} style="margin-right:4px;">${REPEAT_LABELS[r]}</label>`).join('')}
+          ${['none','weekday','daily','weekly','yearly'].map(r=>`<label class="pill" style="cursor:pointer;"><input type="radio" name="mRepeat" value="${r}" ${curRepeat===r?'checked':''} style="margin-right:4px;">${REPEAT_LABELS[r]}</label>`).join('')}
         </div>
       </div>
       <div class="field"><label>반복 기한 (선택, 비우면 계속 반복)</label><input type="text" readonly class="date-input" id="mRepeatUntil" value="${s.repeatUntil||''}"></div>
@@ -1552,14 +1558,16 @@ function renderWeightChart(keys, extraLegendHtml, goalProjection){
   const todayX=x(todayIdx);
   const todayLine=`<line x1="${todayX}" y1="${MT}" x2="${todayX}" y2="${MT+plotH}" stroke="var(--border)" stroke-width="1" stroke-dasharray="2 2"/>`;
   const seriesSvg=series.map(s=>{
-    let pathD='', dots='';
+    let pathD='', dots='', maxIdx=-1, maxVal=-Infinity;
     s.pts.forEach((v,i)=>{
       if(v==null) return;
       const px=x(i), py=y(v);
       pathD += (pathD?'L':'M')+px+' '+py+' ';
       dots+=`<circle class="wt-point" data-tip="${escapeHtml(s.label)} ${v}kg (${dateList[i].slice(5)})" cx="${px}" cy="${py}" r="4" fill="${s.color}" style="cursor:pointer;"/>`;
+      if(v>maxVal){ maxVal=v; maxIdx=i; }
     });
-    return pathD ? `<path d="${pathD.trim()}" fill="none" stroke="${s.color}" stroke-width="2"/>${dots}` : '';
+    const maxLabel = maxIdx>=0 ? `<text x="${x(maxIdx)}" y="${y(maxVal)-8}" font-size="9" fill="${s.color}" text-anchor="middle" font-weight="700">${dateList[maxIdx].slice(5)} ${maxVal}kg</text>` : '';
+    return pathD ? `<path d="${pathD.trim()}" fill="none" stroke="${s.color}" stroke-width="2"/>${dots}${maxLabel}` : '';
   }).join('');
   let goalSvg='';
   if(goalPts){
@@ -1642,8 +1650,10 @@ function renderIncomeEstimateCard(){
   return `
     <div class="card">
       <h3 style="font-size:13px;">💡 예상 수입 = 주급 ₩200,000 + 지난주(월~일) 운동시간 × £2 + Weight Incentive</h3>
-      <div class="meta" style="margin-top:6px;">이번 주 예상 수입: 주급 ₩200,000 + 지난주(${lastWeek[0].slice(5)}~${lastWeek[6].slice(5)}) 운동시간 ${fmtStudyMin(lastWeekMin)} × £2 = <b style="color:var(--text);">₩200,000 + £${lastIncentive.toFixed(2)}</b></div>
-      <div class="meta" style="margin-top:4px;">다음 주 예상 수입: 주급 ₩200,000 + 이번주(${thisWeek[0].slice(5)}~${thisWeek[6].slice(5)}) 운동시간 ${fmtStudyMin(thisWeekMin)} × £2 = <b style="color:var(--text);">₩200,000 + £${thisIncentive.toFixed(2)}</b></div>
+      <div style="margin-top:8px;margin-left:22px;font-size:13px;line-height:1.7;color:var(--muted);">
+        <div>✅ <b style="color:var(--accent);">이번 주 예상 수입</b>: 주급 ₩200,000 + 지난주(${lastWeek[0].slice(5)}~${lastWeek[6].slice(5)}) <b style="color:${SB_COLORS.exercise};">운동시간 ${fmtStudyMin(lastWeekMin)}</b> × £2 = <b style="color:var(--text);">₩200,000 + £${lastIncentive.toFixed(2)}</b></div>
+        <div style="margin-top:4px;">🔮 <b style="color:var(--accent2);">다음 주 예상 수입</b>: 주급 ₩200,000 + 이번주(${thisWeek[0].slice(5)}~${thisWeek[6].slice(5)}) <b style="color:${SB_COLORS.exercise};">운동시간 ${fmtStudyMin(thisWeekMin)}</b> × £2 = <b style="color:var(--text);">₩200,000 + £${thisIncentive.toFixed(2)}</b></div>
+      </div>
       ${unpaid.length?`<div class="meta" style="margin-top:10px;color:var(--good);">🎉 체중 감량 목표 달성: ${unpaid.map(ms=>`${ms.w}kg 이하 → £${ms.bonus}`).join(', ')} (아직 수입 내역에 기록 안 됨)</div>`:''}
     </div>
   `;
