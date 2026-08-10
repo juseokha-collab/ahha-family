@@ -2701,15 +2701,15 @@ function bindShowCommonToggle(id){
     renderSchedule();
   });
 }
-const FLAG_KR_SVG=`<svg width="14" height="10" viewBox="0 0 16 11" style="vertical-align:-1px;"><rect width="16" height="11" fill="#fff"/><circle cx="8" cy="5.5" r="3" fill="#c60c30"/><path d="M8 2.5a3 3 0 0 0 0 6 1.5 1.5 0 0 1 0-3 1.5 1.5 0 0 0 0-3z" fill="#003478"/></svg>`;
-const FLAG_GB_SVG=`<svg width="14" height="10" viewBox="0 0 16 11" style="vertical-align:-1px;"><rect width="16" height="11" fill="#00247d"/><path d="M0,0 L16,11 M16,0 L0,11" stroke="#fff" stroke-width="2.2"/><path d="M0,0 L16,11 M16,0 L0,11" stroke="#cf142b" stroke-width="1.1"/><path d="M8,0 V11 M0,5.5 H16" stroke="#fff" stroke-width="3.6"/><path d="M8,0 V11 M0,5.5 H16" stroke="#cf142b" stroke-width="2.2"/></svg>`;
+const FLAG_KR_SVG=`<svg width="18" height="13" viewBox="0 0 16 11" style="vertical-align:-2px;"><rect width="16" height="11" fill="#fff"/><circle cx="8" cy="5.5" r="3" fill="#c60c30"/><path d="M8 2.5a3 3 0 0 0 0 6 1.5 1.5 0 0 1 0-3 1.5 1.5 0 0 0 0-3z" fill="#003478"/></svg>`;
+const FLAG_GB_SVG=`<svg width="18" height="13" viewBox="0 0 16 11" style="vertical-align:-2px;"><rect width="16" height="11" fill="#00247d"/><path d="M0,0 L16,11 M16,0 L0,11" stroke="#fff" stroke-width="2.2"/><path d="M0,0 L16,11 M16,0 L0,11" stroke="#cf142b" stroke-width="1.1"/><path d="M8,0 V11 M0,5.5 H16" stroke="#fff" stroke-width="3.6"/><path d="M8,0 V11 M0,5.5 H16" stroke="#cf142b" stroke-width="2.2"/></svg>`;
 function updateWorldClock(){
   const el=document.getElementById('worldClock');
   if(!el) return;
   const now=new Date();
   const kr=now.toLocaleTimeString('ko-KR',{timeZone:'Asia/Seoul',hour:'2-digit',minute:'2-digit',hour12:false});
   const uk=now.toLocaleTimeString('ko-KR',{timeZone:'Europe/London',hour:'2-digit',minute:'2-digit',hour12:false});
-  el.innerHTML = `${FLAG_KR_SVG} ${kr} · ${FLAG_GB_SVG} ${uk}`;
+  el.innerHTML = `${FLAG_GB_SVG} ${uk} · ${FLAG_KR_SVG} ${kr}`;
 }
 
 /* ---------- init ---------- */
