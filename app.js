@@ -357,6 +357,7 @@ function migrateBudgetOwnership(st){
       if(b.type==='income'){ b.owner='daughter'; if(b.confirmed===undefined) b.confirmed=false; }
       else { b.owner='jinahkim2023@gmail.com'; }
     }
+    if(b.category==='학습·운동 인센티브' && b.memo==='지난주 활동 기준') b.memo='';
   });
   return st;
 }
