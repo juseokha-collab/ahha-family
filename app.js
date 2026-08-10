@@ -2000,15 +2000,21 @@ function markWeeklyPaymentPaid(){
   const b=weeklyPayableBreakdown();
   const dateStr=todayStr();
   const label=`딸 주급 (${b.weekStart.slice(5)}~${b.weekEnd.slice(5)})`;
-  state.budget.push({id:uid(), date:dateStr, category:'용돈', amount:b.krw, currency:'KRW', memo:label, type:'expense'});
-  if(b.gbpTotal>0) state.budget.push({id:uid(), date:dateStr, category:'용돈', amount:b.gbpTotal, currency:'GBP', memo:label, type:'expense'});
-  state.budget.push({id:uid(), date:dateStr, category:'주급(토스)', amount:b.krw, currency:'KRW', memo:'', type:'income'});
-  state.budget.push({id:uid(), date:dateStr, category:'주급(로이드)', amount:b.gbpAllowance, currency:'GBP', memo:'', type:'income'});
-  if(b.gbpIncentive>0) state.budget.push({id:uid(), date:dateStr, category:'학습·운동 인센티브', amount:b.gbpIncentive, currency:'GBP', memo:'지난주 활동 기준', type:'income'});
+  state.budget.push({id:uid(), date:dateStr, category:'용돈', amount:b.krw, currency:'KRW', memo:label, type:'expense', paymentWeek:b.weekStart});
+  if(b.gbpTotal>0) state.budget.push({id:uid(), date:dateStr, category:'용돈', amount:b.gbpTotal, currency:'GBP', memo:label, type:'expense', paymentWeek:b.weekStart});
+  state.budget.push({id:uid(), date:dateStr, category:'주급(토스)', amount:b.krw, currency:'KRW', memo:'', type:'income', paymentWeek:b.weekStart});
+  state.budget.push({id:uid(), date:dateStr, category:'주급(로이드)', amount:b.gbpAllowance, currency:'GBP', memo:'', type:'income', paymentWeek:b.weekStart});
+  if(b.gbpIncentive>0) state.budget.push({id:uid(), date:dateStr, category:'학습·운동 인센티브', amount:b.gbpIncentive, currency:'GBP', memo:'지난주 활동 기준', type:'income', paymentWeek:b.weekStart});
   if(!state.weeklyPaymentStatus) state.weeklyPaymentStatus={};
   state.weeklyPaymentStatus[b.weekStart]=true;
   queueSave();
   showToast('딸 주급 지급 완료로 기록했어요');
+}
+function revertWeeklyPayment(weekStart){
+  state.budget = state.budget.filter(b=>b.paymentWeek!==weekStart);
+  if(state.weeklyPaymentStatus) delete state.weeklyPaymentStatus[weekStart];
+  queueSave();
+  showToast('지급전 상태로 되돌렸어요');
 }
 function renderIncomeEstimateCard(){
   const thisWeek=mondayWeekRange(todayStr());
@@ -2059,6 +2065,7 @@ function renderBudget(){
   const totalBalanceGBP = carryover.GBP + allIncomeByCur.GBP - allExpenseByCur.GBP;
   const pendingPayment = isMom ? weeklyPayableBreakdown() : null;
   const showPendingPayment = pendingPayment && !isWeeklyPaymentPaid(pendingPayment.weekStart);
+  const weeklyPaymentIsPaid = pendingPayment && isWeeklyPaymentPaid(pendingPayment.weekStart);
   el.innerHTML=`
     <div class="card">
       <div class="datebar"><button class="iconbtn" id="bPrev">‹</button><div class="d">${y}년 ${Number(m)}월</div><button class="iconbtn" id="bNext">›</button></div>
@@ -2096,6 +2103,11 @@ function renderBudget(){
           <div><div class="content-text"><b>딸 주급 (${pendingPayment.weekStart.slice(5)}~${pendingPayment.weekEnd.slice(5)})</b></div><div class="meta" style="margin-top:2px;">토스 ₩${pendingPayment.krw.toLocaleString()} · 로이드 £${pendingPayment.gbpAllowance} · 인센티브 £${pendingPayment.gbpIncentive.toFixed(2)}</div></div>
           <button class="btn small primary" id="markWeeklyPaidBtn">지출완료로 표시</button>
         </div>`:''}
+      ${weeklyPaymentIsPaid?`
+        <div class="list-item sched-item">
+          <div><div class="content-text"><b>딸 주급 (${pendingPayment.weekStart.slice(5)}~${pendingPayment.weekEnd.slice(5)})</b></div><div class="meta" style="margin-top:2px;color:var(--good);">✅ 지급완료</div></div>
+          <button class="btn small danger" id="revertWeeklyPaidBtn">지급전으로 되돌리기</button>
+        </div>`:''}
       ${items.length? items.map(b=>`
         <div class="list-item">
           <div><div><span class="pill">${b.category}</span> ${escapeHtml(b.memo)}</div><div class="meta">${b.date}</div></div>
@@ -2109,6 +2121,12 @@ function renderBudget(){
   document.getElementById('totalBalanceStat').onclick=()=>openCarryoverModal();
   const markWeeklyPaidBtn=document.getElementById('markWeeklyPaidBtn');
   if(markWeeklyPaidBtn) markWeeklyPaidBtn.onclick=()=>{ markWeeklyPaymentPaid(); renderBudget(); };
+  const revertWeeklyPaidBtn=document.getElementById('revertWeeklyPaidBtn');
+  if(revertWeeklyPaidBtn) revertWeeklyPaidBtn.onclick=()=>{
+    if(confirm('지급완료를 취소하고 지급전 상태로 되돌릴까요? 자동 생성된 수입/지출 내역도 함께 삭제돼요.')){
+      revertWeeklyPayment(pendingPayment.weekStart); renderBudget();
+    }
+  };
   document.getElementById('addBudgetBtn').onclick=()=>openBudgetModal();
   document.getElementById('manageCatBtn').onclick=()=>openCategoryManageModal();
   document.getElementById('addIncomeBtn').onclick=()=>openIncomeModal();
