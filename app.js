@@ -511,6 +511,7 @@ function renderAuthArea(){
   } else {
     el.innerHTML = `<span>로컬 저장 모드</span>`;
   }
+  if(typeof updateViewAsButtons==='function') updateViewAsButtons();
 }
 
 /* ---------- modal / toast ---------- */
@@ -2785,14 +2786,22 @@ function initTheme(){
 function updateViewAsButtons(){
   const momBtn=document.getElementById('viewAsMomBtn');
   const daughterBtn=document.getElementById('viewAsDaughterBtn');
+  const realRole = user ? EMAIL_ROLE[user.email] : null;
+  const isDadOrGuest = !realRole || realRole==='dad';
   if(momBtn) momBtn.classList.toggle('active', viewAsOverride==='mom');
   if(daughterBtn) daughterBtn.classList.toggle('active', viewAsOverride==='daughter');
+  if(!isDadOrGuest){
+    if(momBtn) momBtn.style.display='none';
+    if(daughterBtn) daughterBtn.style.display='none';
+    return;
+  }
   const hideWhileDaughter=viewAsOverride==='daughter';
   const authArea=document.getElementById('authArea');
   const themeToggle=document.getElementById('themeToggle');
   if(authArea) authArea.style.display = hideWhileDaughter ? 'none' : '';
   if(themeToggle) themeToggle.style.display = hideWhileDaughter ? 'none' : '';
   if(momBtn) momBtn.style.display = hideWhileDaughter ? 'none' : '';
+  if(daughterBtn) daughterBtn.style.display = '';
 }
 function setViewAs(role){
   viewAsOverride = viewAsOverride===role ? null : role;
