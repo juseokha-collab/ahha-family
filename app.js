@@ -555,8 +555,6 @@ function renderTabs(){
     const el=document.getElementById('tab-'+k);
     if(el) el.style.display = (k===activeTab) ? '' : 'none';
   });
-  const showCommonLabel=document.getElementById('showCommonLabel');
-  if(showCommonLabel) showCommonLabel.style.display = ['study','health','budget'].includes(activeTab) ? 'none' : '';
 }
 document.getElementById('tabs').addEventListener('click', e=>{
   const btn=e.target.closest('button[data-tab]'); if(!btn) return;
@@ -751,6 +749,9 @@ function renderDayTimelines(){
   }).join('');
   return `
     <div class="dt-panel">
+      <div class="row" style="justify-content:flex-end;margin-bottom:8px;">
+        <label class="pill" style="cursor:pointer;"><input type="checkbox" id="showCommonToggleHome" ${showCommonOnHome?'checked':''} style="margin-right:4px;">가족공통</label>
+      </div>
       <div style="overflow-x:auto;">
         <table class="dt-table">
           <thead><tr><th class="dt-time-col"></th>${headCells}</tr></thead>
@@ -779,6 +780,7 @@ function moveScheduleItem(id, newDate, newTime){
 }
 function bindDayTimelineEvents(){
   const el=document.getElementById('tab-home');
+  bindShowCommonToggle('showCommonToggleHome');
   const dtPrevBtn=document.getElementById('dtPrevBtn');
   if(dtPrevBtn) dtPrevBtn.onclick=()=>{
     dtAnchor=fmtDate(addDays(parseDate(dtAnchor),-1));
@@ -1191,6 +1193,9 @@ function renderSchedule(){
   const dayItems = filtered.filter(s=>scheduleItemOccursOn(s,scheduleSel)).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
   el.innerHTML=`
     <div class="card">
+      <div class="row" style="justify-content:flex-end;margin-bottom:4px;">
+        <label class="pill" style="cursor:pointer;"><input type="checkbox" id="showCommonToggleSchedule" ${showCommonOnHome?'checked':''} style="margin-right:4px;">가족공통</label>
+      </div>
       <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
         <div class="datebar" style="margin-bottom:0;"><button class="iconbtn" id="sPrev">‹</button><div class="d">${y}년 ${m+1}월</div><button class="iconbtn" id="sNext">›</button></div>
         ${myRole==='dad'?`<div class="row" id="schedFilterRow" style="gap:6px;">
@@ -1212,6 +1217,7 @@ function renderSchedule(){
       }).join('') : `<div class="empty">일정이 없어요</div>`}
     </div>
   `;
+  bindShowCommonToggle('showCommonToggleSchedule');
   document.getElementById('sPrev').onclick=()=>{ scheduleMonth=new Date(y,m-1,1); renderSchedule(); };
   document.getElementById('sNext').onclick=()=>{ scheduleMonth=new Date(y,m+1,1); renderSchedule(); };
   const schedFilterRow=document.getElementById('schedFilterRow');
@@ -1415,7 +1421,7 @@ function renderHealth(){
           ${otherMembers.map(m=>`<label class="pill" style="cursor:pointer;"><input type="checkbox" class="weightExtraToggle" value="${m.key}" ${weightChartOthers.includes(m.key)?'checked':''} style="margin-right:4px;">${m.label}</label>`).join('')}
         </div>
       </div>
-      <div style="margin-top:10px;">${renderWeightChart([healthPerson].concat(weightChartOthers), {key:healthPerson, weeklyLoss:goals.weeklyLoss, finalTarget:goals.finalTarget})}</div>
+      <div style="margin-top:10px;">${renderWeightChart([healthPerson].concat(weightChartOthers), [healthPerson].concat(weightChartOthers).map(k=>{ const g=weightGoalsFor(k); return {key:k, weeklyLoss:g.weeklyLoss, finalTarget:g.finalTarget}; }))}</div>
       <div style="margin-top:8px;text-align:right;">
         ${targetDate?`<div class="meta">🎯 1차 목표 ${goals.target}kg, ${fmtKoreanDate(targetDate)} 달성 목표</div>`:''}
         ${finalDate?`<div class="meta" style="margin-top:2px;">🏁 최종목표 ${goals.finalTarget}kg, ${fmtKoreanDate(finalDate)} 달성 목표</div>`:''}
@@ -1557,7 +1563,7 @@ function openHealthSchedModal(existing){
     queueSave(); closeModal(); renderHealth();
   };
 }
-function renderWeightChart(keys, goalProjection){
+function renderWeightChart(keys, goalProjections){
   const pastDays=31, futureDays=10;
   const totalDays=pastDays+futureDays;
   const todayIdx=pastDays-1;
@@ -1571,23 +1577,23 @@ function renderWeightChart(keys, goalProjection){
       return w?Number(w):null;
     })
   }));
-  let goalPts=null, goalColor=null;
-  if(goalProjection && goalProjection.weeklyLoss){
-    const anchorEntry=latestWeightEntryFor(goalProjection.key);
-    if(anchorEntry){
-      let anchorIdx=dateList.indexOf(anchorEntry.date);
-      if(anchorIdx===-1) anchorIdx=todayIdx;
-      goalColor=ROLE_BADGE_COLOR[goalProjection.key]||'#8b7cf6';
-      goalPts=dateList.map((d,i)=>{
-        if(i<anchorIdx) return null;
-        const daysAhead=i-anchorIdx;
-        let w=anchorEntry.weight-(Number(goalProjection.weeklyLoss)/1000)*(daysAhead/7);
-        if(goalProjection.finalTarget && w<Number(goalProjection.finalTarget)) w=Number(goalProjection.finalTarget);
-        return w;
-      });
-    }
-  }
-  const allVals=series.flatMap(s=>s.pts.filter(v=>v!=null)).concat(goalPts?goalPts.filter(v=>v!=null):[]);
+  const goals=(goalProjections||[]).map(gp=>{
+    if(!gp || !gp.weeklyLoss) return null;
+    const anchorEntry=latestWeightEntryFor(gp.key);
+    if(!anchorEntry) return null;
+    let anchorIdx=dateList.indexOf(anchorEntry.date);
+    if(anchorIdx===-1) anchorIdx=todayIdx;
+    const color=ROLE_BADGE_COLOR[gp.key]||'#8b7cf6';
+    const pts=dateList.map((d,i)=>{
+      if(i<anchorIdx) return null;
+      const daysAhead=i-anchorIdx;
+      let w=anchorEntry.weight-(Number(gp.weeklyLoss)/1000)*(daysAhead/7);
+      if(gp.finalTarget && w<Number(gp.finalTarget)) w=Number(gp.finalTarget);
+      return w;
+    });
+    return {key:gp.key, color, pts};
+  }).filter(Boolean);
+  const allVals=series.flatMap(s=>s.pts.filter(v=>v!=null)).concat(goals.flatMap(g=>g.pts.filter(v=>v!=null)));
   if(!allVals.length) return `<div class="empty">체중 기록이 아직 없어요</div>`;
   let min=Math.min(...allVals), max=Math.max(...allVals);
   if(min===max){ min-=1; max+=1; }
@@ -1602,7 +1608,7 @@ function renderWeightChart(keys, goalProjection){
     return `<line x1="${ML}" y1="${yy}" x2="${W-MR}" y2="${yy}" stroke="var(--border)" stroke-width="1"/><text x="${ML-5}" y="${yy+3}" font-size="9" fill="var(--muted)" text-anchor="end">${val.toFixed(1)}</text>`;
   }).join('');
   const todayX=x(todayIdx);
-  const todayLine=`<line x1="${todayX}" y1="${MT}" x2="${todayX}" y2="${MT+plotH}" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="3 2"/>`;
+  const todayLine=`<line x1="${todayX}" y1="${MT}" x2="${todayX}" y2="${MT+plotH}" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="3 2"/>`;
   const seriesSvg=series.map(s=>{
     let pathD='', dots='', maxIdx=-1, maxVal=-Infinity;
     s.pts.forEach((v,i)=>{
@@ -1615,22 +1621,21 @@ function renderWeightChart(keys, goalProjection){
     const maxLabel = maxIdx>=0 ? `<text x="${x(maxIdx)}" y="${y(maxVal)-20}" font-size="9" fill="${s.color}" text-anchor="middle"><tspan x="${x(maxIdx)}" dy="0">${dateList[maxIdx].slice(5)}</tspan><tspan x="${x(maxIdx)}" dy="11">${maxVal}kg</tspan></text>` : '';
     return pathD ? `<path d="${pathD.trim()}" fill="none" stroke="${s.color}" stroke-width="2"/>${dots}${maxLabel}` : '';
   }).join('');
-  let goalSvg='';
-  if(goalPts){
+  const goalSvg=goals.map(g=>{
     let pathD='', lastIdx=-1, lastVal=null;
-    goalPts.forEach((v,i)=>{
+    g.pts.forEach((v,i)=>{
       if(v==null) return;
       pathD += (pathD?'L':'M')+x(i)+' '+y(v)+' ';
       lastIdx=i; lastVal=v;
     });
-    if(pathD){
-      goalSvg=`<path d="${pathD.trim()}" fill="none" stroke="${goalColor}" stroke-width="2" stroke-dasharray="4 3" opacity="0.7"/>`;
-      if(lastIdx>=0){
-        const ex=x(lastIdx), ey=y(lastVal);
-        goalSvg+=`<circle cx="${ex}" cy="${ey}" r="4" fill="var(--panel)" stroke="${goalColor}" stroke-width="2"/><text x="${ex-2}" y="${ey-10}" font-size="9" fill="${goalColor}" text-anchor="end">목표치 ${lastVal.toFixed(1)}kg</text>`;
-      }
+    if(!pathD) return '';
+    let svg=`<path d="${pathD.trim()}" fill="none" stroke="${g.color}" stroke-width="2" stroke-dasharray="4 3" opacity="0.7"/>`;
+    if(lastIdx>=0){
+      const ex=x(lastIdx), ey=y(lastVal);
+      svg+=`<circle cx="${ex}" cy="${ey}" r="4" fill="var(--panel)" stroke="${g.color}" stroke-width="2"/><text x="${ex-2}" y="${ey-10}" font-size="9" fill="${g.color}" text-anchor="end">목표치 ${lastVal.toFixed(1)}kg</text>`;
     }
-  }
+    return svg;
+  }).join('');
   const xLabels=dateList.map((d,i)=>{
     if(i%7!==0 && i!==totalDays-1 && i!==todayIdx) return '';
     const anchor = i===totalDays-1 ? 'end' : 'middle';
@@ -1644,7 +1649,7 @@ function renderWeightChart(keys, goalProjection){
     </div>
     <div class="row" style="gap:14px;margin-top:6px;align-items:center;">
       ${series.map(s=>`<span class="meta" style="display:flex;align-items:center;gap:4px;"><span style="width:9px;height:9px;border-radius:50%;background:${s.color};display:inline-block;"></span>${s.label}</span>`).join('')}
-      ${goalPts?`<span class="meta" style="display:flex;align-items:center;gap:4px;"><span style="width:14px;height:0;border-top:2px dashed ${goalColor};display:inline-block;"></span>목표선</span>`:''}
+      ${goals.map(g=>`<span class="meta" style="display:flex;align-items:center;gap:4px;"><span style="width:14px;height:0;border-top:2px dashed ${g.color};display:inline-block;"></span>${memberLabel(g.key)} 목표선</span>`).join('')}
     </div>
   `;
 }
@@ -2519,12 +2524,22 @@ function initViewAs(){
   document.getElementById('viewAsMomBtn').addEventListener('click', ()=>setViewAs('mom'));
   document.getElementById('viewAsDaughterBtn').addEventListener('click', ()=>setViewAs('daughter'));
 }
-function initShowCommonToggle(){
-  document.getElementById('showCommonToggle').addEventListener('change', e=>{
+function bindShowCommonToggle(id){
+  const el=document.getElementById(id);
+  if(!el) return;
+  el.addEventListener('change', e=>{
     showCommonOnHome=e.target.checked;
     renderHome();
     renderSchedule();
   });
+}
+function updateWorldClock(){
+  const el=document.getElementById('worldClock');
+  if(!el) return;
+  const now=new Date();
+  const kr=now.toLocaleTimeString('ko-KR',{timeZone:'Asia/Seoul',hour:'2-digit',minute:'2-digit',hour12:false});
+  const uk=now.toLocaleTimeString('ko-KR',{timeZone:'Europe/London',hour:'2-digit',minute:'2-digit',hour12:false});
+  el.textContent = `🇰🇷 ${kr} · 🇬🇧 ${uk}`;
 }
 
 /* ---------- init ---------- */
@@ -2535,6 +2550,7 @@ function renderAll(){
 }
 initTheme();
 initViewAs();
-initShowCommonToggle();
 initAuth();
+updateWorldClock();
+setInterval(updateWorldClock, 10000);
 renderAll();

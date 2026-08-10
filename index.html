@@ -167,7 +167,10 @@ input.date-input{cursor:pointer;background:var(--panel2) url('data:image/svg+xml
 <div class="wrap">
   <header class="top">
     <div class="brand">
-      <div class="name">AHHA Fam 💗</div>
+      <div class="row" style="align-items:baseline;gap:8px;">
+        <div class="name">AHHA Fam 💗</div>
+        <span id="worldClock" class="sub" style="margin:0;"></span>
+      </div>
       <div class="sub">하루하루를 담다</div>
     </div>
     <div class="header-right">
@@ -180,17 +183,14 @@ input.date-input{cursor:pointer;background:var(--panel2) url('data:image/svg+xml
     </div>
   </header>
 
-  <div style="display:flex;align-items:center;gap:8px;">
-    <nav class="tabs" id="tabs" style="flex:1;min-width:0;">
-      <button data-tab="home" class="active">홈</button>
-      <button data-tab="schedule">일정</button>
-      <button data-tab="health">건강</button>
-      <button data-tab="budget">가계부</button>
-      <button data-tab="vehicle">차량</button>
-      <button data-tab="events">경조사</button>
-    </nav>
-    <label class="pill" id="showCommonLabel" style="cursor:pointer;flex-shrink:0;white-space:nowrap;"><input type="checkbox" id="showCommonToggle" style="margin-right:4px;">가족공통</label>
-  </div>
+  <nav class="tabs" id="tabs">
+    <button data-tab="home" class="active">홈</button>
+    <button data-tab="schedule">일정</button>
+    <button data-tab="health">건강</button>
+    <button data-tab="budget">가계부</button>
+    <button data-tab="vehicle">차량</button>
+    <button data-tab="events">경조사</button>
+  </nav>
 
   <div id="tab-home"></div>
   <div id="tab-schedule" style="display:none"></div>
@@ -207,7 +207,7 @@ input.date-input{cursor:pointer;background:var(--panel2) url('data:image/svg+xml
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-<script src="firebase-config.js?v=20260810j"></script>
-<script src="app.js?v=20260810j"></script>
+<script src="firebase-config.js?v=20260810k"></script>
+<script src="app.js?v=20260810k"></script>
 </body>
 </html>
