@@ -576,7 +576,7 @@ function headerDateHtml(dateStr){
   if(isHoliday || dow===0) color='var(--weekend-sun)';
   else if(dow===6) color='var(--weekend-sat)';
   const dateHtml = color ? `<span style="color:${color};">${fmtShortDateDow(dateStr)}</span>` : fmtShortDateDow(dateStr);
-  if(isToday) return `<div style="line-height:1.25;"><div style="font-weight:700;">Today</div><div>${dateHtml}</div></div>`;
+  if(isToday) return `<div style="line-height:1.4;"><div><span style="display:inline-block;background:#000;color:#fff;border-radius:999px;padding:1px 8px;font-size:10px;font-weight:700;">Today</span></div><div>${dateHtml}</div></div>`;
   return dateHtml;
 }
 /* ---------- HOME ---------- */
