@@ -555,6 +555,8 @@ function renderTabs(){
     const el=document.getElementById('tab-'+k);
     if(el) el.style.display = (k===activeTab) ? '' : 'none';
   });
+  const showCommonLabel=document.getElementById('showCommonLabel');
+  if(showCommonLabel) showCommonLabel.style.display = ['study','health','budget'].includes(activeTab) ? 'none' : '';
 }
 document.getElementById('tabs').addEventListener('click', e=>{
   const btn=e.target.closest('button[data-tab]'); if(!btn) return;
@@ -959,6 +961,8 @@ function renderHome(){
         <input type="text" readonly class="date-input" id="newTodoDue" placeholder="D-day" style="width:110px;flex-shrink:0;" value="">
       </div>
     </div>
+
+    ${achievementLogHtml()}
 
     <div class="stat-grid">
       <div class="stat"><div class="v">${todaySchedule.length}</div><div class="l">오늘 일정</div></div>
@@ -1587,7 +1591,7 @@ function renderWeightChart(keys, extraLegendHtml, goalProjection){
       dots+=`<circle class="wt-point" data-tip="${escapeHtml(s.label)} ${v}kg (${dateList[i].slice(5)})" cx="${px}" cy="${py}" r="4" fill="${s.color}" style="cursor:pointer;"/>`;
       if(v>maxVal){ maxVal=v; maxIdx=i; }
     });
-    const maxLabel = maxIdx>=0 ? `<text x="${x(maxIdx)}" y="${y(maxVal)-8}" font-size="9" fill="${s.color}" text-anchor="middle" font-weight="700">${dateList[maxIdx].slice(5)} ${maxVal}kg</text>` : '';
+    const maxLabel = maxIdx>=0 ? `<text x="${x(maxIdx)}" y="${y(maxVal)-20}" font-size="9" fill="${s.color}" text-anchor="middle"><tspan x="${x(maxIdx)}" dy="0">${dateList[maxIdx].slice(5)}</tspan><tspan x="${x(maxIdx)}" dy="11">${maxVal}kg</tspan></text>` : '';
     return pathD ? `<path d="${pathD.trim()}" fill="none" stroke="${s.color}" stroke-width="2"/>${dots}${maxLabel}` : '';
   }).join('');
   let goalSvg='';
@@ -1881,13 +1885,24 @@ function gamificationFlags(key){
   if(!state.gamification[key].weightGoalCelebrated) state.gamification[key].weightGoalCelebrated={target:false,finalTarget:false};
   return state.gamification[key];
 }
+const ENCOURAGE_LINES=['정말 잘하고 있어요! 💪','꾸준함이 최고의 무기예요 🌟','오늘도 한 걸음 더 나아갔어요 👏','이 페이스 그대로 쭉 가봐요! 🔥'];
 function celebrate(title, message){
+  const sub=ENCOURAGE_LINES[Math.floor(Math.random()*ENCOURAGE_LINES.length)];
+  const logKey=effectiveRole()||currentAuthorKey();
+  if(logKey){
+    if(!state.achievementLog) state.achievementLog={};
+    if(!state.achievementLog[logKey]) state.achievementLog[logKey]=[];
+    state.achievementLog[logKey].push({date:todayStr(), message, sub});
+    if(state.achievementLog[logKey].length>20) state.achievementLog[logKey]=state.achievementLog[logKey].slice(-20);
+    queueSave();
+  }
   openModal(`
     <div style="text-align:center;padding:20px 10px;position:relative;overflow:hidden;">
       <div class="confetti-burst">${Array.from({length:24},(_,i)=>`<span class="confetti-piece" style="--i:${i};--hue:${(i*47)%360};"></span>`).join('')}</div>
       <div style="font-size:40px;">🎉</div>
       <h3 style="margin:10px 0 4px;">${title}</h3>
       <div style="font-size:14px;color:var(--text);">${message}</div>
+      <div style="font-size:13px;color:var(--muted);margin-top:6px;">${sub}</div>
       <button class="btn primary" style="margin-top:16px;" id="celebrateCloseBtn">좋아요!</button>
     </div>
   `);
@@ -1973,6 +1988,20 @@ function currentStreak(key){
   const todayLogged = !!(todayArr && todayArr.some(v=>v!==''));
   return { streak: todayLogged ? streakThroughYesterday+1 : streakThroughYesterday, todayLogged };
 }
+function achievementLogHtml(){
+  const key=effectiveRole()||currentAuthorKey();
+  const log=(state.achievementLog && state.achievementLog[key]) || [];
+  if(!log.length) return '';
+  return `
+    <div class="card">
+      <h3>🎉 최근 성취</h3>
+      ${log.slice(-5).reverse().map(e=>`
+        <div class="list-item">
+          <div><div class="content-text">${escapeHtml(e.message)}</div><div class="meta" style="margin-top:2px;">${escapeHtml(e.sub)}</div></div>
+        </div>`).join('')}
+    </div>
+  `;
+}
 
 /* ---------- STUDY ---------- */
 function studyBlocksFor(authorKey, dateStr){
@@ -1994,6 +2023,11 @@ function weekRangeContaining(dateStr){
   const d=parseDate(dateStr);
   const start=addDays(d,-d.getDay());
   return Array.from({length:7},(_,i)=>fmtDate(addDays(start,i)));
+}
+function weekAgoLabel(i){
+  if(i===0) return 'This Week';
+  if(i===1) return 'Last Week';
+  return `${i} Weeks Ago`;
 }
 function weeklyLogRows(key){
   const rows=[];
@@ -2040,8 +2074,7 @@ function renderStudy(){
     const gap = i>0 ? '<th class="dt-gap"></th>' : '';
     const isFirst = i===0;
     const isLast = i===days.length-1;
-    const label = labels[i] ? labels[i]+' · ' : '';
-    const dateText = `${label}${fmtShortDateDow(d)}`;
+    const dateText = labels[i]==='Today' ? 'Today' : `${labels[i]?labels[i]+' · ':''}${fmtShortDateDow(d)}`;
     const prevBtn = isFirst ? `<button class="iconbtn" id="studyPrevBtn" style="font-size:13px;width:20px;height:20px;flex-shrink:0;">◀</button>` : '';
     const nextBtn = (isLast && showNext) ? `<button class="iconbtn" id="studyNextBtn" style="font-size:13px;width:20px;height:20px;flex-shrink:0;">▶</button>` : '';
     const justify = isFirst ? 'flex-start' : isLast ? 'flex-end' : 'center';
@@ -2076,7 +2109,8 @@ function renderStudy(){
           <tbody>
             ${logRows.map((w,i)=>`
               <tr>
-                <td style="white-space:nowrap;padding:4px 10px 4px 0;font-weight:${i===0?'700':'400'};color:${i===0?'var(--text)':'var(--muted)'};">${i===0?'📅 This Week':''}</td>
+                <td style="width:18px;padding:4px 2px 4px 0;">${i===0?'📅':''}</td>
+                <td style="white-space:nowrap;padding:4px 10px 4px 0;font-weight:${i===0?'700':'400'};color:${i===0?'var(--text)':'var(--muted)'};">${weekAgoLabel(i)}</td>
                 <td style="white-space:nowrap;padding:4px 10px;color:var(--muted);">(${w.start.slice(5)} ~ ${w.end.slice(5)})</td>
                 <td style="padding:4px 0;white-space:nowrap;">총 ${fmtStudyMin(w.study+w.exercise)}(학습 ${fmtStudyMin(w.study)} / 운동 ${fmtStudyMin(w.exercise)})</td>
               </tr>`).join('')}
