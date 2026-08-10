@@ -735,14 +735,13 @@ function renderDayTimelines(){
     }).join('');
     rows += `<tr class="${meta.isEdge?'dt-edge-row':''}"><td class="dt-time-col">${meta.label}</td>${cells}</tr>`;
   });
-  const showPrev = dtAnchor!==todayStr();
   const headCells = days.map((d,i)=>{
     const gap = i>0 ? '<th class="dt-gap"></th>' : '';
     const isFirst = i===0;
     const isLast = i===days.length-1;
     const label = homeDayLabel(d);
     const dateText = `${label?label+' · ':''}${fmtShortDateDow(d)}`;
-    const prevBtn = (isFirst && showPrev) ? `<button class="iconbtn" id="dtPrevBtn" style="font-size:13px;width:20px;height:20px;flex-shrink:0;">◀</button>` : '';
+    const prevBtn = isFirst ? `<button class="iconbtn" id="dtPrevBtn" style="font-size:13px;width:20px;height:20px;flex-shrink:0;">◀</button>` : '';
     const nextBtn = isLast ? `<button class="iconbtn" id="dtNextBtn" style="font-size:13px;width:20px;height:20px;flex-shrink:0;">▶</button>` : '';
     const justify = isFirst ? 'flex-start' : isLast ? 'flex-end' : 'center';
     return gap+`<th><div class="row" style="justify-content:${justify};flex-wrap:nowrap;gap:4px;">${prevBtn}${dateText}${nextBtn}</div></th>`;
@@ -1338,6 +1337,36 @@ function openScheduleModal(existing, prefill){
 
 /* ---------- HEALTH ---------- */
 const FAMILY_MEMBERS=[{key:'dad',label:'아빠'},{key:'mom',label:'엄마'},{key:'daughter',label:'딸'}];
+const MEAL_TYPES=['아침','점심','저녁','간식'];
+const MEAL_AMOUNTS=['조금 적게','적당하게','조금 많이','너무 많이'];
+function openMealEditModal(id){
+  const meals=(state.daily[healthDate] && state.daily[healthDate].health && state.daily[healthDate].health[healthPerson] && state.daily[healthDate].health[healthPerson].meals) || [];
+  const m=meals.find(x=>x.id===id);
+  if(!m) return;
+  openModal(`
+    <h3>식단 기록 수정</h3>
+    <div class="field"><label>식사 종류</label>
+      <div class="row" style="gap:6px;">
+        ${MEAL_TYPES.map(t=>`<label class="pill" style="cursor:pointer;"><input type="radio" name="mMealType" value="${t}" ${m.mealType===t?'checked':''} style="margin-right:4px;">${t}</label>`).join('')}
+      </div>
+    </div>
+    <div class="field"><label>내용</label><input id="mMealContent" value="${escapeHtml(m.content)}"></div>
+    <div class="field"><label>양</label><select id="mMealAmount">${MEAL_AMOUNTS.map(a=>`<option ${m.amount===a?'selected':''}>${a}</option>`).join('')}</select></div>
+    <div class="modal-actions"><button class="btn danger" id="mDelete">삭제</button><button class="btn" id="mCancel">취소</button><button class="btn primary" id="mSave">저장</button></div>
+  `);
+  document.getElementById('mCancel').onclick=closeModal;
+  document.getElementById('mSave').onclick=()=>{
+    m.mealType=(document.querySelector('input[name="mMealType"]:checked')||{}).value||m.mealType;
+    m.content=document.getElementById('mMealContent').value;
+    m.amount=document.getElementById('mMealAmount').value;
+    queueSave(); closeModal(); renderHealth();
+  };
+  document.getElementById('mDelete').onclick=()=>{
+    if(!confirm('삭제할까요?')) return;
+    state.daily[healthDate].health[healthPerson].meals=meals.filter(x=>x.id!==id);
+    queueSave(); closeModal(); renderHealth();
+  };
+}
 const EMAIL_ROLE={'juseok.ha@gmail.com':'dad','jinahkim2023@gmail.com':'mom','loraha5416@gmail.com':'daughter'};
 let healthDate = todayStr();
 let healthPerson = null;
@@ -1401,6 +1430,7 @@ function renderHealth(){
   healthPerson = effectiveRole() || 'mom';
   const day=state.daily[healthDate]||{};
   const rec=(day.health&&day.health[healthPerson])||{};
+  const mealList=(rec.meals||[]).slice().sort((a,b)=>a.time.localeCompare(b.time));
   const el=document.getElementById('tab-health');
   const dLabel = parseDate(healthDate).toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'});
   const schedList = ((state.healthSchedule&&state.healthSchedule[healthPerson])||[]).map(it=>({...it,d:dday(it.date)})).sort((a,b)=>a.d-b.d);
@@ -1444,6 +1474,28 @@ function renderHealth(){
       <div class="field" style="margin-top:8px;">
         <label>Activity Comment</label>
         <textarea id="hSymptom" placeholder="컨디션, 증상 등을 기록해보세요" style="overflow:hidden;">${escapeHtml(rec.symptom)}</textarea>
+      </div>
+      <div class="field" style="margin-top:8px;">
+        <div class="row" style="justify-content:space-between;align-items:center;">
+          <label style="margin:0;">식단 기록</label>
+          <div class="row" style="gap:6px;">
+            ${MEAL_TYPES.map((t,i)=>`<label class="pill" style="cursor:pointer;"><input type="radio" name="mealTypeDraft" value="${t}" ${i===0?'checked':''} style="margin-right:4px;">${t}</label>`).join('')}
+          </div>
+        </div>
+        <div class="row" style="gap:8px;margin-top:6px;flex-wrap:wrap;">
+          <input id="mealContentInput" placeholder="어디서 무엇을 먹었는지" style="flex:1;min-width:140px;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:13px;">
+          <select id="mealAmountInput" style="background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:13px;">
+            ${MEAL_AMOUNTS.map(a=>`<option>${a}</option>`).join('')}
+          </select>
+          <button class="btn small primary" id="addMealBtn">추가</button>
+        </div>
+        <div style="margin-top:8px;">
+          ${mealList.length? mealList.map(mEntry=>`
+            <div class="list-item">
+              <div class="content-text">${mEntry.time} ${mEntry.mealType} · ${escapeHtml(mEntry.content)} · ${mEntry.amount}</div>
+              <button class="icon-btn" data-edit-meal="${mEntry.id}" title="수정">✏️</button>
+            </div>`).join('') : `<div class="empty">아직 기록된 식단이 없어요</div>`}
+        </div>
       </div>
       <div class="field" style="margin-top:8px;">
         <label>Network (오늘 만난 사람 등)</label>
@@ -1515,6 +1567,21 @@ function renderHealth(){
     const now=new Date();
     document.getElementById('healthSaveStatus').textContent = `✓ 저장됨 (${now.getHours()}:${pad2(now.getMinutes())})`;
   };
+  document.getElementById('addMealBtn').onclick=()=>{
+    const content=document.getElementById('mealContentInput').value.trim();
+    if(!content){ showToast('내용을 입력해주세요'); return; }
+    const mealType=(document.querySelector('input[name="mealTypeDraft"]:checked')||{}).value||MEAL_TYPES[0];
+    const amount=document.getElementById('mealAmountInput').value;
+    const now=new Date();
+    const entry={id:uid(), time:pad2(now.getHours())+':'+pad2(now.getMinutes()), mealType, content, amount};
+    ensureDay(healthDate);
+    if(!state.daily[healthDate].health) state.daily[healthDate].health={};
+    if(!state.daily[healthDate].health[healthPerson]) state.daily[healthDate].health[healthPerson]={};
+    if(!state.daily[healthDate].health[healthPerson].meals) state.daily[healthDate].health[healthPerson].meals=[];
+    state.daily[healthDate].health[healthPerson].meals.push(entry);
+    queueSave(); renderHealth();
+  };
+  el.querySelectorAll('[data-edit-meal]').forEach(b=>b.onclick=()=>openMealEditModal(b.dataset.editMeal));
   const addHealthSchedBtn=document.getElementById('addHealthSchedBtn');
   if(addHealthSchedBtn) addHealthSchedBtn.onclick=()=>openHealthSchedModal();
   el.querySelectorAll('[data-edit-hsched]').forEach(b=>b.onclick=()=>openHealthSchedModal((state.healthSchedule[healthPerson]||[]).find(x=>x.id===b.dataset.editHsched)));
@@ -2533,13 +2600,15 @@ function bindShowCommonToggle(id){
     renderSchedule();
   });
 }
+const FLAG_KR_SVG=`<svg width="14" height="10" viewBox="0 0 16 11" style="vertical-align:-1px;"><rect width="16" height="11" fill="#fff"/><circle cx="8" cy="5.5" r="3" fill="#c60c30"/><path d="M8 2.5a3 3 0 0 0 0 6 1.5 1.5 0 0 1 0-3 1.5 1.5 0 0 0 0-3z" fill="#003478"/></svg>`;
+const FLAG_GB_SVG=`<svg width="14" height="10" viewBox="0 0 16 11" style="vertical-align:-1px;"><rect width="16" height="11" fill="#00247d"/><path d="M0,0 L16,11 M16,0 L0,11" stroke="#fff" stroke-width="2.2"/><path d="M0,0 L16,11 M16,0 L0,11" stroke="#cf142b" stroke-width="1.1"/><path d="M8,0 V11 M0,5.5 H16" stroke="#fff" stroke-width="3.6"/><path d="M8,0 V11 M0,5.5 H16" stroke="#cf142b" stroke-width="2.2"/></svg>`;
 function updateWorldClock(){
   const el=document.getElementById('worldClock');
   if(!el) return;
   const now=new Date();
   const kr=now.toLocaleTimeString('ko-KR',{timeZone:'Asia/Seoul',hour:'2-digit',minute:'2-digit',hour12:false});
   const uk=now.toLocaleTimeString('ko-KR',{timeZone:'Europe/London',hour:'2-digit',minute:'2-digit',hour12:false});
-  el.textContent = `🇰🇷 ${kr} · 🇬🇧 ${uk}`;
+  el.innerHTML = `${FLAG_KR_SVG} ${kr} · ${FLAG_GB_SVG} ${uk}`;
 }
 
 /* ---------- init ---------- */
