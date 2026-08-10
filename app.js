@@ -577,8 +577,11 @@ function weekdayColor(dateStr){
 function headerDateHtml(dateStr){
   const isToday = dateStr===todayStr();
   const color=weekdayColor(dateStr);
+  const holidays=getHolidaysForViewer(parseDate(dateStr).getFullYear());
+  const holidayName=holidays[dateStr];
   const dateHtml = color ? `<span style="color:${color};">${fmtShortDateDow(dateStr)}</span>` : fmtShortDateDow(dateStr);
-  if(isToday) return `<div style="line-height:1.4;"><div><span style="display:inline-block;background:#000;color:#fff;border-radius:999px;padding:1px 8px;font-size:10px;font-weight:700;">Today</span></div><div>${dateHtml}</div></div>`;
+  const badgeText = holidayName || (isToday ? 'Today' : '');
+  if(badgeText) return `<div style="line-height:1.4;"><div><span style="display:inline-block;background:#000;color:#fff;border-radius:999px;padding:1px 8px;font-size:10px;font-weight:700;white-space:nowrap;">${escapeHtml(badgeText)}</span></div><div>${dateHtml}</div></div>`;
   return dateHtml;
 }
 /* ---------- HOME ---------- */
@@ -1380,6 +1383,14 @@ let healthPerson = null;
 let weightChartOthers = [];
 let showActivityTrend = false;
 function memberLabel(key){ const m=FAMILY_MEMBERS.find(x=>x.key===key); return m?m.label:key; }
+function calcHourDiff(startHHMM, endHHMM){
+  if(!startHHMM || !endHHMM) return null;
+  const [sh,sm]=startHHMM.split(':').map(Number);
+  const [eh,em]=endHHMM.split(':').map(Number);
+  let startMin=sh*60+sm, endMin=eh*60+em;
+  if(endMin<=startMin) endMin+=24*60;
+  return Math.round(((endMin-startMin)/60)*10)/10;
+}
 function weightGoalsFor(key){
   if(!state.weightGoals) state.weightGoals={};
   if(!state.weightGoals[key]) state.weightGoals[key]={target:'',weeklyLoss:'',finalTarget:''};
@@ -1475,16 +1486,36 @@ function renderHealth(){
         <button class="icon-btn" id="toggleActivityTrendBtn" title="추이 그래프">📈</button>
         <button class="btn small primary" id="healthSaveBtn">저장</button>
       </div>
-      <div class="grid4">
+      <div class="grid2">
         <div class="field"><label>체중 (kg)</label><input type="number" step="0.1" id="hWeight" value="${rec.weight||''}"></div>
-        <div class="field"><label>수면 시간</label><input type="number" step="0.5" id="hSleep" value="${rec.sleep||''}"></div>
-        <div class="field"><label>공복시간</label><input type="number" step="0.5" id="hFasting" value="${rec.fasting||''}"></div>
         <div class="field"><label>총칼로리 (kcal)</label><input type="number" step="10" id="hCalories" value="${rec.calories||''}"></div>
+      </div>
+      <div class="grid2" style="margin-top:10px;">
+        <div class="field">
+          <label>수면 시간 (취침 → 기상)</label>
+          <div class="row" style="gap:4px;flex-wrap:nowrap;">
+            <input type="time" id="hSleepStart" value="${rec.sleepStart||''}" style="flex:1;min-width:0;">
+            <input type="time" id="hSleepEnd" value="${rec.sleepEnd||''}" style="flex:1;min-width:0;">
+          </div>
+          <div class="meta" id="sleepCalcResult" style="margin-top:2px;">${rec.sleep?rec.sleep+'시간':''}</div>
+        </div>
+        <div class="field">
+          <label>공복시간 (Last Meal → First Meal)</label>
+          <div class="row" style="gap:4px;flex-wrap:nowrap;">
+            <input type="time" id="hLastMeal" value="${rec.lastMeal||''}" style="flex:1;min-width:0;">
+            <input type="time" id="hFirstMeal" value="${rec.firstMeal||''}" style="flex:1;min-width:0;">
+          </div>
+          <div class="meta" id="fastingCalcResult" style="margin-top:2px;">${rec.fasting?rec.fasting+'시간':''}</div>
+        </div>
       </div>
       ${showActivityTrend?renderActivityTrendPanel(healthPerson):''}
       <div class="field" style="margin-top:8px;">
         <label>Activity Comment</label>
         <textarea id="hSymptom" placeholder="컨디션, 증상 등을 기록해보세요" style="overflow:hidden;">${escapeHtml(rec.symptom)}</textarea>
+      </div>
+      <div class="field" style="margin-top:8px;">
+        <label>Network (오늘 만난 사람 등)</label>
+        <input id="hNetwork" placeholder="쉼표로 구분 (예: 홍길동, 김철수)" value="${escapeHtml(rec.network||'')}">
       </div>
       <div class="field" style="margin-top:8px;">
         <div class="row" style="justify-content:space-between;align-items:center;">
@@ -1507,10 +1538,6 @@ function renderHealth(){
               <button class="icon-btn" data-edit-meal="${mEntry.id}" title="수정">✏️</button>
             </div>`).join('') : `<div class="empty">아직 기록된 식단이 없어요</div>`}
         </div>
-      </div>
-      <div class="field" style="margin-top:8px;">
-        <label>Network (오늘 만난 사람 등)</label>
-        <input id="hNetwork" placeholder="쉼표로 구분 (예: 홍길동, 김철수)" value="${escapeHtml(rec.network||'')}">
       </div>
     </div>
     ${healthPerson!=='daughter'?`
@@ -1554,16 +1581,32 @@ function renderHealth(){
     if(newVal) checkWeightGoalReached(healthPerson, newVal);
     renderHealth();
   });
-  document.getElementById('hSleep').addEventListener('change',e=>save('sleep', e.target.value?Number(e.target.value):''));
-  document.getElementById('hFasting').addEventListener('change',e=>save('fasting', e.target.value?Number(e.target.value):''));
   document.getElementById('hCalories').addEventListener('change',e=>save('calories', e.target.value?Number(e.target.value):''));
   document.getElementById('hSymptom').addEventListener('change',e=>save('symptom', e.target.value));
   document.getElementById('hNetwork').addEventListener('change',e=>save('network', e.target.value));
+  const recalcSleep=()=>{
+    const s=document.getElementById('hSleepStart').value, en=document.getElementById('hSleepEnd').value;
+    save('sleepStart', s); save('sleepEnd', en);
+    const hrs=calcHourDiff(s, en);
+    save('sleep', hrs==null?'':hrs);
+    document.getElementById('sleepCalcResult').textContent = hrs!=null ? hrs+'시간' : '';
+  };
+  const recalcFasting=()=>{
+    const lm=document.getElementById('hLastMeal').value, fm=document.getElementById('hFirstMeal').value;
+    save('lastMeal', lm); save('firstMeal', fm);
+    const hrs=calcHourDiff(lm, fm);
+    save('fasting', hrs==null?'':hrs);
+    document.getElementById('fastingCalcResult').textContent = hrs!=null ? hrs+'시간' : '';
+  };
+  document.getElementById('hSleepStart').addEventListener('change', recalcSleep);
+  document.getElementById('hSleepEnd').addEventListener('change', recalcSleep);
+  document.getElementById('hLastMeal').addEventListener('change', recalcFasting);
+  document.getElementById('hFirstMeal').addEventListener('change', recalcFasting);
   const hSymptomEl=document.getElementById('hSymptom');
   const autoResize=()=>{ hSymptomEl.style.height='auto'; hSymptomEl.style.height=hSymptomEl.scrollHeight+'px'; };
   autoResize();
   hSymptomEl.addEventListener('input', autoResize);
-  ['hWeight','hSleep','hFasting','hCalories','hSymptom','hNetwork'].forEach(id=>{
+  ['hWeight','hSleepStart','hSleepEnd','hLastMeal','hFirstMeal','hCalories','hSymptom','hNetwork'].forEach(id=>{
     document.getElementById(id).addEventListener('input', ()=>{
       document.getElementById('healthSaveStatus').textContent='';
     });
@@ -1574,8 +1617,8 @@ function renderHealth(){
   };
   document.getElementById('healthSaveBtn').onclick=()=>{
     save('weight', document.getElementById('hWeight').value?Number(document.getElementById('hWeight').value):'');
-    save('sleep', document.getElementById('hSleep').value?Number(document.getElementById('hSleep').value):'');
-    save('fasting', document.getElementById('hFasting').value?Number(document.getElementById('hFasting').value):'');
+    recalcSleep();
+    recalcFasting();
     save('calories', document.getElementById('hCalories').value?Number(document.getElementById('hCalories').value):'');
     save('symptom', document.getElementById('hSymptom').value);
     save('network', document.getElementById('hNetwork').value);
