@@ -360,6 +360,14 @@ function migrateBudgetOwnership(st){
   });
   return st;
 }
+function resetWeeklyPaymentDataOnce(st){
+  if(!st.weeklyPaymentResetV2){
+    st.budget=(st.budget||[]).filter(b=>!b.paymentWeek);
+    st.weeklyPaymentStatus={};
+    st.weeklyPaymentResetV2=true;
+  }
+  return st;
+}
 function loadLocal(){
   try{
     const raw=localStorage.getItem(LS_KEY);
@@ -367,7 +375,7 @@ function loadLocal(){
       const parsed=JSON.parse(raw);
       const base=defaultState();
       base.vehicle=Object.assign(base.vehicle, parsed.vehicle||{});
-      return migrateBudgetOwnership(migrateTodos(migrateVehicle(migrateDaily(Object.assign(base, parsed, {vehicle:base.vehicle})))));
+      return resetWeeklyPaymentDataOnce(migrateBudgetOwnership(migrateTodos(migrateVehicle(migrateDaily(Object.assign(base, parsed, {vehicle:base.vehicle}))))));
     }
   }catch(e){}
   return defaultState();
@@ -489,7 +497,7 @@ function initAuth(){
           const data=doc.data();
           const base=defaultState();
           base.vehicle=Object.assign(base.vehicle, data.vehicle||{});
-          const cloudState=migrateBudgetOwnership(migrateTodos(migrateVehicle(migrateDaily(Object.assign(base, data, {vehicle:base.vehicle})))));
+          const cloudState=resetWeeklyPaymentDataOnce(migrateBudgetOwnership(migrateTodos(migrateVehicle(migrateDaily(Object.assign(base, data, {vehicle:base.vehicle}))))));
           state=mergeStates(localState, cloudState);
           await familyDocRef().set(state);
         } else {
@@ -1956,9 +1964,11 @@ function fmtCurrencyColored(v,cur){
   return Number(v)<0 ? `<span style="color:var(--bad);">${text}</span>` : text;
 }
 function ensureBudgetOwnershipMigrated(){
-  const before=JSON.stringify(state.budget);
+  const before=JSON.stringify(state.budget)+'|'+!!state.weeklyPaymentResetV2;
   migrateBudgetOwnership(state);
-  if(JSON.stringify(state.budget)!==before) queueSave();
+  resetWeeklyPaymentDataOnce(state);
+  const after=JSON.stringify(state.budget)+'|'+!!state.weeklyPaymentResetV2;
+  if(after!==before) queueSave();
 }
 function budgetCarryoverFor(key){
   if(!state.budgetCarryover) state.budgetCarryover={};
@@ -1997,16 +2007,17 @@ function weekActivityMinutes(key, weekDates){
     return acc+s.study+s.exercise;
   },0);
 }
+const WEEKLY_ALLOWANCE_KRW=200000, WEEKLY_ALLOWANCE_GBP=50;
 function weeklyPayableBreakdown(){
   const thisWeek=mondayWeekRange(todayStr());
   const lastWeek=mondayWeekRange(fmtDate(addDays(parseDate(todayStr()),-7)));
   const lastWeekMin=weekActivityMinutes('daughter', lastWeek);
   const gbpIncentive=Math.round((lastWeekMin/60)*2*100)/100;
-  const gbpAllowance=50;
+  const gbpAllowance=WEEKLY_ALLOWANCE_GBP;
   return {
     weekStart: thisWeek[0],
     weekEnd: thisWeek[6],
-    krw: 200000,
+    krw: WEEKLY_ALLOWANCE_KRW,
     gbpAllowance,
     gbpIncentive,
     gbpTotal: Math.round((gbpAllowance+gbpIncentive)*100)/100
@@ -2082,6 +2093,8 @@ function renderIncomeEstimateCard(){
   const thisWeekMin=weekActivityMinutes('daughter', thisWeek);
   const lastIncentive=Math.round((lastWeekMin/60)*2*100)/100;
   const thisIncentive=Math.round((thisWeekMin/60)*2*100)/100;
+  const lastGbpTotal=Math.round((WEEKLY_ALLOWANCE_GBP+lastIncentive)*100)/100;
+  const thisGbpTotal=Math.round((WEEKLY_ALLOWANCE_GBP+thisIncentive)*100)/100;
   const latestWeight = latestWeightFor('daughter');
   const milestones=[{w:49,bonus:20},{w:48,bonus:50},{w:45,bonus:100}];
   const myKey=currentAuthorKey();
@@ -2090,10 +2103,10 @@ function renderIncomeEstimateCard(){
   const unpaid=reached.filter(ms=>!loggedTexts.some(t=>t.includes(String(ms.w))));
   return `
     <div class="card">
-      <h3 style="font-size:13px;">💡 예상 수입 = 주급 ₩200,000 + 지난주(월~일) 운동시간 × £2 + Weight Incentive</h3>
+      <h3 style="font-size:13px;">💡 예상 수입 = 주급 ₩200,000 + 주급 £${WEEKLY_ALLOWANCE_GBP} + 지난주(월~일) 운동시간 × £2 + Weight Incentive</h3>
       <div style="margin-top:8px;margin-left:22px;font-size:13px;line-height:1.7;color:var(--muted);">
-        <div>✅ <b style="color:var(--accent);">이번 주 예상 수입</b>: 주급 ₩200,000 + 지난주(${lastWeek[0].slice(5)}~${lastWeek[6].slice(5)}) <b style="color:${SB_COLORS.exercise};">운동시간 ${fmtStudyMin(lastWeekMin)}</b> × £2 = <b style="color:var(--text);">₩200,000 + £${lastIncentive.toFixed(2)}</b></div>
-        <div style="margin-top:4px;">🔮 <b style="color:var(--accent2);">다음 주 예상 수입</b>: 주급 ₩200,000 + 이번주(${thisWeek[0].slice(5)}~${thisWeek[6].slice(5)}) <b style="color:${SB_COLORS.exercise};">운동시간 ${fmtStudyMin(thisWeekMin)}</b> × £2 = <b style="color:var(--text);">₩200,000 + £${thisIncentive.toFixed(2)}</b></div>
+        <div>✅ <b style="color:var(--accent);">이번 주 예상 수입</b>: 주급 ₩200,000 + 주급 £${WEEKLY_ALLOWANCE_GBP} + 지난주(${lastWeek[0].slice(5)}~${lastWeek[6].slice(5)}) <b style="color:${SB_COLORS.exercise};">운동시간 ${fmtStudyMin(lastWeekMin)}</b> × £2 = <b style="color:var(--text);">₩200,000 + £${lastGbpTotal.toFixed(2)}</b></div>
+        <div style="margin-top:4px;">🔮 <b style="color:var(--accent2);">다음 주 예상 수입</b>: 주급 ₩200,000 + 주급 £${WEEKLY_ALLOWANCE_GBP} + 이번주(${thisWeek[0].slice(5)}~${thisWeek[6].slice(5)}) <b style="color:${SB_COLORS.exercise};">운동시간 ${fmtStudyMin(thisWeekMin)}</b> × £2 = <b style="color:var(--text);">₩200,000 + £${thisGbpTotal.toFixed(2)}</b></div>
       </div>
       ${unpaid.length?`<div class="meta" style="margin-top:10px;color:var(--good);">🎉 체중 감량 목표 달성: ${unpaid.map(ms=>`${ms.w}kg 이하 → £${ms.bonus}`).join(', ')} (아직 수입 내역에 기록 안 됨)</div>`:''}
     </div>
@@ -2276,8 +2289,8 @@ function openBudgetModal(existing){
   };
 }
 function incomeCategoryDefaults(key, category){
-  if(category==='주급(토스)') return {amount:200000, currency:'KRW', memo:''};
-  if(category==='주급(로이드)') return {amount:50, currency:'GBP', memo:''};
+  if(category==='주급(토스)') return {amount:WEEKLY_ALLOWANCE_KRW, currency:'KRW', memo:''};
+  if(category==='주급(로이드)') return {amount:WEEKLY_ALLOWANCE_GBP, currency:'GBP', memo:''};
   if(category==='학습·운동 인센티브'){
     const lastWeek=mondayWeekRange(fmtDate(addDays(parseDate(todayStr()),-7)));
     const min=weekActivityMinutes(key, lastWeek);
