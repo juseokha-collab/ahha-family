@@ -1530,7 +1530,8 @@ function openWeightGoalModal(key){
   };
 }
 function latestWeightEntryFor(key){
-  const dates=Object.keys(state.daily).filter(d=>state.daily[d].health && state.daily[d].health[key] && state.daily[d].health[key].weight).sort();
+  const today=todayStr();
+  const dates=Object.keys(state.daily).filter(d=>d<=today && state.daily[d].health && state.daily[d].health[key] && state.daily[d].health[key].weight).sort();
   if(!dates.length) return null;
   const d=dates[dates.length-1];
   return {date:d, weight:Number(state.daily[d].health[key].weight)};
