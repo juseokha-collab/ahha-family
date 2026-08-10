@@ -1582,7 +1582,7 @@ function renderWeightChart(keys, goalProjection){
   let min=Math.min(...allVals), max=Math.max(...allVals);
   if(min===max){ min-=1; max+=1; }
   const pad=(max-min)*0.15; min-=pad; max+=pad;
-  const W=600,H=180,ML=32,MR=8,MT=28,MB=18;
+  const W=600,H=180,ML=32,MR=8,MT=28,MB=26;
   const plotW=W-ML-MR, plotH=H-MT-MB;
   const x=i=>ML+(i/(totalDays-1))*plotW;
   const y=v=>MT+plotH-((v-min)/(max-min))*plotH;
@@ -1617,7 +1617,7 @@ function renderWeightChart(keys, goalProjection){
       goalSvg=`<path d="${pathD.trim()}" fill="none" stroke="${goalColor}" stroke-width="2" stroke-dasharray="4 3" opacity="0.7"/>`;
       if(lastIdx>=0){
         const ex=x(lastIdx), ey=y(lastVal);
-        goalSvg+=`<circle cx="${ex}" cy="${ey}" r="4" fill="var(--panel)" stroke="${goalColor}" stroke-width="2"/><text x="${ex-8}" y="${ey+3}" font-size="9" fill="${goalColor}" text-anchor="end">목표치 ${lastVal.toFixed(1)}kg</text>`;
+        goalSvg+=`<circle cx="${ex}" cy="${ey}" r="4" fill="var(--panel)" stroke="${goalColor}" stroke-width="2"/><text x="${ex-14}" y="${ey+3}" font-size="9" fill="${goalColor}" text-anchor="end">목표치 ${lastVal.toFixed(1)}kg</text>`;
       }
     }
   }
@@ -1658,6 +1658,30 @@ function myIncomeCategories(){
   return state.incomeCategories[key];
 }
 function fmtCurrency(v,cur){ return cur==='GBP' ? '£'+Number(v).toLocaleString() : Number(v).toLocaleString()+'원'; }
+function budgetCarryoverFor(key){
+  if(!state.budgetCarryover) state.budgetCarryover={};
+  if(!state.budgetCarryover[key]) state.budgetCarryover[key]={KRW:0,GBP:0};
+  return state.budgetCarryover[key];
+}
+function openCarryoverModal(){
+  const key=currentAuthorKey();
+  const c=budgetCarryoverFor(key);
+  openModal(`
+    <h3>전월 이월 금액 설정</h3>
+    <div class="meta" style="margin-bottom:10px;">앱으로 기록하기 전까지의 잔액을 시작 금액으로 입력해두면 총잔액에 반영돼요.</div>
+    <div class="grid2">
+      <div class="field"><label>이월 금액 (원)</label><input type="number" id="mCarryKRW" value="${c.KRW}"></div>
+      <div class="field"><label>이월 금액 (£)</label><input type="number" id="mCarryGBP" value="${c.GBP}"></div>
+    </div>
+    <div class="modal-actions"><button class="btn" id="mCancel">취소</button><button class="btn primary" id="mSave">저장</button></div>
+  `);
+  document.getElementById('mCancel').onclick=closeModal;
+  document.getElementById('mSave').onclick=()=>{
+    c.KRW=Number(document.getElementById('mCarryKRW').value||0);
+    c.GBP=Number(document.getElementById('mCarryGBP').value||0);
+    queueSave(); closeModal(); renderBudget();
+  };
+}
 function mondayWeekRange(dateStr){
   const d=parseDate(dateStr);
   const dow=d.getDay();
@@ -1710,7 +1734,9 @@ function renderBudget(){
   const allIncomeByCur={KRW:0,GBP:0};
   state.budget.filter(b=>b.type==='income').forEach(b=>{ const cur=b.currency||'KRW'; allIncomeByCur[cur]=(allIncomeByCur[cur]||0)+Number(b.amount||0); });
   const allExpenseKRW = state.budget.filter(b=>b.type!=='income').reduce((s,b)=>s+Number(b.amount||0),0);
-  const totalBalanceKRW = allIncomeByCur.KRW - allExpenseKRW;
+  const carryover=budgetCarryoverFor(currentAuthorKey());
+  const totalBalanceKRW = carryover.KRW + allIncomeByCur.KRW - allExpenseKRW;
+  const totalBalanceGBP = carryover.GBP + allIncomeByCur.GBP;
   el.innerHTML=`
     <div class="card">
       <div class="datebar"><button class="iconbtn" id="bPrev">‹</button><div class="d">${y}년 ${Number(m)}월</div><button class="iconbtn" id="bNext">›</button></div>
@@ -1718,7 +1744,7 @@ function renderBudget(){
         <div class="stat"><div class="v">${total.toLocaleString()}원</div><div class="l">이번달 총 지출</div></div>
         <div class="stat"><div class="v">${incomeByCur.KRW.toLocaleString()}원${incomeByCur.GBP?' / £'+incomeByCur.GBP.toLocaleString():''}</div><div class="l">이번달 총 수입</div></div>
         <div class="stat"><div class="v">${monthBalanceKRW.toLocaleString()}원${incomeByCur.GBP?' / £'+incomeByCur.GBP.toLocaleString():''}</div><div class="l">이번달 잔액</div></div>
-        <div class="stat"><div class="v">${totalBalanceKRW.toLocaleString()}원${allIncomeByCur.GBP?' / £'+allIncomeByCur.GBP.toLocaleString():''}</div><div class="l">총잔액(전월 이월 포함)</div></div>
+        <div class="stat" id="totalBalanceStat" style="cursor:pointer;" title="클릭해서 전월 이월 금액 입력"><div class="v">${totalBalanceKRW.toLocaleString()}원${totalBalanceGBP?' / £'+totalBalanceGBP.toLocaleString():''}</div><div class="l">총잔액(전월 이월 포함)</div></div>
       </div>
     </div>
     ${isDaughter?renderIncomeEstimateCard():''}
@@ -1753,6 +1779,7 @@ function renderBudget(){
   `;
   document.getElementById('bPrev').onclick=()=>{ budgetMonth=shiftMonth(budgetMonth,-1); renderBudget(); };
   document.getElementById('bNext').onclick=()=>{ budgetMonth=shiftMonth(budgetMonth,1); renderBudget(); };
+  document.getElementById('totalBalanceStat').onclick=()=>openCarryoverModal();
   document.getElementById('addBudgetBtn').onclick=()=>openBudgetModal();
   document.getElementById('manageCatBtn').onclick=()=>openCategoryManageModal();
   document.getElementById('addIncomeBtn').onclick=()=>openIncomeModal();
@@ -1832,10 +1859,25 @@ function openBudgetModal(existing){
     queueSave(); closeModal(); renderBudget(); renderHome();
   };
 }
+function incomeCategoryDefaults(key, category){
+  if(category==='주급(토스)') return {amount:200000, currency:'KRW', memo:''};
+  if(category==='주급(로이드)') return {amount:50, currency:'GBP', memo:''};
+  if(category==='학습·운동 인센티브'){
+    const lastWeek=mondayWeekRange(fmtDate(addDays(parseDate(todayStr()),-7)));
+    const min=weekActivityMinutes(key, lastWeek);
+    const gbp=Math.round((min/60)*2*100)/100;
+    return {amount:gbp, currency:'GBP', memo:`지난주 ${pad2(Math.floor(min/60))}시 ${pad2(min%60)}분 달성! 💗`};
+  }
+  return null;
+}
 function openIncomeModal(existing){
   const myCats=myIncomeCategories();
   const b=existing||{id:null,date:budgetMonth+'-'+pad2(new Date().getDate()),category:myCats[0]||'기타',amount:'',currency:'KRW',memo:''};
   const catOptions = myCats.includes(b.category) ? myCats : myCats.concat([b.category]);
+  if(!existing){
+    const d=incomeCategoryDefaults(currentAuthorKey(), b.category);
+    if(d){ b.amount=d.amount; b.currency=d.currency; b.memo=d.memo; }
+  }
   openModal(`
     <h3>${existing?'수입 수정':'수입 추가'}</h3>
     <div class="field"><label>날짜</label><input type="text" readonly class="date-input" placeholder="YYYY-MM-DD" id="mDate" value="${b.date}"></div>
@@ -1849,6 +1891,16 @@ function openIncomeModal(existing){
   `);
   document.getElementById('mCancel').onclick=closeModal;
   attachDatePicker('mDate');
+  if(!existing){
+    document.getElementById('mCat').addEventListener('change', e=>{
+      const d=incomeCategoryDefaults(currentAuthorKey(), e.target.value);
+      if(d){
+        document.getElementById('mAmount').value=d.amount;
+        document.getElementById('mCurrency').value=d.currency;
+        document.getElementById('mMemo').value=d.memo;
+      }
+    });
+  }
   document.getElementById('mSave').onclick=()=>{
     const date=document.getElementById('mDate').value;
     const amount=Number(document.getElementById('mAmount').value||0);
@@ -2439,6 +2491,12 @@ function updateViewAsButtons(){
   const daughterBtn=document.getElementById('viewAsDaughterBtn');
   if(momBtn) momBtn.classList.toggle('active', viewAsOverride==='mom');
   if(daughterBtn) daughterBtn.classList.toggle('active', viewAsOverride==='daughter');
+  const hideWhileDaughter=viewAsOverride==='daughter';
+  const authArea=document.getElementById('authArea');
+  const themeToggle=document.getElementById('themeToggle');
+  if(authArea) authArea.style.display = hideWhileDaughter ? 'none' : '';
+  if(themeToggle) themeToggle.style.display = hideWhileDaughter ? 'none' : '';
+  if(momBtn) momBtn.style.display = hideWhileDaughter ? 'none' : '';
 }
 function setViewAs(role){
   viewAsOverride = viewAsOverride===role ? null : role;
