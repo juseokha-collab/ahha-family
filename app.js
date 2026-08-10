@@ -574,6 +574,7 @@ let homeDate = todayStr();
 let dtAnchor = todayStr();
 const MOODS=['😊','🥰','🙂','😐','😫','😢','😠','🤒'];
 let diaryArchiveOpen=false;
+let diaryArchiveIncludeFamily=false;
 function myVisibleScheduleItems(dateStr){
   const allowed=getAllowedScheduleFilters();
   const virtualEventItems=state.events
@@ -928,7 +929,10 @@ function renderHome(){
           </div>
         </div>
         <textarea id="diaryInput" placeholder="오늘 하루는 어땠나요?">${escapeHtml(mine.diary)}</textarea>
-        <label id="diaryArchiveToggle" style="cursor:pointer;margin-top:8px;display:inline-block;">${diaryArchiveOpen?'▲':'▼'} Comment 모아보기</label>
+        <div class="row" style="justify-content:space-between;align-items:center;margin-top:8px;">
+          <label id="diaryArchiveToggle" style="cursor:pointer;">${diaryArchiveOpen?'▲':'▼'} Comment 모아보기</label>
+          ${diaryArchiveOpen?`<label class="pill" style="cursor:pointer;"><input type="checkbox" id="diaryArchiveFamilyToggle" ${diaryArchiveIncludeFamily?'checked':''} style="margin-right:4px;">가족 Comment 포함</label>`:''}
+        </div>
         ${diaryArchiveOpen?`<div id="diaryArchiveBox" style="margin-top:6px;">${diaryArchiveRowsHtml()}</div>`:''}
       </div>
     </div>
@@ -964,6 +968,7 @@ function renderHome(){
 
     ${achievementLogHtml()}
 
+    ${effectiveRole()!=='daughter'?`
     <div class="stat-grid">
       <div class="stat"><div class="v">${todaySchedule.length}</div><div class="l">오늘 일정</div></div>
       <div class="stat"><div class="v">${monthBudget.toLocaleString()}원</div><div class="l">이번달 지출</div></div>
@@ -974,7 +979,7 @@ function renderHome(){
     <div class="card">
       <h3>📅 오늘 일정</h3>
       ${todaySchedule.length? todaySchedule.map(s=>`<div class="list-item"><div><div>${timeRangeLabel(s)?`<b>${timeRangeLabel(s)}</b> `:''}${escapeHtml(s.title)}</div>${s.memo?`<div class="content-text">${escapeHtml(s.memo)}</div>`:''}</div></div>`).join('') : `<div class="empty">등록된 일정이 없어요</div>`}
-    </div>
+    </div>`:''}
   `;
   document.getElementById('homePrev').onclick=()=>{ homeDate=fmtDate(addDays(parseDate(homeDate),-1)); renderHome(); };
   document.getElementById('homeNext').onclick=()=>{ homeDate=fmtDate(addDays(parseDate(homeDate),1)); renderHome(); };
@@ -1008,6 +1013,10 @@ function renderHome(){
     renderHome();
   };
   if(diaryArchiveOpen){
+    document.getElementById('diaryArchiveFamilyToggle').addEventListener('change', e=>{
+      diaryArchiveIncludeFamily=e.target.checked;
+      renderHome();
+    });
     document.querySelectorAll('[data-jump]').forEach(row=>row.onclick=()=>{
       homeDate=row.dataset.jump; diaryArchiveOpen=false; renderHome();
     });
@@ -1037,16 +1046,17 @@ function renderHome(){
   bindDayTimelineEvents();
 }
 function diaryArchiveRowsHtml(){
+  const myKey=currentAuthorKey();
   const rows=[];
   Object.keys(state.daily).sort().reverse().forEach(d=>{
     const entries=(state.daily[d]||{}).entries||{};
     Object.keys(entries).forEach(k=>{
       const e=entries[k];
+      if(!diaryArchiveIncludeFamily && k!==myKey) return;
       if(e && (e.mood || e.diary)) rows.push({date:d, key:k, ...e});
     });
   });
   if(!rows.length) return `<div class="empty">아직 작성된 Comment가 없어요</div>`;
-  const myKey=currentAuthorKey();
   return rows.map(r=>`
     <div class="list-item" data-jump="${r.date}" style="cursor:pointer;">
       <div>
@@ -1571,7 +1581,7 @@ function renderWeightChart(keys, extraLegendHtml, goalProjection){
   let min=Math.min(...allVals), max=Math.max(...allVals);
   if(min===max){ min-=1; max+=1; }
   const pad=(max-min)*0.15; min-=pad; max+=pad;
-  const W=600,H=180,ML=32,MR=8,MT=8,MB=18;
+  const W=600,H=180,ML=32,MR=8,MT=28,MB=18;
   const plotW=W-ML-MR, plotH=H-MT-MB;
   const x=i=>ML+(i/(totalDays-1))*plotW;
   const y=v=>MT+plotH-((v-min)/(max-min))*plotH;
@@ -1606,7 +1616,7 @@ function renderWeightChart(keys, extraLegendHtml, goalProjection){
       goalSvg=`<path d="${pathD.trim()}" fill="none" stroke="${goalColor}" stroke-width="2" stroke-dasharray="4 3" opacity="0.7"/>`;
       if(lastIdx>=0){
         const ex=x(lastIdx), ey=y(lastVal);
-        goalSvg+=`<circle cx="${ex}" cy="${ey}" r="4" fill="var(--panel)" stroke="${goalColor}" stroke-width="2"/><text x="${ex-6}" y="${ey-8}" font-size="9" fill="${goalColor}" text-anchor="end" font-weight="700">${lastVal.toFixed(1)}kg</text>`;
+        goalSvg+=`<circle cx="${ex}" cy="${ey}" r="4" fill="var(--panel)" stroke="${goalColor}" stroke-width="2"/><text x="${ex-4}" y="${ey-20}" font-size="9" fill="${goalColor}" text-anchor="end"><tspan x="${ex-4}" dy="0">목표치</tspan><tspan x="${ex-4}" dy="11">${lastVal.toFixed(1)}kg</tspan></text>`;
       }
     }
   }
@@ -1885,10 +1895,9 @@ function gamificationFlags(key){
   if(!state.gamification[key].weightGoalCelebrated) state.gamification[key].weightGoalCelebrated={target:false,finalTarget:false};
   return state.gamification[key];
 }
-const ENCOURAGE_LINES=['정말 잘하고 있어요! 💪','꾸준함이 최고의 무기예요 🌟','오늘도 한 걸음 더 나아갔어요 👏','이 페이스 그대로 쭉 가봐요! 🔥'];
 function celebrate(title, message){
-  const sub=ENCOURAGE_LINES[Math.floor(Math.random()*ENCOURAGE_LINES.length)];
   const logKey=effectiveRole()||currentAuthorKey();
+  const sub = logKey==='daughter' ? '우리딸💗 정말 잘하고 있어요! 💪' : '정말 잘하고 있어요! 💪';
   if(logKey){
     if(!state.achievementLog) state.achievementLog={};
     if(!state.achievementLog[logKey]) state.achievementLog[logKey]=[];
