@@ -808,7 +808,7 @@ function myHomeVisibleScheduleItems(dateStr){
   return visible.filter(it=>scheduleItemOccursOn(it,dateStr)).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
 }
 function renderDayTimelines(){
-  const days=[0,1,2].map(n=>fmtDate(addDays(parseDate(dtAnchor), n)));
+  const days=[0,1].map(n=>fmtDate(addDays(parseDate(dtAnchor), n)));
   const layouts=days.map(d=>computeDayLayoutFromItems(myHomeVisibleScheduleItems(d)));
   const indices=[-1].concat(Array.from({length:DT_ROWS},(_,i)=>i)).concat([DT_ROWS]);
   let rows='';
@@ -1041,8 +1041,8 @@ function renderHome(){
         return `
         <div class="list-item" style="align-items:center;">
           <div class="row" style="flex:1;gap:8px;min-width:0;">
-            <input type="checkbox" data-todo-id="${t.id}" ${t.done?'checked':''}>
-            <span class="content-text" style="${t.done?'text-decoration:line-through;color:var(--muted);':''}overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(t.task)}</span>
+            <input type="checkbox" data-todo-id="${t.id}" ${t.done?'checked':''} style="flex-shrink:0;">
+            <span class="content-text" style="${t.done?'text-decoration:line-through;color:var(--muted);':''}flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(t.task)}</span>
           </div>
           <div class="row" style="flex-shrink:0;">
             <span class="pill ${ddayPillClass(d)}">${ddayLabel(d)}</span>
@@ -1582,7 +1582,7 @@ function renderHealth(){
           <button class="icon-btn" id="editWeightGoalBtn" title="목표 수정" style="padding:0 2px;font-size:13px;">✏️</button>
         </div>
         <div class="row" style="gap:10px;">
-          ${otherMembers.map(m=>`<label class="pill" style="cursor:pointer;"><input type="checkbox" class="weightExtraToggle" value="${m.key}" ${weightChartOthers.includes(m.key)?'checked':''} style="margin-right:4px;">${m.label}</label>`).join('')}
+          ${otherMembers.map(m=>`<label class="pill" style="cursor:pointer;"><input type="checkbox" class="weightExtraToggle" value="${m.key}" ${weightChartOthers.includes(m.key)?'checked':''} style="margin-right:4px;transform:scale(0.5);vertical-align:middle;">${m.label}</label>`).join('')}
         </div>
       </div>
       <div style="margin-top:10px;">${renderWeightChart([healthPerson].concat(weightChartOthers), [healthPerson].concat(weightChartOthers).map(k=>{ const g=weightGoalsFor(k); return {key:k, weeklyLoss:g.weeklyLoss, finalTarget:g.finalTarget}; }))}</div>
@@ -2081,7 +2081,7 @@ function ensureDaughterWeeklyIncomePlaceholders(){
     added=true;
   }
   if(b.gbpIncentive>0 && !exists('학습·운동 인센티브')){
-    state.budget.push({id:uid(), date:dateStr, category:'학습·운동 인센티브', amount:b.gbpIncentive, currency:'GBP', memo:'지난주 활동 기준', type:'income', owner:'daughter', paymentWeek:b.weekStart, confirmed:false});
+    state.budget.push({id:uid(), date:dateStr, category:'학습·운동 인센티브', amount:b.gbpIncentive, currency:'GBP', memo:'', type:'income', owner:'daughter', paymentWeek:b.weekStart, confirmed:false});
     added=true;
   }
   if(added) queueSave();
@@ -2093,20 +2093,28 @@ function renderIncomeEstimateCard(){
   const thisWeekMin=weekActivityMinutes('daughter', thisWeek);
   const lastIncentive=Math.round((lastWeekMin/60)*2*100)/100;
   const thisIncentive=Math.round((thisWeekMin/60)*2*100)/100;
-  const lastGbpTotal=Math.round((WEEKLY_ALLOWANCE_GBP+lastIncentive)*100)/100;
-  const thisGbpTotal=Math.round((WEEKLY_ALLOWANCE_GBP+thisIncentive)*100)/100;
   const latestWeight = latestWeightFor('daughter');
   const milestones=[{w:49,bonus:20},{w:48,bonus:50},{w:45,bonus:100}];
   const myKey=currentAuthorKey();
   const loggedTexts=state.budget.filter(b=>b.type==='income'&&b.category==='체중감량 인센티브'&&(b.owner===undefined||b.owner===myKey)).map(b=>(b.memo||'')+' '+b.amount);
   const reached=latestWeight==null?[]:milestones.filter(ms=>latestWeight<=ms.w);
   const unpaid=reached.filter(ms=>!loggedTexts.some(t=>t.includes(String(ms.w))));
+  const headerBase=`주급 ₩200,000 + 주급 £${WEEKLY_ALLOWANCE_GBP}`;
+  const rowBase=`₩200,000 + £${WEEKLY_ALLOWANCE_GBP}`;
+  const weekRow=(icon, labelHtml, weekWord, weekRange, min, incentive)=>`
+    <div style="display:flex;margin-top:4px;">
+      <span style="flex-shrink:0;">${icon} </span>
+      <span>${labelHtml}: (${rowBase})${incentive>0?` + £${incentive}`:''}<br>${weekWord}(${weekRange}) <b style="color:${SB_COLORS.exercise};">운동시간 ${fmtStudyMin(min)}</b> × £2 = £${incentive.toFixed(2)}</span>
+    </div>`;
   return `
     <div class="card">
-      <h3 style="font-size:13px;">💡 예상 수입 = 주급 ₩200,000 + 주급 £${WEEKLY_ALLOWANCE_GBP} + 지난주(월~일) 운동시간 × £2 + Weight Incentive</h3>
-      <div style="margin-top:8px;margin-left:22px;font-size:13px;line-height:1.7;color:var(--muted);">
-        <div>✅ <b style="color:var(--accent);">이번 주 예상 수입</b>: 주급 ₩200,000 + 주급 £${WEEKLY_ALLOWANCE_GBP} + 지난주(${lastWeek[0].slice(5)}~${lastWeek[6].slice(5)}) <b style="color:${SB_COLORS.exercise};">운동시간 ${fmtStudyMin(lastWeekMin)}</b> × £2 = <b style="color:var(--text);">₩200,000 + £${lastGbpTotal.toFixed(2)}</b></div>
-        <div style="margin-top:4px;">🔮 <b style="color:var(--accent2);">다음 주 예상 수입</b>: 주급 ₩200,000 + 주급 £${WEEKLY_ALLOWANCE_GBP} + 이번주(${thisWeek[0].slice(5)}~${thisWeek[6].slice(5)}) <b style="color:${SB_COLORS.exercise};">운동시간 ${fmtStudyMin(thisWeekMin)}</b> × £2 = <b style="color:var(--text);">₩200,000 + £${thisGbpTotal.toFixed(2)}</b></div>
+      <div style="font-size:13px;display:flex;">
+        <span style="flex-shrink:0;">💡 예상 수입 = </span>
+        <span>(${headerBase})<br>+ 지난주(월~일) 운동시간 × £2 + Weight Incentive</span>
+      </div>
+      <div style="margin-top:8px;margin-left:22px;font-size:13px;line-height:1.5;color:var(--muted);">
+        ${weekRow('✅', `<b style="color:var(--accent);">이번 주 예상</b>`, '지난주', `${lastWeek[0].slice(5)}~${lastWeek[6].slice(5)}`, lastWeekMin, lastIncentive)}
+        ${weekRow('🔮', `<b style="color:var(--accent2);">다음 주 예상</b>`, '이번주', `${thisWeek[0].slice(5)}~${thisWeek[6].slice(5)}`, thisWeekMin, thisIncentive)}
       </div>
       ${unpaid.length?`<div class="meta" style="margin-top:10px;color:var(--good);">🎉 체중 감량 목표 달성: ${unpaid.map(ms=>`${ms.w}kg 이하 → £${ms.bonus}`).join(', ')} (아직 수입 내역에 기록 안 됨)</div>`:''}
     </div>
@@ -2548,7 +2556,7 @@ function renderStudy(){
   if(!el) return;
   const key=currentAuthorKey();
   const streakInfo=currentStreak(key);
-  const days=[2,1,0].map(n=>fmtDate(addDays(parseDate(studyAnchor), -n)));
+  const days=[1,0].map(n=>fmtDate(addDays(parseDate(studyAnchor), -n)));
   const arrays=days.map(d=>studyBlocksFor(key,d));
   const summaries=arrays.map(studySummary);
   let rows='';
@@ -2605,10 +2613,12 @@ function renderStudy(){
           <tbody>
             ${logRows.map((w,i)=>`
               <tr>
-                <td style="width:18px;padding:4px 2px 4px 0;">${i===0?'📅':''}</td>
-                <td style="white-space:nowrap;padding:4px 10px 4px 0;font-weight:${i===0?'700':'400'};color:${i===0?'var(--text)':'var(--muted)'};">${weekAgoLabel(i)}</td>
-                <td style="white-space:nowrap;padding:4px 10px;color:var(--muted);">(${w.start.slice(5)} ~ ${w.end.slice(5)})</td>
-                <td style="padding:4px 0;white-space:nowrap;">총 ${fmtStudyMin(w.study+w.exercise)}(학습 ${fmtStudyMin(w.study)} / 운동 ${fmtStudyMin(w.exercise)})</td>
+                <td style="width:18px;padding:4px 2px 4px 0;vertical-align:top;">${i===0?'📅':''}</td>
+                <td style="white-space:nowrap;padding:4px 10px 4px 0;font-weight:${i===0?'700':'400'};color:${i===0?'var(--text)':'var(--muted)'};vertical-align:top;">${weekAgoLabel(i)}</td>
+                <td style="padding:4px 0;white-space:nowrap;">
+                  <div>(${w.start.slice(5)} ~ ${w.end.slice(5)}) 총 ${fmtStudyMin(w.study+w.exercise)}</div>
+                  <div style="color:var(--muted);">(학습 ${fmtStudyMin(w.study)} / 운동 ${fmtStudyMin(w.exercise)})</div>
+                </td>
               </tr>`).join('')}
           </tbody>
         </table>
