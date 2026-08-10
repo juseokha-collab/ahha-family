@@ -567,14 +567,16 @@ function fmtShortDateDow(dateStr){
   const dow=['일','월','화','수','목','금','토'][d.getDay()];
   return `${d.getMonth()+1}.${d.getDate()}(${dow})`;
 }
-function headerDateHtml(dateStr){
-  const isToday = dateStr===todayStr();
+function weekdayColor(dateStr){
   const dow=parseDate(dateStr).getDay();
   const holidays=getHolidaysForViewer(parseDate(dateStr).getFullYear());
-  const isHoliday=!!holidays[dateStr];
-  let color='';
-  if(isHoliday || dow===0) color='var(--weekend-sun)';
-  else if(dow===6) color='var(--weekend-sat)';
+  if(holidays[dateStr] || dow===0) return 'var(--weekend-sun)';
+  if(dow===6) return 'var(--weekend-sat)';
+  return '';
+}
+function headerDateHtml(dateStr){
+  const isToday = dateStr===todayStr();
+  const color=weekdayColor(dateStr);
   const dateHtml = color ? `<span style="color:${color};">${fmtShortDateDow(dateStr)}</span>` : fmtShortDateDow(dateStr);
   if(isToday) return `<div style="line-height:1.4;"><div><span style="display:inline-block;background:#000;color:#fff;border-radius:999px;padding:1px 8px;font-size:10px;font-weight:700;">Today</span></div><div>${dateHtml}</div></div>`;
   return dateHtml;
@@ -903,6 +905,7 @@ function renderHome(){
   const mine = entries[myKey] || {};
   const el=document.getElementById('tab-home');
   const dLabel = parseDate(homeDate).toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'});
+  const dLabelColor = weekdayColor(homeDate);
   const todaySchedule = state.schedule.filter(s=>s.date===homeDate).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
   const ym=homeDate.slice(0,7);
   const monthBudget = state.budget.filter(b=>b.date.startsWith(ym) && b.type!=='income').reduce((s,b)=>s+Number(b.amount||0),0);
@@ -917,7 +920,7 @@ function renderHome(){
       <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:nowrap;gap:8px;">
         <div class="row" style="gap:4px;flex-shrink:0;">
           <button class="iconbtn" id="homePrev">‹</button>
-          <div class="d" style="white-space:nowrap;">${dLabel}</div>
+          <div class="d" style="white-space:nowrap;${dLabelColor?'color:'+dLabelColor+';':''}">${dLabel}</div>
           <button class="iconbtn" id="homeNext">›</button>
           ${homeDate!==todayStr()?`<button class="btn small" id="homeToday">오늘</button>`:''}
         </div>
@@ -1209,7 +1212,7 @@ function renderSchedule(){
     </div>
     ${renderProgressChart(y, m)}
     <div class="card">
-      <div class="row" style="justify-content:space-between;"><h3 style="margin:0;">${scheduleSel} 일정${holidays[scheduleSel]?` <span class="pill">${escapeHtml(holidays[scheduleSel])}</span>`:''}</h3><button class="btn primary small" id="addSchedBtn">+ 일정 추가</button></div>
+      <div class="row" style="justify-content:space-between;"><h3 style="margin:0;">${weekdayColor(scheduleSel)?`<span style="color:${weekdayColor(scheduleSel)};">${scheduleSel}</span>`:scheduleSel} 일정${holidays[scheduleSel]?` <span class="pill">${escapeHtml(holidays[scheduleSel])}</span>`:''}</h3><button class="btn primary small" id="addSchedBtn">+ 일정 추가</button></div>
       ${dayItems.length? dayItems.map(s=>{
         const canManage = !s.virtual && canManageSchedule(s);
         return `
@@ -1438,6 +1441,7 @@ function renderHealth(){
   const mealList=(rec.meals||[]).slice().sort((a,b)=>a.time.localeCompare(b.time));
   const el=document.getElementById('tab-health');
   const dLabel = parseDate(healthDate).toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'});
+  const dLabelColor = weekdayColor(healthDate);
   const schedList = ((state.healthSchedule&&state.healthSchedule[healthPerson])||[]).map(it=>({...it,d:dday(it.date)})).sort((a,b)=>a.d-b.d);
   const otherMembers=FAMILY_MEMBERS.filter(m=>m.key!==healthPerson);
   const goals = weightGoalsFor(healthPerson);
@@ -1463,7 +1467,7 @@ function renderHealth(){
       </div>
     </div>
     <div class="card">
-      <div class="datebar"><button class="iconbtn" id="hPrev">‹</button><div class="d">${dLabel}</div><button class="iconbtn" id="hNext">›</button>
+      <div class="datebar"><button class="iconbtn" id="hPrev">‹</button><div class="d" style="${dLabelColor?'color:'+dLabelColor+';':''}">${dLabel}</div><button class="iconbtn" id="hNext">›</button>
         ${healthDate!==todayStr()?`<button class="btn small" id="hToday">오늘</button>`:''}
       </div>
       <div class="row" style="justify-content:flex-end;align-items:center;gap:8px;margin-bottom:8px;">
@@ -1489,7 +1493,7 @@ function renderHealth(){
             ${MEAL_TYPES.map((t,i)=>`<label class="pill" style="cursor:pointer;"><input type="radio" name="mealTypeDraft" value="${t}" ${i===0?'checked':''} style="margin-right:4px;">${t}</label>`).join('')}
           </div>
         </div>
-        <div class="row" style="gap:8px;margin-top:6px;flex-wrap:wrap;">
+        <div class="row" style="gap:8px;flex-wrap:wrap;">
           <input id="mealContentInput" placeholder="어디서 무엇을 먹었는지" style="flex:1;min-width:140px;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:13px;">
           <select id="mealAmountInput" style="background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:13px;">
             ${MEAL_AMOUNTS.map(a=>`<option>${a}</option>`).join('')}
