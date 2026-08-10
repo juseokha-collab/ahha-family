@@ -708,13 +708,6 @@ function myHomeVisibleScheduleItems(dateStr){
   });
   return visible.filter(it=>scheduleItemOccursOn(it,dateStr)).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
 }
-function homeDayLabel(dateStr){
-  const diff=Math.round((parseDate(dateStr)-parseDate(todayStr()))/86400000);
-  if(diff===0) return '오늘';
-  if(diff===1) return '내일';
-  if(diff===2) return '모레';
-  return '';
-}
 function renderDayTimelines(){
   const days=[0,1,2].map(n=>fmtDate(addDays(parseDate(dtAnchor), n)));
   const layouts=days.map(d=>computeDayLayoutFromItems(myHomeVisibleScheduleItems(d)));
@@ -739,8 +732,7 @@ function renderDayTimelines(){
     const gap = i>0 ? '<th class="dt-gap"></th>' : '';
     const isFirst = i===0;
     const isLast = i===days.length-1;
-    const label = homeDayLabel(d);
-    const dateText = `${label?label+' · ':''}${fmtShortDateDow(d)}`;
+    const dateText = fmtShortDateDow(d);
     const prevBtn = isFirst ? `<button class="iconbtn" id="dtPrevBtn" style="font-size:13px;width:20px;height:20px;flex-shrink:0;">◀</button>` : '';
     const nextBtn = isLast ? `<button class="iconbtn" id="dtNextBtn" style="font-size:13px;width:20px;height:20px;flex-shrink:0;">▶</button>` : '';
     const justify = isFirst ? 'flex-start' : isLast ? 'flex-end' : 'center';
