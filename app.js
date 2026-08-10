@@ -1059,10 +1059,7 @@ function diaryArchiveRowsHtml(){
   if(!rows.length) return `<div class="empty">아직 작성된 Comment가 없어요</div>`;
   return rows.map(r=>`
     <div class="list-item" data-jump="${r.date}" style="cursor:pointer;">
-      <div>
-        <div><b>${r.date}</b> ${r.mood||''} <span class="pill">${escapeHtml(authorLabel(r,r.key))}</span></div>
-        ${r.diary?`<div class="content-text">${escapeHtml(r.diary)}</div>`:''}
-      </div>
+      <div class="content-text" style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${r.date} ${r.mood||''} <span class="pill">${escapeHtml(authorLabel(r,r.key))}</span>${r.diary?' '+escapeHtml(r.diary):''}</div>
       ${r.key===myKey?`<button class="icon-btn" data-edit-diary="${escapeHtml(r.date)}|${escapeHtml(r.key)}" title="수정">✏️</button>`:''}
     </div>`).join('');
 }
@@ -1406,21 +1403,23 @@ function renderHealth(){
   const curWeight = latestWeightFor(healthPerson);
   const targetDate = projectedAchievementDate(curWeight, goals.target, goals.weeklyLoss);
   const finalDate = projectedAchievementDate(curWeight, goals.finalTarget, goals.weeklyLoss);
-  const goalLegendHtml = `
-    <span class="meta">${weightGoalSummaryText(goals)}</span>
-    <button class="icon-btn" id="editWeightGoalBtn" title="목표 수정" style="padding:0 2px;font-size:13px;">✏️</button>
-  `;
   el.innerHTML=`
     <div class="card">
       <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
-        <h3 style="margin:0;">📈 체중 추이</h3>
+        <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap;">
+          <h3 style="margin:0;">📈 체중 추이</h3>
+          <span class="meta">${weightGoalSummaryText(goals)}</span>
+          <button class="icon-btn" id="editWeightGoalBtn" title="목표 수정" style="padding:0 2px;font-size:13px;">✏️</button>
+        </div>
         <div class="row" style="gap:10px;">
           ${otherMembers.map(m=>`<label class="pill" style="cursor:pointer;"><input type="checkbox" class="weightExtraToggle" value="${m.key}" ${weightChartOthers.includes(m.key)?'checked':''} style="margin-right:4px;">${m.label}</label>`).join('')}
         </div>
       </div>
-      <div style="margin-top:10px;">${renderWeightChart([healthPerson].concat(weightChartOthers), goalLegendHtml, {key:healthPerson, weeklyLoss:goals.weeklyLoss, finalTarget:goals.finalTarget})}</div>
-      ${targetDate?`<div class="meta" style="margin-top:8px;">🎯 1차 목표 ${goals.target}kg 달성일자는 ${fmtKoreanDate(targetDate)}</div>`:''}
-      ${finalDate?`<div class="meta" style="margin-top:2px;">🏁 최종목표 ${goals.finalTarget}kg 달성일자는 ${fmtKoreanDate(finalDate)}</div>`:''}
+      <div style="margin-top:10px;">${renderWeightChart([healthPerson].concat(weightChartOthers), {key:healthPerson, weeklyLoss:goals.weeklyLoss, finalTarget:goals.finalTarget})}</div>
+      <div style="margin-top:8px;text-align:right;">
+        ${targetDate?`<div class="meta">🎯 1차 목표 ${goals.target}kg, ${fmtKoreanDate(targetDate)} 달성 목표</div>`:''}
+        ${finalDate?`<div class="meta" style="margin-top:2px;">🏁 최종목표 ${goals.finalTarget}kg, ${fmtKoreanDate(finalDate)} 달성 목표</div>`:''}
+      </div>
     </div>
     <div class="card">
       <div class="datebar"><button class="iconbtn" id="hPrev">‹</button><div class="d">${dLabel}</div><button class="iconbtn" id="hNext">›</button>
@@ -1441,6 +1440,7 @@ function renderHealth(){
         <textarea id="hSymptom" placeholder="컨디션, 증상 등을 기록해보세요">${escapeHtml(rec.symptom)}</textarea>
       </div>
     </div>
+    ${healthPerson!=='daughter'?`
     <div class="card">
       <div class="row" style="justify-content:space-between;"><h3 style="margin:0;">🩺 ${memberLabel(healthPerson)} 주요 검진 일정</h3><button class="btn primary small" id="addHealthSchedBtn">+ 추가</button></div>
       ${schedList.length? schedList.map(it=>`
@@ -1450,7 +1450,7 @@ function renderHealth(){
             <button class="icon-btn" data-edit-hsched="${it.id}" title="수정">✏️</button>
             <button class="btn small danger" data-del-hsched="${it.id}">삭제</button></div>
         </div>`).join('') : `<div class="empty">건강검진, 정기검사 등 예정된 일정을 등록해보세요</div>`}
-    </div>
+    </div>`:''}
   `;
   document.getElementById('editWeightGoalBtn').onclick=()=>openWeightGoalModal(healthPerson);
   el.querySelectorAll('.weightExtraToggle').forEach(cb=>{
@@ -1499,7 +1499,8 @@ function renderHealth(){
     const now=new Date();
     document.getElementById('healthSaveStatus').textContent = `✓ 저장됨 (${now.getHours()}:${pad2(now.getMinutes())})`;
   };
-  document.getElementById('addHealthSchedBtn').onclick=()=>openHealthSchedModal();
+  const addHealthSchedBtn=document.getElementById('addHealthSchedBtn');
+  if(addHealthSchedBtn) addHealthSchedBtn.onclick=()=>openHealthSchedModal();
   el.querySelectorAll('[data-edit-hsched]').forEach(b=>b.onclick=()=>openHealthSchedModal((state.healthSchedule[healthPerson]||[]).find(x=>x.id===b.dataset.editHsched)));
   el.querySelectorAll('[data-del-hsched]').forEach(b=>b.onclick=()=>{
     if(confirm('삭제할까요?')){ state.healthSchedule[healthPerson]=(state.healthSchedule[healthPerson]||[]).filter(x=>x.id!==b.dataset.delHsched); queueSave(); renderHealth(); }
@@ -1546,7 +1547,7 @@ function openHealthSchedModal(existing){
     queueSave(); closeModal(); renderHealth();
   };
 }
-function renderWeightChart(keys, extraLegendHtml, goalProjection){
+function renderWeightChart(keys, goalProjection){
   const pastDays=31, futureDays=10;
   const totalDays=pastDays+futureDays;
   const todayIdx=pastDays-1;
@@ -1616,13 +1617,14 @@ function renderWeightChart(keys, extraLegendHtml, goalProjection){
       goalSvg=`<path d="${pathD.trim()}" fill="none" stroke="${goalColor}" stroke-width="2" stroke-dasharray="4 3" opacity="0.7"/>`;
       if(lastIdx>=0){
         const ex=x(lastIdx), ey=y(lastVal);
-        goalSvg+=`<circle cx="${ex}" cy="${ey}" r="4" fill="var(--panel)" stroke="${goalColor}" stroke-width="2"/><text x="${ex-4}" y="${ey-20}" font-size="9" fill="${goalColor}" text-anchor="end"><tspan x="${ex-4}" dy="0">목표치</tspan><tspan x="${ex-4}" dy="11">${lastVal.toFixed(1)}kg</tspan></text>`;
+        goalSvg+=`<circle cx="${ex}" cy="${ey}" r="4" fill="var(--panel)" stroke="${goalColor}" stroke-width="2"/><text x="${ex-8}" y="${ey+3}" font-size="9" fill="${goalColor}" text-anchor="end">목표치 ${lastVal.toFixed(1)}kg</text>`;
       }
     }
   }
   const xLabels=dateList.map((d,i)=>{
     if(i%7!==0 && i!==totalDays-1 && i!==todayIdx) return '';
-    return `<text x="${x(i)}" y="${H-4}" font-size="9" fill="var(--muted)" text-anchor="middle">${d.slice(5)}</text>`;
+    const anchor = i===totalDays-1 ? 'end' : 'middle';
+    return `<text x="${x(i)}" y="${H-4}" font-size="9" fill="var(--muted)" text-anchor="${anchor}">${d.slice(5)}</text>`;
   }).join('');
   return `
     <div style="overflow-x:auto;">
@@ -1633,7 +1635,6 @@ function renderWeightChart(keys, extraLegendHtml, goalProjection){
     <div class="row" style="gap:14px;margin-top:6px;align-items:center;">
       ${series.map(s=>`<span class="meta" style="display:flex;align-items:center;gap:4px;"><span style="width:9px;height:9px;border-radius:50%;background:${s.color};display:inline-block;"></span>${s.label}</span>`).join('')}
       ${goalPts?`<span class="meta" style="display:flex;align-items:center;gap:4px;"><span style="width:14px;height:0;border-top:2px dashed ${goalColor};display:inline-block;"></span>목표선</span>`:''}
-      ${extraLegendHtml||''}
     </div>
   `;
 }
@@ -1705,12 +1706,19 @@ function renderBudget(){
   items.forEach(b=>{ byCat[b.category]=(byCat[b.category]||0)+Number(b.amount||0); });
   const [y,m]=budgetMonth.split('-');
   const isDaughter=effectiveRole()==='daughter';
+  const monthBalanceKRW = incomeByCur.KRW - total;
+  const allIncomeByCur={KRW:0,GBP:0};
+  state.budget.filter(b=>b.type==='income').forEach(b=>{ const cur=b.currency||'KRW'; allIncomeByCur[cur]=(allIncomeByCur[cur]||0)+Number(b.amount||0); });
+  const allExpenseKRW = state.budget.filter(b=>b.type!=='income').reduce((s,b)=>s+Number(b.amount||0),0);
+  const totalBalanceKRW = allIncomeByCur.KRW - allExpenseKRW;
   el.innerHTML=`
     <div class="card">
       <div class="datebar"><button class="iconbtn" id="bPrev">‹</button><div class="d">${y}년 ${Number(m)}월</div><button class="iconbtn" id="bNext">›</button></div>
       <div class="stat-grid">
         <div class="stat"><div class="v">${total.toLocaleString()}원</div><div class="l">이번달 총 지출</div></div>
         <div class="stat"><div class="v">${incomeByCur.KRW.toLocaleString()}원${incomeByCur.GBP?' / £'+incomeByCur.GBP.toLocaleString():''}</div><div class="l">이번달 총 수입</div></div>
+        <div class="stat"><div class="v">${monthBalanceKRW.toLocaleString()}원${incomeByCur.GBP?' / £'+incomeByCur.GBP.toLocaleString():''}</div><div class="l">이번달 잔액</div></div>
+        <div class="stat"><div class="v">${totalBalanceKRW.toLocaleString()}원${allIncomeByCur.GBP?' / £'+allIncomeByCur.GBP.toLocaleString():''}</div><div class="l">총잔액(전월 이월 포함)</div></div>
       </div>
     </div>
     ${isDaughter?renderIncomeEstimateCard():''}
