@@ -1408,6 +1408,10 @@ function renderHealth(){
       <div class="datebar"><button class="iconbtn" id="hPrev">‹</button><div class="d">${dLabel}</div><button class="iconbtn" id="hNext">›</button>
         ${healthDate!==todayStr()?`<button class="btn small" id="hToday">오늘</button>`:''}
       </div>
+      <div class="row" style="justify-content:flex-end;align-items:center;gap:8px;margin-bottom:8px;">
+        <span class="meta" id="healthSaveStatus">${(rec.weight||rec.sleep||rec.fasting||rec.calories)?'✓ 저장됨':''}</span>
+        <button class="btn small primary" id="healthSaveBtn">저장</button>
+      </div>
       <div class="grid4">
         <div class="field"><label>체중 (kg)</label><input type="number" step="0.1" id="hWeight" value="${rec.weight||''}"></div>
         <div class="field"><label>수면 시간</label><input type="number" step="0.5" id="hSleep" value="${rec.sleep||''}"></div>
@@ -1464,6 +1468,22 @@ function renderHealth(){
   document.getElementById('hExercise').addEventListener('change',e=>save('exercise', e.target.checked));
   document.getElementById('hMeds').addEventListener('change',e=>save('meds', e.target.checked));
   document.getElementById('hSymptom').addEventListener('change',e=>save('symptom', e.target.value));
+  ['hWeight','hSleep','hFasting','hCalories','hExercise','hMeds','hSymptom'].forEach(id=>{
+    document.getElementById(id).addEventListener('input', ()=>{
+      document.getElementById('healthSaveStatus').textContent='';
+    });
+  });
+  document.getElementById('healthSaveBtn').onclick=()=>{
+    save('weight', document.getElementById('hWeight').value?Number(document.getElementById('hWeight').value):'');
+    save('sleep', document.getElementById('hSleep').value?Number(document.getElementById('hSleep').value):'');
+    save('fasting', document.getElementById('hFasting').value?Number(document.getElementById('hFasting').value):'');
+    save('calories', document.getElementById('hCalories').value?Number(document.getElementById('hCalories').value):'');
+    save('exercise', document.getElementById('hExercise').checked);
+    save('meds', document.getElementById('hMeds').checked);
+    save('symptom', document.getElementById('hSymptom').value);
+    const now=new Date();
+    document.getElementById('healthSaveStatus').textContent = `✓ 저장됨 (${now.getHours()}:${pad2(now.getMinutes())})`;
+  };
   document.getElementById('addHealthSchedBtn').onclick=()=>openHealthSchedModal();
   el.querySelectorAll('[data-edit-hsched]').forEach(b=>b.onclick=()=>openHealthSchedModal((state.healthSchedule[healthPerson]||[]).find(x=>x.id===b.dataset.editHsched)));
   el.querySelectorAll('[data-del-hsched]').forEach(b=>b.onclick=()=>{
