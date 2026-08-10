@@ -1437,7 +1437,11 @@ function renderHealth(){
       </div>
       <div class="field" style="margin-top:8px;">
         <label>Activity Comment</label>
-        <textarea id="hSymptom" placeholder="컨디션, 증상 등을 기록해보세요">${escapeHtml(rec.symptom)}</textarea>
+        <textarea id="hSymptom" placeholder="컨디션, 증상 등을 기록해보세요" style="overflow:hidden;">${escapeHtml(rec.symptom)}</textarea>
+      </div>
+      <div class="field" style="margin-top:8px;">
+        <label>Network (오늘 만난 사람 등)</label>
+        <input id="hNetwork" placeholder="쉼표로 구분 (예: 홍길동, 김철수)" value="${escapeHtml(rec.network||'')}">
       </div>
     </div>
     ${healthPerson!=='daughter'?`
@@ -1485,7 +1489,12 @@ function renderHealth(){
   document.getElementById('hFasting').addEventListener('change',e=>save('fasting', e.target.value?Number(e.target.value):''));
   document.getElementById('hCalories').addEventListener('change',e=>save('calories', e.target.value?Number(e.target.value):''));
   document.getElementById('hSymptom').addEventListener('change',e=>save('symptom', e.target.value));
-  ['hWeight','hSleep','hFasting','hCalories','hSymptom'].forEach(id=>{
+  document.getElementById('hNetwork').addEventListener('change',e=>save('network', e.target.value));
+  const hSymptomEl=document.getElementById('hSymptom');
+  const autoResize=()=>{ hSymptomEl.style.height='auto'; hSymptomEl.style.height=hSymptomEl.scrollHeight+'px'; };
+  autoResize();
+  hSymptomEl.addEventListener('input', autoResize);
+  ['hWeight','hSleep','hFasting','hCalories','hSymptom','hNetwork'].forEach(id=>{
     document.getElementById(id).addEventListener('input', ()=>{
       document.getElementById('healthSaveStatus').textContent='';
     });
@@ -1496,6 +1505,7 @@ function renderHealth(){
     save('fasting', document.getElementById('hFasting').value?Number(document.getElementById('hFasting').value):'');
     save('calories', document.getElementById('hCalories').value?Number(document.getElementById('hCalories').value):'');
     save('symptom', document.getElementById('hSymptom').value);
+    save('network', document.getElementById('hNetwork').value);
     const now=new Date();
     document.getElementById('healthSaveStatus').textContent = `✓ 저장됨 (${now.getHours()}:${pad2(now.getMinutes())})`;
   };
@@ -1592,7 +1602,7 @@ function renderWeightChart(keys, goalProjection){
     return `<line x1="${ML}" y1="${yy}" x2="${W-MR}" y2="${yy}" stroke="var(--border)" stroke-width="1"/><text x="${ML-5}" y="${yy+3}" font-size="9" fill="var(--muted)" text-anchor="end">${val.toFixed(1)}</text>`;
   }).join('');
   const todayX=x(todayIdx);
-  const todayLine=`<line x1="${todayX}" y1="${MT}" x2="${todayX}" y2="${MT+plotH}" stroke="var(--border)" stroke-width="1" stroke-dasharray="2 2"/>`;
+  const todayLine=`<line x1="${todayX}" y1="${MT}" x2="${todayX}" y2="${MT+plotH}" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="3 2"/>`;
   const seriesSvg=series.map(s=>{
     let pathD='', dots='', maxIdx=-1, maxVal=-Infinity;
     s.pts.forEach((v,i)=>{
@@ -1617,7 +1627,7 @@ function renderWeightChart(keys, goalProjection){
       goalSvg=`<path d="${pathD.trim()}" fill="none" stroke="${goalColor}" stroke-width="2" stroke-dasharray="4 3" opacity="0.7"/>`;
       if(lastIdx>=0){
         const ex=x(lastIdx), ey=y(lastVal);
-        goalSvg+=`<circle cx="${ex}" cy="${ey}" r="4" fill="var(--panel)" stroke="${goalColor}" stroke-width="2"/><text x="${ex-14}" y="${ey+3}" font-size="9" fill="${goalColor}" text-anchor="end">목표치 ${lastVal.toFixed(1)}kg</text>`;
+        goalSvg+=`<circle cx="${ex}" cy="${ey}" r="4" fill="var(--panel)" stroke="${goalColor}" stroke-width="2"/><text x="${ex-2}" y="${ey-10}" font-size="9" fill="${goalColor}" text-anchor="end">목표치 ${lastVal.toFixed(1)}kg</text>`;
       }
     }
   }
