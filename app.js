@@ -351,6 +351,15 @@ function migrateDaily(st){
   });
   return st;
 }
+function migrateBudgetOwnership(st){
+  (st.budget||[]).forEach(b=>{
+    if(b.paymentWeek && b.owner===undefined){
+      if(b.type==='income'){ b.owner='daughter'; if(b.confirmed===undefined) b.confirmed=false; }
+      else { b.owner='jinahkim2023@gmail.com'; }
+    }
+  });
+  return st;
+}
 function loadLocal(){
   try{
     const raw=localStorage.getItem(LS_KEY);
@@ -358,7 +367,7 @@ function loadLocal(){
       const parsed=JSON.parse(raw);
       const base=defaultState();
       base.vehicle=Object.assign(base.vehicle, parsed.vehicle||{});
-      return migrateTodos(migrateVehicle(migrateDaily(Object.assign(base, parsed, {vehicle:base.vehicle}))));
+      return migrateBudgetOwnership(migrateTodos(migrateVehicle(migrateDaily(Object.assign(base, parsed, {vehicle:base.vehicle})))));
     }
   }catch(e){}
   return defaultState();
@@ -480,7 +489,7 @@ function initAuth(){
           const data=doc.data();
           const base=defaultState();
           base.vehicle=Object.assign(base.vehicle, data.vehicle||{});
-          const cloudState=migrateTodos(migrateVehicle(migrateDaily(Object.assign(base, data, {vehicle:base.vehicle}))));
+          const cloudState=migrateBudgetOwnership(migrateTodos(migrateVehicle(migrateDaily(Object.assign(base, data, {vehicle:base.vehicle})))));
           state=mergeStates(localState, cloudState);
           await familyDocRef().set(state);
         } else {
@@ -976,7 +985,7 @@ function renderHome(){
   const dLabelColor = weekdayColor(homeDate);
   const todaySchedule = state.schedule.filter(s=>s.date===homeDate).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
   const ym=homeDate.slice(0,7);
-  const monthBudget = state.budget.filter(b=>b.date.startsWith(ym) && b.type!=='income').reduce((s,b)=>s+Number(b.amount||0),0);
+  const monthBudget = state.budget.filter(b=>b.date.startsWith(ym) && b.type!=='income' && (b.owner===undefined || b.owner===myKey)).reduce((s,b)=>s+Number(b.amount||0),0);
   const upcomingEvent = state.events.filter(ev=>!(ev.hiddenFromDaughter && effectiveRole()==='daughter')).map(ev=>({...ev,d:ddayFromDate(eventOccurrence(ev))})).filter(e=>e.d>=0).sort((a,b)=>a.d-b.d)[0];
   const upcomingRenew = state.vehicle.renewals.map(r=>({...r,d:dday(r.date)})).filter(r=>r.d>=0).sort((a,b)=>a.d-b.d)[0];
   const todayTodos = todosForToday();
@@ -2000,21 +2009,61 @@ function markWeeklyPaymentPaid(){
   const b=weeklyPayableBreakdown();
   const dateStr=todayStr();
   const label=`딸 주급 (${b.weekStart.slice(5)}~${b.weekEnd.slice(5)})`;
-  state.budget.push({id:uid(), date:dateStr, category:'용돈', amount:b.krw, currency:'KRW', memo:label, type:'expense', paymentWeek:b.weekStart});
-  if(b.gbpTotal>0) state.budget.push({id:uid(), date:dateStr, category:'용돈', amount:b.gbpTotal, currency:'GBP', memo:label, type:'expense', paymentWeek:b.weekStart});
-  state.budget.push({id:uid(), date:dateStr, category:'주급(토스)', amount:b.krw, currency:'KRW', memo:'', type:'income', paymentWeek:b.weekStart});
-  state.budget.push({id:uid(), date:dateStr, category:'주급(로이드)', amount:b.gbpAllowance, currency:'GBP', memo:'', type:'income', paymentWeek:b.weekStart});
-  if(b.gbpIncentive>0) state.budget.push({id:uid(), date:dateStr, category:'학습·운동 인센티브', amount:b.gbpIncentive, currency:'GBP', memo:'지난주 활동 기준', type:'income', paymentWeek:b.weekStart});
+  const myKey=currentAuthorKey();
+  state.budget.push({id:uid(), date:dateStr, category:'용돈', amount:b.krw, currency:'KRW', memo:label, type:'expense', owner:myKey, paymentWeek:b.weekStart});
+  if(b.gbpTotal>0) state.budget.push({id:uid(), date:dateStr, category:'용돈', amount:b.gbpTotal, currency:'GBP', memo:label, type:'expense', owner:myKey, paymentWeek:b.weekStart});
   if(!state.weeklyPaymentStatus) state.weeklyPaymentStatus={};
   state.weeklyPaymentStatus[b.weekStart]=true;
   queueSave();
-  showToast('딸 주급 지급 완료로 기록했어요');
+  showToast('딸 용돈 지급을 확정했어요');
 }
 function revertWeeklyPayment(weekStart){
-  state.budget = state.budget.filter(b=>b.paymentWeek!==weekStart);
+  const myKey=currentAuthorKey();
+  state.budget = state.budget.filter(b=>!(b.paymentWeek===weekStart && b.owner===myKey && b.type==='expense'));
   if(state.weeklyPaymentStatus) delete state.weeklyPaymentStatus[weekStart];
   queueSave();
   showToast('지급전 상태로 되돌렸어요');
+}
+function openWeeklyPaymentEditModal(weekStart){
+  const myKey=currentAuthorKey();
+  const entries=state.budget.filter(b=>b.paymentWeek===weekStart && b.owner===myKey && b.type==='expense');
+  const krwEntry=entries.find(e=>(e.currency||'KRW')==='KRW');
+  const gbpEntry=entries.find(e=>e.currency==='GBP');
+  openModal(`
+    <h3>딸 용돈 지급 내역 수정</h3>
+    <div class="grid2">
+      <div class="field"><label>금액 (원)</label><input type="number" id="mEditKRW" value="${krwEntry?krwEntry.amount:0}"></div>
+      <div class="field"><label>금액 (£)</label><input type="number" id="mEditGBP" value="${gbpEntry?gbpEntry.amount:0}"></div>
+    </div>
+    <div class="modal-actions"><button class="btn" id="mCancel">취소</button><button class="btn primary" id="mSave">저장</button></div>
+  `);
+  document.getElementById('mCancel').onclick=closeModal;
+  document.getElementById('mSave').onclick=()=>{
+    const krw=Number(document.getElementById('mEditKRW').value||0);
+    const gbp=Number(document.getElementById('mEditGBP').value||0);
+    if(krwEntry) krwEntry.amount=krw;
+    if(gbpEntry) gbpEntry.amount=gbp;
+    queueSave(); closeModal(); renderBudget(); renderHome();
+  };
+}
+function ensureDaughterWeeklyIncomePlaceholders(){
+  const b=weeklyPayableBreakdown();
+  const dateStr=todayStr();
+  const exists=cat=>state.budget.some(x=>x.paymentWeek===b.weekStart && x.owner==='daughter' && x.category===cat);
+  let added=false;
+  if(!exists('주급(토스)')){
+    state.budget.push({id:uid(), date:dateStr, category:'주급(토스)', amount:b.krw, currency:'KRW', memo:'', type:'income', owner:'daughter', paymentWeek:b.weekStart, confirmed:false});
+    added=true;
+  }
+  if(!exists('주급(로이드)')){
+    state.budget.push({id:uid(), date:dateStr, category:'주급(로이드)', amount:b.gbpAllowance, currency:'GBP', memo:'', type:'income', owner:'daughter', paymentWeek:b.weekStart, confirmed:false});
+    added=true;
+  }
+  if(b.gbpIncentive>0 && !exists('학습·운동 인센티브')){
+    state.budget.push({id:uid(), date:dateStr, category:'학습·운동 인센티브', amount:b.gbpIncentive, currency:'GBP', memo:'지난주 활동 기준', type:'income', owner:'daughter', paymentWeek:b.weekStart, confirmed:false});
+    added=true;
+  }
+  if(added) queueSave();
 }
 function renderIncomeEstimateCard(){
   const thisWeek=mondayWeekRange(todayStr());
@@ -2025,7 +2074,8 @@ function renderIncomeEstimateCard(){
   const thisIncentive=Math.round((thisWeekMin/60)*2*100)/100;
   const latestWeight = latestWeightFor('daughter');
   const milestones=[{w:49,bonus:20},{w:48,bonus:50},{w:45,bonus:100}];
-  const loggedTexts=state.budget.filter(b=>b.type==='income'&&b.category==='체중감량 인센티브').map(b=>(b.memo||'')+' '+b.amount);
+  const myKey=currentAuthorKey();
+  const loggedTexts=state.budget.filter(b=>b.type==='income'&&b.category==='체중감량 인센티브'&&(b.owner===undefined||b.owner===myKey)).map(b=>(b.memo||'')+' '+b.amount);
   const reached=latestWeight==null?[]:milestones.filter(ms=>latestWeight<=ms.w);
   const unpaid=reached.filter(ms=>!loggedTexts.some(t=>t.includes(String(ms.w))));
   return `
@@ -2041,26 +2091,29 @@ function renderIncomeEstimateCard(){
 }
 function renderBudget(){
   const el=document.getElementById('tab-budget');
-  const monthItems=state.budget.filter(b=>b.date.startsWith(budgetMonth));
+  const myKey=currentAuthorKey();
+  const myRole=effectiveRole();
+  const isDaughter=myRole==='daughter';
+  const isMom=myRole==='mom';
+  if(isDaughter) ensureDaughterWeeklyIncomePlaceholders();
+  const myBudget=state.budget.filter(b=>b.owner===undefined || b.owner===myKey);
+  const monthItems=myBudget.filter(b=>b.date.startsWith(budgetMonth));
   const items=monthItems.filter(b=>b.type!=='income').sort((a,b)=>b.date.localeCompare(a.date));
   const incomeItems=monthItems.filter(b=>b.type==='income').sort((a,b)=>b.date.localeCompare(a.date));
   const expenseByCur={KRW:0,GBP:0};
   items.forEach(b=>{ const cur=b.currency||'KRW'; expenseByCur[cur]=(expenseByCur[cur]||0)+Number(b.amount||0); });
   const incomeByCur={KRW:0,GBP:0};
-  incomeItems.forEach(b=>{ const cur=b.currency||'KRW'; incomeByCur[cur]=(incomeByCur[cur]||0)+Number(b.amount||0); });
+  incomeItems.filter(b=>b.confirmed!==false).forEach(b=>{ const cur=b.currency||'KRW'; incomeByCur[cur]=(incomeByCur[cur]||0)+Number(b.amount||0); });
   const byCat={};
   items.filter(b=>(b.currency||'KRW')==='KRW').forEach(b=>{ byCat[b.category]=(byCat[b.category]||0)+Number(b.amount||0); });
   const [y,m]=budgetMonth.split('-');
-  const myRole=effectiveRole();
-  const isDaughter=myRole==='daughter';
-  const isMom=myRole==='mom';
   const monthBalanceKRW = incomeByCur.KRW - expenseByCur.KRW;
   const monthBalanceGBP = incomeByCur.GBP - expenseByCur.GBP;
   const allIncomeByCur={KRW:0,GBP:0};
-  state.budget.filter(b=>b.type==='income').forEach(b=>{ const cur=b.currency||'KRW'; allIncomeByCur[cur]=(allIncomeByCur[cur]||0)+Number(b.amount||0); });
+  myBudget.filter(b=>b.type==='income' && b.confirmed!==false).forEach(b=>{ const cur=b.currency||'KRW'; allIncomeByCur[cur]=(allIncomeByCur[cur]||0)+Number(b.amount||0); });
   const allExpenseByCur={KRW:0,GBP:0};
-  state.budget.filter(b=>b.type!=='income').forEach(b=>{ const cur=b.currency||'KRW'; allExpenseByCur[cur]=(allExpenseByCur[cur]||0)+Number(b.amount||0); });
-  const carryover=budgetCarryoverFor(currentAuthorKey());
+  myBudget.filter(b=>b.type!=='income').forEach(b=>{ const cur=b.currency||'KRW'; allExpenseByCur[cur]=(allExpenseByCur[cur]||0)+Number(b.amount||0); });
+  const carryover=budgetCarryoverFor(myKey);
   const totalBalanceKRW = carryover.KRW + allIncomeByCur.KRW - allExpenseByCur.KRW;
   const totalBalanceGBP = carryover.GBP + allIncomeByCur.GBP - allExpenseByCur.GBP;
   const pendingPayment = isMom ? weeklyPayableBreakdown() : null;
@@ -2083,9 +2136,11 @@ function renderBudget(){
       </div>
       ${incomeItems.length? incomeItems.map(b=>`
         <div class="list-item">
-          <div><div><span class="pill">${escapeHtml(b.category)}</span> ${escapeHtml(b.memo)}</div><div class="meta">${b.date}</div></div>
+          <div><div><span class="pill">${escapeHtml(b.category)}</span> ${escapeHtml(b.memo)}</div><div class="meta">${b.date}${b.confirmed===false?' · 입금 전':''}</div></div>
           <div class="row"><b>${fmtCurrency(b.amount,b.currency||'KRW')}</b>
-            <button class="btn small" data-edit-inc="${b.id}">수정</button><button class="btn small danger" data-del-inc="${b.id}">삭제</button></div>
+            ${b.confirmed===false
+              ? `<button class="btn small primary" data-confirm-inc="${b.id}">입금확정</button><button class="btn small danger" data-del-inc="${b.id}">삭제</button>`
+              : `<button class="btn small" data-edit-inc="${b.id}">수정</button><button class="btn small danger" data-del-inc="${b.id}">삭제</button>`}</div>
         </div>`).join('') : `<div class="empty">이번달 수입 내역이 없어요</div>`}
     </div>
     <div class="card">
@@ -2101,12 +2156,12 @@ function renderBudget(){
       ${showPendingPayment?`
         <div class="list-item sched-item">
           <div><div class="content-text"><b>딸 주급 (${pendingPayment.weekStart.slice(5)}~${pendingPayment.weekEnd.slice(5)})</b></div><div class="meta" style="margin-top:2px;">토스 ₩${pendingPayment.krw.toLocaleString()} · 로이드 £${pendingPayment.gbpAllowance} · 인센티브 £${pendingPayment.gbpIncentive.toFixed(2)}</div></div>
-          <button class="btn small primary" id="markWeeklyPaidBtn">지출완료로 표시</button>
+          <button class="btn small primary" id="markWeeklyPaidBtn">지급하시겠습니까?</button>
         </div>`:''}
       ${weeklyPaymentIsPaid?`
         <div class="list-item sched-item">
           <div><div class="content-text"><b>딸 주급 (${pendingPayment.weekStart.slice(5)}~${pendingPayment.weekEnd.slice(5)})</b></div><div class="meta" style="margin-top:2px;color:var(--good);">✅ 지급완료</div></div>
-          <button class="btn small danger" id="revertWeeklyPaidBtn">지급전으로 되돌리기</button>
+          <div class="row"><button class="btn small" id="editWeeklyPaidBtn">수정</button><button class="btn small danger" id="revertWeeklyPaidBtn">지급전으로 되돌리기</button></div>
         </div>`:''}
       ${items.length? items.map(b=>`
         <div class="list-item">
@@ -2121,9 +2176,11 @@ function renderBudget(){
   document.getElementById('totalBalanceStat').onclick=()=>openCarryoverModal();
   const markWeeklyPaidBtn=document.getElementById('markWeeklyPaidBtn');
   if(markWeeklyPaidBtn) markWeeklyPaidBtn.onclick=()=>{ markWeeklyPaymentPaid(); renderBudget(); };
+  const editWeeklyPaidBtn=document.getElementById('editWeeklyPaidBtn');
+  if(editWeeklyPaidBtn) editWeeklyPaidBtn.onclick=()=>openWeeklyPaymentEditModal(pendingPayment.weekStart);
   const revertWeeklyPaidBtn=document.getElementById('revertWeeklyPaidBtn');
   if(revertWeeklyPaidBtn) revertWeeklyPaidBtn.onclick=()=>{
-    if(confirm('지급완료를 취소하고 지급전 상태로 되돌릴까요? 자동 생성된 수입/지출 내역도 함께 삭제돼요.')){
+    if(confirm('지급완료를 취소하고 지급전 상태로 되돌릴까요? 자동 생성된 지출 내역도 함께 삭제돼요.')){
       revertWeeklyPayment(pendingPayment.weekStart); renderBudget();
     }
   };
@@ -2138,6 +2195,10 @@ function renderBudget(){
   el.querySelectorAll('[data-edit-inc]').forEach(b=>b.onclick=()=>openIncomeModal(state.budget.find(x=>x.id===b.dataset.editInc)));
   el.querySelectorAll('[data-del-inc]').forEach(b=>b.onclick=()=>{
     if(confirm('삭제할까요?')){ state.budget=state.budget.filter(x=>x.id!==b.dataset.delInc); queueSave(); renderBudget(); renderHome(); }
+  });
+  el.querySelectorAll('[data-confirm-inc]').forEach(b=>b.onclick=()=>{
+    const item=state.budget.find(x=>x.id===b.dataset.confirmInc);
+    if(item){ item.confirmed=true; queueSave(); renderBudget(); renderHome(); }
   });
 }
 function openCategoryManageModal(){
@@ -2202,7 +2263,7 @@ function openBudgetModal(existing){
     const date=document.getElementById('mDate').value;
     const amount=Number(document.getElementById('mAmount').value||0);
     if(!date||!amount){ showToast('날짜와 금액을 입력해주세요'); return; }
-    const rec={id:b.id||uid(),date,category:document.getElementById('mCat').value,amount,currency:document.getElementById('mCurrency').value,memo:document.getElementById('mMemo').value};
+    const rec={...b,id:b.id||uid(),date,category:document.getElementById('mCat').value,amount,currency:document.getElementById('mCurrency').value,memo:document.getElementById('mMemo').value,owner:b.owner||currentAuthorKey()};
     if(b.id){ const idx=state.budget.findIndex(x=>x.id===b.id); state.budget[idx]=rec; }
     else state.budget.push(rec);
     budgetMonth=date.slice(0,7);
@@ -2255,7 +2316,7 @@ function openIncomeModal(existing){
     const date=document.getElementById('mDate').value;
     const amount=Number(document.getElementById('mAmount').value||0);
     if(!date||!amount){ showToast('날짜와 금액을 입력해주세요'); return; }
-    const rec={id:b.id||uid(),date,category:document.getElementById('mCat').value,amount,currency:document.getElementById('mCurrency').value,memo:document.getElementById('mMemo').value,type:'income'};
+    const rec={...b,id:b.id||uid(),date,category:document.getElementById('mCat').value,amount,currency:document.getElementById('mCurrency').value,memo:document.getElementById('mMemo').value,type:'income',owner:b.owner||currentAuthorKey()};
     if(b.id){ const idx=state.budget.findIndex(x=>x.id===b.id); state.budget[idx]=rec; }
     else state.budget.push(rec);
     budgetMonth=date.slice(0,7);
