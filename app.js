@@ -775,7 +775,7 @@ function authorRoleOf(key){
 function authorBadge(key){
   const role=authorRoleOf(key);
   if(!role) return '';
-  return `<span class="author-badge" style="background:${ROLE_BADGE_COLOR[role]};">${ROLE_EMOJI[role]}</span>`;
+  return `<span class="author-badge" style="background:#fff;border:1px solid rgba(0,0,0,0.15);">${ROLE_EMOJI[role]}</span>`;
 }
 function dtChip(it){
   const isVirtual = typeof it.id==='string' && it.id.startsWith('evt-');
