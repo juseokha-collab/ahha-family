@@ -1035,7 +1035,7 @@ function renderHome(){
 
     <div class="card">
       <div class="row" style="justify-content:space-between;align-items:center;">
-        <h3 style="margin:0;">✅ To do list</h3>
+        <h3 style="margin:0;">✅ ${Number(todayStr().slice(5,7))}.${Number(todayStr().slice(8,10))} To do list</h3>
         ${todoPct!=null?`<span class="meta">오늘 진행률 ${todoPct}%</span>`:''}
       </div>
       ${todoPct!=null?`<div class="bar-track" style="margin:8px 0;"><div class="bar-fill" style="width:${todoPct}%"></div></div>`:''}
