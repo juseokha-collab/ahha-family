@@ -765,7 +765,7 @@ function computeDayLayoutFromItems(items){
   return {mainStart, skip};
 }
 function computeDayLayout(dateStr){ return computeDayLayoutFromItems(myVisibleScheduleItems(dateStr)); }
-const ROLE_EMOJI={dad:'👓',mom:'🍳',daughter:'🎀'};
+const ROLE_EMOJI={dad:'👓',mom:'💐',daughter:'🍼'};
 const ROLE_BADGE_COLOR={dad:'#4d7fe0',mom:'#e0538f',daughter:'#9a5be0'};
 function authorRoleOf(key){
   if(!key) return null;
@@ -2395,6 +2395,7 @@ function incomeCategoryDefaults(key, category){
     const gbp=Math.round((min/60)*2*100)/100;
     return {amount:gbp, currency:'GBP', memo:`지난주 ${pad2(Math.floor(min/60))}시 ${pad2(min%60)}분 달성! 💗`};
   }
+  if(category==='체중감량 인센티브') return {amount:'', currency:'GBP', memo:'목표 몸무게 달성! 💗'};
   return null;
 }
 function openIncomeModal(existing){
