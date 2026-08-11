@@ -771,7 +771,7 @@ function dtChip(it){
   const isVirtual = typeof it.id==='string' && it.id.startsWith('evt-');
   const memoAttr = it.memo ? ` data-memo="${escapeHtml(it.memo)}"` : '';
   if(isVirtual) return `<div class="dt-evt" data-virtual="1"${memoAttr}>${escapeHtml(it.title)}</div>`;
-  const badge = it.owner==='common' ? authorBadge(it.createdBy) : '';
+  const badge = authorBadge(it.createdBy);
   return `<div class="dt-evt" draggable="true" data-item-id="${it.id}"${memoAttr}>${badge}${timeRangeLabel(it)?escapeHtml(timeRangeLabel(it))+' ':''}${escapeHtml(it.title)}</div>`;
 }
 let dtTooltipEl=null;
@@ -814,11 +814,16 @@ function myHomeVisibleScheduleItems(dateStr){
     .filter(ev=>!(ev.hiddenFromDaughter && role==='daughter'))
     .map(ev=>({id:'evt-'+ev.id, date:fmtDate(eventOccurrence(ev)), time:'', title:'🎉 '+ev.name, owner:'common'}));
   const allItems=state.schedule.map(s=>({...s, owner:s.owner||'common'})).concat(virtualEventItems);
+  const daughterOnly = role && role!=='daughter' && showDaughterOnHome;
   const visible = allItems.filter(it=>{
     if(!role) return it.owner==='common';
+    if(daughterOnly){
+      if(it.owner==='daughter') return true;
+      if(it.owner==='common') return showCommonOnHome;
+      return false;
+    }
     if(it.owner===role) return true;
     if(it.owner==='common') return showCommonOnHome;
-    if(it.owner==='daughter' && role!=='daughter') return showDaughterOnHome;
     return false;
   });
   return visible.filter(it=>scheduleItemOccursOn(it,dateStr)).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
@@ -1015,7 +1020,7 @@ function renderHome(){
   const el=document.getElementById('tab-home');
   const dLabel = parseDate(homeDate).toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'});
   const dLabelColor = weekdayColor(homeDate);
-  const todaySchedule = state.schedule.filter(s=>s.date===homeDate).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+  const todaySchedule = myHomeVisibleScheduleItems(homeDate);
   const ym=homeDate.slice(0,7);
   const monthBudget = state.budget.filter(b=>b.date.startsWith(ym) && b.type!=='income' && (b.owner===undefined || b.owner===myKey)).reduce((s,b)=>s+Number(b.amount||0),0);
   const upcomingEvent = state.events.filter(ev=>!(ev.hiddenFromDaughter && effectiveRole()==='daughter')).map(ev=>({...ev,d:ddayFromDate(eventOccurrence(ev))})).filter(e=>e.d>=0).sort((a,b)=>a.d-b.d)[0];
@@ -1096,7 +1101,7 @@ function renderHome(){
     <div class="card">
       <h3>📅 오늘 일정</h3>
       ${todaySchedule.length? todaySchedule.map(s=>{
-        const badge = s.owner==='common' ? authorBadge(s.createdBy) : '';
+        const badge = authorBadge(s.createdBy);
         return `<div class="list-item"><div><div>${timeRangeLabel(s)?`<b>${timeRangeLabel(s)}</b> `:''}${badge}${escapeHtml(s.title)}</div>${s.memo?`<div class="content-text">${escapeHtml(s.memo)}</div>`:''}</div></div>`;
       }).join('') : `<div class="empty">등록된 일정이 없어요</div>`}
     </div>`:''}
@@ -1327,7 +1332,7 @@ function renderSchedule(){
       <div class="row" style="justify-content:space-between;"><h3 style="margin:0;">${weekdayColor(scheduleSel)?`<span style="color:${weekdayColor(scheduleSel)};">${scheduleSel}</span>`:scheduleSel} 일정${holidays[scheduleSel]?` <span class="pill">${escapeHtml(holidays[scheduleSel])}</span>`:''}</h3><button class="btn primary small" id="addSchedBtn">+ 일정 추가</button></div>
       ${dayItems.length? dayItems.map(s=>{
         const canManage = !s.virtual && canManageSchedule(s);
-        const badge = s.owner==='common' ? authorBadge(s.createdBy) : '';
+        const badge = authorBadge(s.createdBy);
         return `
         <div class="list-item sched-item">
           <div><div style="font-size:14px;">${timeRangeLabel(s)?escapeHtml(timeRangeLabel(s))+' ':''}${badge}${escapeHtml(s.title)} <span class="pill">${ownerLabel(s.owner)}</span></div>${s.memo?`<div class="content-text" style="font-size:12.5px;">${escapeHtml(s.memo)}</div>`:''}</div>
