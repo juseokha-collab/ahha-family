@@ -2100,22 +2100,26 @@ function renderIncomeEstimateCard(){
   const loggedTexts=state.budget.filter(b=>b.type==='income'&&b.category==='체중감량 인센티브'&&(b.owner===undefined||b.owner===myKey)).map(b=>(b.memo||'')+' '+b.amount);
   const reached=latestWeight==null?[]:milestones.filter(ms=>latestWeight<=ms.w);
   const unpaid=reached.filter(ms=>!loggedTexts.some(t=>t.includes(String(ms.w))));
+  const mobile=isMobileViewport();
   const headerBase=`주급 ₩200,000 + 주급 £${WEEKLY_ALLOWANCE_GBP}`;
   const rowBase=`₩200,000 + £${WEEKLY_ALLOWANCE_GBP}`;
-  const weekRow=(icon, labelHtml, weekWord, weekRange, min, incentive)=>`
-    <div style="display:flex;margin-top:4px;">
-      <span style="flex-shrink:0;">${icon} </span>
-      <span>${labelHtml}: (${rowBase})${incentive>0?` + £${incentive}`:''}<br>${weekWord}(${weekRange}) <b style="color:${SB_COLORS.exercise};">운동시간 ${fmtStudyMin(min)}</b> × £2 = £${incentive.toFixed(2)}</span>
-    </div>`;
+  const weekRow=(icon, labelHtml, weekWord, weekRange, min, incentive)=>{
+    const headline=`${labelHtml}: (${rowBase})${incentive>0?` + £${incentive}`:''}`;
+    const detail=`${weekWord}(${weekRange}) <b style="color:${SB_COLORS.exercise};">운동시간 ${fmtStudyMin(min)}</b> × £2 = £${incentive.toFixed(2)}`;
+    if(mobile) return `<div style="display:flex;margin-top:4px;"><span style="flex-shrink:0;">${icon} </span><span>${headline}<br>${detail}</span></div>`;
+    return `<div style="margin-top:4px;white-space:nowrap;">${icon} ${headline}, ${detail}</div>`;
+  };
+  const headerLine = mobile
+    ? `<div style="font-size:13px;display:flex;"><span style="flex-shrink:0;">💡 예상 수입 = </span><span>(${headerBase})<br>+ 지난주(월~일) 운동시간 × £2 + Weight Incentive</span></div>`
+    : `<div style="font-size:13px;white-space:nowrap;">💡 예상 수입 = (${headerBase}) + 지난주(월~일) 운동시간 × £2 + Weight Incentive</div>`;
   return `
     <div class="card">
-      <div style="font-size:13px;display:flex;">
-        <span style="flex-shrink:0;">💡 예상 수입 = </span>
-        <span>(${headerBase})<br>+ 지난주(월~일) 운동시간 × £2 + Weight Incentive</span>
-      </div>
+      <div style="overflow-x:auto;">
+      ${headerLine}
       <div style="margin-top:8px;margin-left:22px;font-size:13px;line-height:1.5;color:var(--muted);">
         ${weekRow('✅', `<b style="color:var(--accent);">이번 주 예상</b>`, '지난주', `${lastWeek[0].slice(5)}~${lastWeek[6].slice(5)}`, lastWeekMin, lastIncentive)}
         ${weekRow('🔮', `<b style="color:var(--accent2);">다음 주 예상</b>`, '이번주', `${thisWeek[0].slice(5)}~${thisWeek[6].slice(5)}`, thisWeekMin, thisIncentive)}
+      </div>
       </div>
       ${unpaid.length?`<div class="meta" style="margin-top:10px;color:var(--good);">🎉 체중 감량 목표 달성: ${unpaid.map(ms=>`${ms.w}kg 이하 → £${ms.bonus}`).join(', ')} (아직 수입 내역에 기록 안 됨)</div>`:''}
     </div>
@@ -2998,6 +3002,7 @@ window.addEventListener('resize', ()=>{
       lastMultiDayCount=cur;
       renderHome();
       renderStudy();
+      renderBudget();
     }
   }, 200);
 });
