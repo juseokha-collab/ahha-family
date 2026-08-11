@@ -1085,19 +1085,29 @@ function openTodoEditModal(id){
   if(!t) return;
   const cats=myTodoCategories();
   const catOptions = (t.category && !cats.some(c=>c.name===t.category)) ? cats.concat([{name:t.category,color:'#ddd'}]) : cats;
+  const [curH,curM]=(t.dueTime||'').split(':');
+  const hourOptions=Array.from({length:24},(_,h)=>pad2(h));
+  const minOptions=['00','10','20','30','40','50'];
   openModal(`
     <h3>To do 수정</h3>
     <div class="field"><label>할 일</label><input id="mTask" value="${escapeHtml(t.task)}"></div>
     <div class="grid2">
       <div class="field"><label>D-day 날짜</label><input type="text" readonly class="date-input" id="mDue" value="${t.dueDate}"></div>
-      <div class="field"><label>시간 (선택)</label><input type="time" step="600" id="mDueTime" value="${t.dueTime||''}"></div>
+      <div class="field"><label>시간 (선택)</label>
+        <div class="row" style="gap:4px;">
+          <select id="mDueHour" style="flex:1;min-width:0;"><option value="">--시</option>${hourOptions.map(h=>`<option value="${h}" ${curH===h?'selected':''}>${h}시</option>`).join('')}</select>
+          <select id="mDueMin" style="flex:1;min-width:0;"><option value="">--분</option>${minOptions.map(m=>`<option value="${m}" ${curM===m?'selected':''}>${m}분</option>`).join('')}</select>
+        </div>
+      </div>
     </div>
     <div class="field">
       <div class="row" style="justify-content:space-between;align-items:center;">
         <label style="margin:0;">카테고리</label>
         <button type="button" class="link-btn" id="manageTodoCatBtn">카테고리 관리</button>
       </div>
-      <select id="mCat">${catOptions.map(c=>`<option value="${escapeHtml(c.name)}" ${t.category===c.name?'selected':''}>${escapeHtml(c.name)}</option>`).join('')}</select>
+      <div class="row" style="gap:6px;flex-wrap:wrap;">
+        ${catOptions.map(c=>`<label class="pill" style="cursor:pointer;background:${t.category===c.name?c.color:'var(--panel2)'};border-color:${c.color};"><input type="radio" name="mCat" value="${escapeHtml(c.name)}" ${t.category===c.name?'checked':''} style="margin-right:4px;">${escapeHtml(c.name)}</label>`).join('')}
+      </div>
     </div>
     <label class="pill" style="cursor:pointer;display:inline-block;margin:6px 0;"><input type="checkbox" id="mDone" ${t.done?'checked':''} style="margin-right:4px;">완료</label>
     <div class="modal-actions">
@@ -1112,8 +1122,9 @@ function openTodoEditModal(id){
   document.getElementById('mSave').onclick=()=>{
     t.task=document.getElementById('mTask').value.trim()||t.task;
     t.dueDate=document.getElementById('mDue').value||t.dueDate;
-    t.dueTime=document.getElementById('mDueTime').value||'';
-    t.category=document.getElementById('mCat').value;
+    const h=document.getElementById('mDueHour').value, mi=document.getElementById('mDueMin').value;
+    t.dueTime=(h&&mi)?`${h}:${mi}`:'';
+    t.category=(document.querySelector('input[name="mCat"]:checked')||{}).value||t.category;
     const doneNow=document.getElementById('mDone').checked;
     if(doneNow && !t.done) t.doneDate=todayStr();
     if(!doneNow) t.doneDate='';
@@ -1259,7 +1270,7 @@ function renderHome(){
         const d=dday(t.dueDate);
         const cat=myTodoCategories().find(c=>c.name===t.category);
         const catLabel=cat ? (cat.name.length>3?cat.name.slice(0,3):cat.name) : '';
-        const catPill=cat ? `<span class="pill" style="background:${cat.color};color:#181820;border:none;" title="${escapeHtml(cat.name)}">${escapeHtml(catLabel)}</span>` : '';
+        const catPill=cat ? `<span class="pill" style="background:${cat.color};color:rgba(0,0,0,0.5);border:none;" title="${escapeHtml(cat.name)}">${escapeHtml(catLabel)}</span>` : '';
         return `
         <div class="list-item" style="align-items:center;">
           <div class="row" style="flex:1;gap:8px;min-width:0;">
@@ -1853,7 +1864,7 @@ function renderHealth(){
           ${otherMembers.map(m=>`<label class="pill" style="cursor:pointer;"><input type="checkbox" class="weightExtraToggle" value="${m.key}" ${weightChartOthers.includes(m.key)?'checked':''} style="margin-right:4px;transform:scale(0.5);vertical-align:middle;">${m.label}</label>`).join('')}
         </div>
       </div>
-      <div style="margin-top:10px;">${renderWeightChart([healthPerson].concat(weightChartOthers), [healthPerson].concat(weightChartOthers).map(k=>{ const g=weightGoalsFor(k); return {key:k, weeklyLoss:g.weeklyLoss, finalTarget:g.finalTarget}; }))}</div>
+      <div style="margin-top:10px;">${renderWeightChart([healthPerson].concat(weightChartOthers), [healthPerson].concat(weightChartOthers).map(k=>{ const g=weightGoalsFor(k); return {key:k, weeklyLoss:g.weeklyLoss, finalTarget:g.finalTarget, target:g.target}; }))}</div>
       <div style="margin-top:8px;text-align:right;">
         ${targetDate?`<div class="meta">🎯 1차 목표 ${goals.target}kg, ${fmtKoreanDate(targetDate)} 달성 목표</div>`:''}
         ${finalDate?`<div class="meta" style="margin-top:2px;">🏁 최종목표 ${goals.finalTarget}kg, ${fmtKoreanDate(finalDate)} 달성 목표</div>`:''}
@@ -2098,7 +2109,7 @@ function renderWeightChart(keys, goalProjections){
       if(gp.finalTarget && w<Number(gp.finalTarget)) w=Number(gp.finalTarget);
       return w;
     });
-    return {key:gp.key, color, pts, finalTarget:gp.finalTarget?Number(gp.finalTarget):null};
+    return {key:gp.key, color, pts, firstTarget:gp.target?Number(gp.target):null};
   }).filter(Boolean);
   const allVals=series.flatMap(s=>s.pts.filter(v=>v!=null)).concat(goals.flatMap(g=>g.pts.filter(v=>v!=null)));
   if(!allVals.length) return `<div class="empty">체중 기록이 아직 없어요</div>`;
@@ -2110,7 +2121,7 @@ function renderWeightChart(keys, goalProjections){
     if(!vals.length) return;
     const localMax=Math.max(...vals), localMin=Math.min(...vals);
     const bandMax=localMax+1;
-    const bandMin=(g && g.finalTarget!=null) ? Math.min(g.finalTarget-1, localMin-0.5) : localMin-1;
+    const bandMin=(g && g.firstTarget!=null) ? Math.min(g.firstTarget-1, localMin-0.5) : localMin-1;
     keyBand[key]={min:bandMin, max:bandMax};
   });
   let useBrokenAxis=false;
