@@ -659,6 +659,9 @@ document.getElementById('tabs').addEventListener('click', e=>{
   renderTabs();
 });
 
+function todayPillBtn(id){
+  return `<button id="${id}" style="background:#000;color:#fff;border:none;border-radius:999px;padding:3px 12px;font-size:11px;font-weight:700;cursor:pointer;">Today</button>`;
+}
 function fmtShortDateDow(dateStr){
   const d=parseDate(dateStr);
   const dow=['일','월','화','수','목','금','토'][d.getDay()];
@@ -861,9 +864,12 @@ function renderDayTimelines(){
   const role=effectiveRole();
   return `
     <div class="dt-panel">
-      <div class="row" style="justify-content:flex-end;margin-bottom:8px;gap:10px;">
-        ${role && role!=='daughter' ? `<label class="pill" style="cursor:pointer;"><input type="checkbox" id="showDaughterToggleHome" ${showDaughterOnHome?'checked':''} style="margin-right:4px;">딸</label>` : ''}
-        <label class="pill" style="cursor:pointer;"><input type="checkbox" id="showCommonToggleHome" ${showCommonOnHome?'checked':''} style="margin-right:4px;">가족공통</label>
+      <div class="row" style="justify-content:space-between;margin-bottom:8px;gap:10px;">
+        <div>${!days.includes(todayStr())?todayPillBtn('dtTodayBtn'):''}</div>
+        <div class="row" style="gap:10px;">
+          ${role && role!=='daughter' ? `<label class="pill" style="cursor:pointer;"><input type="checkbox" id="showDaughterToggleHome" ${showDaughterOnHome?'checked':''} style="margin-right:4px;">딸</label>` : ''}
+          <label class="pill" style="cursor:pointer;"><input type="checkbox" id="showCommonToggleHome" ${showCommonOnHome?'checked':''} style="margin-right:4px;">가족공통</label>
+        </div>
       </div>
       <div style="overflow-x:auto;">
         <table class="dt-table">
@@ -899,6 +905,11 @@ function bindDayTimelineEvents(){
     showDaughterOnHome=e.target.checked;
     renderHome();
   });
+  const dtTodayBtn=document.getElementById('dtTodayBtn');
+  if(dtTodayBtn) dtTodayBtn.onclick=()=>{
+    homeDate=todayStr();
+    renderHome();
+  };
   const dtPrevBtn=document.getElementById('dtPrevBtn');
   if(dtPrevBtn) dtPrevBtn.onclick=()=>{
     homeDate=fmtDate(addDays(parseDate(homeDate),-1));
@@ -1099,7 +1110,7 @@ function renderHome(){
     </div>
 
     <div class="card">
-      <h3>📅 오늘 일정</h3>
+      <h3>📅 ${Number(homeDate.slice(5,7))}.${Number(homeDate.slice(8,10))}${homeDate===todayStr()?'(오늘)':''} 일정</h3>
       ${todaySchedule.length? todaySchedule.map(s=>{
         const badge = authorBadge(s.createdBy);
         return `<div class="list-item"><div><div>${timeRangeLabel(s)?`<b>${timeRangeLabel(s)}</b> `:''}${badge}${escapeHtml(s.title)}</div>${s.memo?`<div class="content-text">${escapeHtml(s.memo)}</div>`:''}</div></div>`;
@@ -1624,7 +1635,7 @@ function renderHealth(){
     </div>
     <div class="card">
       <div class="datebar"><button class="iconbtn" id="hPrev">‹</button><div class="d" style="${dLabelColor?'color:'+dLabelColor+';':''}">${dLabel}</div><button class="iconbtn" id="hNext">›</button>
-        ${healthDate!==todayStr()?`<button class="btn small" id="hToday">오늘</button>`:''}
+        ${healthDate!==todayStr()?todayPillBtn('hToday'):''}
       </div>
       <div class="row" style="justify-content:flex-end;align-items:center;gap:8px;margin-bottom:8px;">
         <span class="meta" id="healthSaveStatus">${(rec.weight||rec.sleep||rec.fasting||rec.calories)?'✓ 저장됨':''}</span>
@@ -2039,15 +2050,21 @@ function weekActivityMinutes(key, weekDates){
   },0);
 }
 const WEEKLY_ALLOWANCE_KRW=200000, WEEKLY_ALLOWANCE_GBP=50;
-function weeklyPayableBreakdown(){
-  const thisWeek=mondayWeekRange(todayStr());
+function currentPayableWeekRange(){
   const lastWeek=mondayWeekRange(fmtDate(addDays(parseDate(todayStr()),-7)));
-  const lastWeekMin=weekActivityMinutes('daughter', lastWeek);
-  const gbpIncentive=Math.round((lastWeekMin/60)*2*100)/100;
+  const release=addDays(parseDate(lastWeek[6]), 2);
+  release.setHours(6,0,0,0);
+  if(new Date()>=release) return lastWeek;
+  return mondayWeekRange(fmtDate(addDays(parseDate(todayStr()),-14)));
+}
+function weeklyPayableBreakdown(){
+  const week=currentPayableWeekRange();
+  const weekMin=weekActivityMinutes('daughter', week);
+  const gbpIncentive=Math.round((weekMin/60)*2*100)/100;
   const gbpAllowance=WEEKLY_ALLOWANCE_GBP;
   return {
-    weekStart: thisWeek[0],
-    weekEnd: thisWeek[6],
+    weekStart: week[0],
+    weekEnd: week[6],
     krw: WEEKLY_ALLOWANCE_KRW,
     gbpAllowance,
     gbpIncentive,
@@ -2647,15 +2664,20 @@ function renderStudy(){
       <div style="overflow-x:auto;">
         <table style="width:100%;border-collapse:collapse;font-size:13px;">
           <tbody>
-            ${logRows.map((w,i)=>`
+            ${logRows.map((w,i)=>{
+              const range=`(${w.start.slice(5)} ~ ${w.end.slice(5)})`;
+              const total=fmtStudyMin(w.study+w.exercise);
+              const studyT=fmtStudyMin(w.study), exT=fmtStudyMin(w.exercise);
+              const detailCell = isMobileViewport()
+                ? `<div>${range} 총 ${total}</div><div style="color:var(--muted);">(학습 ${studyT} / 운동 ${exT})</div>`
+                : `<b>${range} 총 ${total}</b> (<span style="color:${SB_COLORS.study};">학습 ${studyT}</span> / <span style="color:${SB_COLORS.exercise};">운동 ${exT}</span>)`;
+              return `
               <tr>
                 <td style="width:18px;padding:4px 2px 4px 0;vertical-align:top;">${i===0?'📅':''}</td>
                 <td style="white-space:nowrap;padding:4px 10px 4px 0;font-weight:${i===0?'700':'400'};color:${i===0?'var(--text)':'var(--muted)'};vertical-align:top;">${weekAgoLabel(i)}</td>
-                <td style="padding:4px 0;white-space:nowrap;">
-                  <div>(${w.start.slice(5)} ~ ${w.end.slice(5)}) 총 ${fmtStudyMin(w.study+w.exercise)}</div>
-                  <div style="color:var(--muted);">(학습 ${fmtStudyMin(w.study)} / 운동 ${fmtStudyMin(w.exercise)})</div>
-                </td>
-              </tr>`).join('')}
+                <td style="padding:4px 0;white-space:nowrap;">${detailCell}</td>
+              </tr>`;
+            }).join('')}
           </tbody>
         </table>
       </div>
