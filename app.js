@@ -472,6 +472,17 @@ function mergeStudyBlocks(localSB, cloudSB){
   });
   return merged;
 }
+function mergeVehicle(localV, cloudV){
+  const merged=JSON.parse(JSON.stringify(cloudV||{}));
+  merged.fuel=mergeById(localV&&localV.fuel, cloudV&&cloudV.fuel);
+  merged.maint=mergeById(localV&&localV.maint, cloudV&&cloudV.maint);
+  merged.renewals=mergeById(localV&&localV.renewals, cloudV&&cloudV.renewals);
+  merged.maintCycle=Object.assign({}, (localV&&localV.maintCycle)||{}, (cloudV&&cloudV.maintCycle)||{});
+  ['plate','model','regDate','tireSize'].forEach(f=>{
+    if(!merged[f] && localV && localV[f]) merged[f]=localV[f];
+  });
+  return merged;
+}
 function mergeStates(localState, cloudState){
   const merged=JSON.parse(JSON.stringify(cloudState));
   merged.schedule=mergeById(localState.schedule, cloudState.schedule);
@@ -483,6 +494,7 @@ function mergeStates(localState, cloudState){
   merged.budgetCategories=mergeCategoryLists(localState.budgetCategories, cloudState.budgetCategories);
   merged.daily=mergeDaily(localState.daily, cloudState.daily);
   merged.studyBlocks=mergeStudyBlocks(localState.studyBlocks, cloudState.studyBlocks);
+  merged.vehicle=mergeVehicle(localState.vehicle, cloudState.vehicle);
   return merged;
 }
 function initAuth(){
@@ -794,6 +806,7 @@ function unifiedRowMeta(idx){
   return {label:dtHl(t), isEdge:false, addTime:t};
 }
 let showCommonOnHome=false;
+let showDaughterOnHome=false;
 let studyAnchor=todayStr();
 function myHomeVisibleScheduleItems(dateStr){
   const role=effectiveRole();
@@ -805,6 +818,7 @@ function myHomeVisibleScheduleItems(dateStr){
     if(!role) return it.owner==='common';
     if(it.owner===role) return true;
     if(it.owner==='common') return showCommonOnHome;
+    if(it.owner==='daughter' && role!=='daughter') return showDaughterOnHome;
     return false;
   });
   return visible.filter(it=>scheduleItemOccursOn(it,dateStr)).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
@@ -839,9 +853,11 @@ function renderDayTimelines(){
     const justify = isFirst ? 'flex-start' : isLast ? 'flex-end' : 'center';
     return gap+`<th><div class="row" style="justify-content:${justify};flex-wrap:nowrap;gap:4px;">${prevBtn}${dateText}${nextBtn}</div></th>`;
   }).join('');
+  const role=effectiveRole();
   return `
     <div class="dt-panel">
-      <div class="row" style="justify-content:flex-end;margin-bottom:8px;">
+      <div class="row" style="justify-content:flex-end;margin-bottom:8px;gap:10px;">
+        ${role && role!=='daughter' ? `<label class="pill" style="cursor:pointer;"><input type="checkbox" id="showDaughterToggleHome" ${showDaughterOnHome?'checked':''} style="margin-right:4px;">딸</label>` : ''}
         <label class="pill" style="cursor:pointer;"><input type="checkbox" id="showCommonToggleHome" ${showCommonOnHome?'checked':''} style="margin-right:4px;">가족공통</label>
       </div>
       <div style="overflow-x:auto;">
@@ -873,6 +889,11 @@ function moveScheduleItem(id, newDate, newTime){
 function bindDayTimelineEvents(){
   const el=document.getElementById('tab-home');
   bindShowCommonToggle('showCommonToggleHome');
+  const showDaughterToggle=document.getElementById('showDaughterToggleHome');
+  if(showDaughterToggle) showDaughterToggle.addEventListener('change', e=>{
+    showDaughterOnHome=e.target.checked;
+    renderHome();
+  });
   const dtPrevBtn=document.getElementById('dtPrevBtn');
   if(dtPrevBtn) dtPrevBtn.onclick=()=>{
     homeDate=fmtDate(addDays(parseDate(homeDate),-1));
@@ -1074,7 +1095,10 @@ function renderHome(){
 
     <div class="card">
       <h3>📅 오늘 일정</h3>
-      ${todaySchedule.length? todaySchedule.map(s=>`<div class="list-item"><div><div>${timeRangeLabel(s)?`<b>${timeRangeLabel(s)}</b> `:''}${escapeHtml(s.title)}</div>${s.memo?`<div class="content-text">${escapeHtml(s.memo)}</div>`:''}</div></div>`).join('') : `<div class="empty">등록된 일정이 없어요</div>`}
+      ${todaySchedule.length? todaySchedule.map(s=>{
+        const badge = s.owner==='common' ? authorBadge(s.createdBy) : '';
+        return `<div class="list-item"><div><div>${timeRangeLabel(s)?`<b>${timeRangeLabel(s)}</b> `:''}${badge}${escapeHtml(s.title)}</div>${s.memo?`<div class="content-text">${escapeHtml(s.memo)}</div>`:''}</div></div>`;
+      }).join('') : `<div class="empty">등록된 일정이 없어요</div>`}
     </div>`:''}
   `;
   document.getElementById('homePrev').onclick=()=>{ homeDate=fmtDate(addDays(parseDate(homeDate),-1)); renderHome(); };
@@ -1303,9 +1327,10 @@ function renderSchedule(){
       <div class="row" style="justify-content:space-between;"><h3 style="margin:0;">${weekdayColor(scheduleSel)?`<span style="color:${weekdayColor(scheduleSel)};">${scheduleSel}</span>`:scheduleSel} 일정${holidays[scheduleSel]?` <span class="pill">${escapeHtml(holidays[scheduleSel])}</span>`:''}</h3><button class="btn primary small" id="addSchedBtn">+ 일정 추가</button></div>
       ${dayItems.length? dayItems.map(s=>{
         const canManage = !s.virtual && canManageSchedule(s);
+        const badge = s.owner==='common' ? authorBadge(s.createdBy) : '';
         return `
         <div class="list-item sched-item">
-          <div><div style="font-size:14px;">${timeRangeLabel(s)?escapeHtml(timeRangeLabel(s))+' ':''}${escapeHtml(s.title)} <span class="pill">${ownerLabel(s.owner)}</span></div>${s.memo?`<div class="content-text" style="font-size:12.5px;">${escapeHtml(s.memo)}</div>`:''}</div>
+          <div><div style="font-size:14px;">${timeRangeLabel(s)?escapeHtml(timeRangeLabel(s))+' ':''}${badge}${escapeHtml(s.title)} <span class="pill">${ownerLabel(s.owner)}</span></div>${s.memo?`<div class="content-text" style="font-size:12.5px;">${escapeHtml(s.memo)}</div>`:''}</div>
           <div class="row">${s.virtual? `<span class="meta">경조사 탭에서 수정</span>` : (canManage?`<button class="btn small" data-edit="${s.id}">수정</button><button class="btn small danger" data-del="${s.id}">삭제</button>`:`<span class="meta">작성자만 관리 가능</span>`)}</div>
         </div>`;
       }).join('') : `<div class="empty">일정이 없어요</div>`}
