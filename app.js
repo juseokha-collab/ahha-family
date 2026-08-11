@@ -1,4 +1,6 @@
 /* ---------- utils ---------- */
+function isMobileViewport(){ return window.innerWidth <= 600; }
+function multiDayCount(){ return isMobileViewport() ? 2 : 3; }
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
 function pad2(n){ return String(n).padStart(2,'0'); }
 function fmtDate(d){ return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`; }
@@ -669,7 +671,6 @@ function headerDateHtml(dateStr){
 }
 /* ---------- HOME ---------- */
 let homeDate = todayStr();
-let dtAnchor = todayStr();
 const MOODS=['😊','🥰','🙂','😐','😫','😢','😠','🤒'];
 let diaryArchiveOpen=false;
 let diaryArchiveIncludeFamily=false;
@@ -809,7 +810,7 @@ function myHomeVisibleScheduleItems(dateStr){
   return visible.filter(it=>scheduleItemOccursOn(it,dateStr)).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
 }
 function renderDayTimelines(){
-  const days=[0,1].map(n=>fmtDate(addDays(parseDate(dtAnchor), n)));
+  const days=Array.from({length:multiDayCount()},(_,n)=>fmtDate(addDays(parseDate(homeDate), n)));
   const layouts=days.map(d=>computeDayLayoutFromItems(myHomeVisibleScheduleItems(d)));
   const indices=[-1].concat(Array.from({length:DT_ROWS},(_,i)=>i)).concat([DT_ROWS]);
   let rows='';
@@ -874,12 +875,12 @@ function bindDayTimelineEvents(){
   bindShowCommonToggle('showCommonToggleHome');
   const dtPrevBtn=document.getElementById('dtPrevBtn');
   if(dtPrevBtn) dtPrevBtn.onclick=()=>{
-    dtAnchor=fmtDate(addDays(parseDate(dtAnchor),-1));
+    homeDate=fmtDate(addDays(parseDate(homeDate),-1));
     renderHome();
   };
   const dtNextBtn=document.getElementById('dtNextBtn');
   if(dtNextBtn) dtNextBtn.onclick=()=>{
-    dtAnchor=fmtDate(addDays(parseDate(dtAnchor),1));
+    homeDate=fmtDate(addDays(parseDate(homeDate),1));
     renderHome();
   };
   el.querySelectorAll('.dt-cell').forEach(td=>{
@@ -928,8 +929,7 @@ function myTodos(){
   return state.todos[key];
 }
 function todosForToday(){
-  const today=todayStr();
-  return myTodos().filter(t=>t.dueDate>=today).sort((a,b)=>a.dueDate.localeCompare(b.dueDate));
+  return myTodos().filter(t=>t.dueDate>=homeDate).sort((a,b)=>a.dueDate.localeCompare(b.dueDate));
 }
 function todoProgressPct(list){
   if(!list.length) return null;
@@ -1035,7 +1035,7 @@ function renderHome(){
 
     <div class="card">
       <div class="row" style="justify-content:space-between;align-items:center;">
-        <h3 style="margin:0;">✅ ${Number(todayStr().slice(5,7))}.${Number(todayStr().slice(8,10))} To do list</h3>
+        <h3 style="margin:0;">✅ ${Number(homeDate.slice(5,7))}.${Number(homeDate.slice(8,10))} To do list</h3>
         ${todoPct!=null?`<span class="meta">오늘 진행률 ${todoPct}%</span>`:''}
       </div>
       ${todoPct!=null?`<div class="bar-track" style="margin:8px 0;"><div class="bar-fill" style="width:${todoPct}%"></div></div>`:''}
@@ -2557,7 +2557,8 @@ function renderStudy(){
   if(!el) return;
   const key=currentAuthorKey();
   const streakInfo=currentStreak(key);
-  const days=[1,0].map(n=>fmtDate(addDays(parseDate(studyAnchor), -n)));
+  const dayCount=multiDayCount();
+  const days=Array.from({length:dayCount},(_,i)=>dayCount-1-i).map(n=>fmtDate(addDays(parseDate(studyAnchor), -n)));
   const arrays=days.map(d=>studyBlocksFor(key,d));
   const summaries=arrays.map(studySummary);
   let rows='';
@@ -2987,3 +2988,16 @@ initAuth();
 updateWorldClock();
 setInterval(updateWorldClock, 10000);
 renderAll();
+let lastMultiDayCount=multiDayCount();
+let resizeTimer=null;
+window.addEventListener('resize', ()=>{
+  clearTimeout(resizeTimer);
+  resizeTimer=setTimeout(()=>{
+    const cur=multiDayCount();
+    if(cur!==lastMultiDayCount){
+      lastMultiDayCount=cur;
+      renderHome();
+      renderStudy();
+    }
+  }, 200);
+});
