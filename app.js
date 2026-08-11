@@ -354,12 +354,14 @@ function migrateDaily(st){
   return st;
 }
 function migrateBudgetOwnership(st){
-  (st.budget||[]).forEach(b=>{
+  st.budget = (st.budget||[]).filter(b=>b.confirmed!==false);
+  st.budget.forEach(b=>{
     if(b.paymentWeek && b.owner===undefined){
-      if(b.type==='income'){ b.owner='daughter'; if(b.confirmed===undefined) b.confirmed=false; }
+      if(b.type==='income'){ b.owner='daughter'; }
       else { b.owner='jinahkim2023@gmail.com'; }
     }
     if(b.category==='학습·운동 인센티브' && b.memo==='지난주 활동 기준') b.memo='';
+    if(b.confirmed!==undefined) delete b.confirmed;
   });
   return st;
 }
@@ -763,7 +765,7 @@ function computeDayLayoutFromItems(items){
   return {mainStart, skip};
 }
 function computeDayLayout(dateStr){ return computeDayLayoutFromItems(myVisibleScheduleItems(dateStr)); }
-const ROLE_EMOJI={dad:'🤓',mom:'👱‍♀️',daughter:'👶'};
+const ROLE_EMOJI={dad:'👓',mom:'🍳',daughter:'🎀'};
 const ROLE_BADGE_COLOR={dad:'#4d7fe0',mom:'#e0538f',daughter:'#9a5be0'};
 function authorRoleOf(key){
   if(!key) return null;
@@ -1488,7 +1490,7 @@ function openScheduleModal(existing, prefill, occurDate){
         ${ownerOptions.map(o=>`<label class="pill" style="cursor:pointer;"><input type="radio" name="mOwner" value="${o.key}" ${(s.owner||'common')===o.key?'checked':''} style="margin-right:4px;">${scheduleFilterLabel(o.key)}</label>`).join('')}
       </div>
     </div>
-    <div class="field" style="flex-direction:row;align-items:center;gap:8px;"><label style="flex-shrink:0;">배경색상</label>${renderColorSwatches(selectedColor, 'modal')}</div>
+    <div class="field" style="flex-direction:row;align-items:center;gap:8px;margin-bottom:22px;"><label style="flex-shrink:0;">배경색상</label>${renderColorSwatches(selectedColor, 'modal')}</div>
     <div class="field"><label>날짜</label><input type="text" readonly class="date-input" placeholder="YYYY-MM-DD" id="mDate" value="${s.date}"></div>
     <div class="grid2">
       <div class="field"><label>시작 시간 (선택)</label><input type="time" step="600" id="mTime" value="${s.time||''}"></div>
@@ -2171,25 +2173,6 @@ function openWeeklyPaymentEditModal(weekStart){
     queueSave(); closeModal(); renderBudget(); renderHome();
   };
 }
-function ensureDaughterWeeklyIncomePlaceholders(){
-  const b=weeklyPayableBreakdown();
-  const dateStr=todayStr();
-  const exists=cat=>state.budget.some(x=>x.paymentWeek===b.weekStart && x.owner==='daughter' && x.category===cat);
-  let added=false;
-  if(!exists('주급(토스)')){
-    state.budget.push({id:uid(), date:dateStr, category:'주급(토스)', amount:b.krw, currency:'KRW', memo:'', type:'income', owner:'daughter', paymentWeek:b.weekStart, confirmed:false});
-    added=true;
-  }
-  if(!exists('주급(로이드)')){
-    state.budget.push({id:uid(), date:dateStr, category:'주급(로이드)', amount:b.gbpAllowance, currency:'GBP', memo:'', type:'income', owner:'daughter', paymentWeek:b.weekStart, confirmed:false});
-    added=true;
-  }
-  if(b.gbpIncentive>0 && !exists('학습·운동 인센티브')){
-    state.budget.push({id:uid(), date:dateStr, category:'학습·운동 인센티브', amount:b.gbpIncentive, currency:'GBP', memo:'', type:'income', owner:'daughter', paymentWeek:b.weekStart, confirmed:false});
-    added=true;
-  }
-  if(added) queueSave();
-}
 function renderIncomeEstimateCard(){
   const thisWeek=mondayWeekRange(todayStr());
   const lastWeek=mondayWeekRange(fmtDate(addDays(parseDate(todayStr()),-7)));
@@ -2235,7 +2218,6 @@ function renderBudget(){
   const myRole=effectiveRole();
   const isDaughter=myRole==='daughter';
   const isMom=myRole==='mom';
-  if(isDaughter) ensureDaughterWeeklyIncomePlaceholders();
   const myBudget=state.budget.filter(b=>b.owner===undefined || b.owner===myKey);
   const monthItems=myBudget.filter(b=>b.date.startsWith(budgetMonth));
   const items=monthItems.filter(b=>b.type!=='income').sort((a,b)=>b.date.localeCompare(a.date));
@@ -2243,14 +2225,14 @@ function renderBudget(){
   const expenseByCur={KRW:0,GBP:0};
   items.forEach(b=>{ const cur=b.currency||'KRW'; expenseByCur[cur]=(expenseByCur[cur]||0)+Number(b.amount||0); });
   const incomeByCur={KRW:0,GBP:0};
-  incomeItems.filter(b=>b.confirmed!==false).forEach(b=>{ const cur=b.currency||'KRW'; incomeByCur[cur]=(incomeByCur[cur]||0)+Number(b.amount||0); });
+  incomeItems.forEach(b=>{ const cur=b.currency||'KRW'; incomeByCur[cur]=(incomeByCur[cur]||0)+Number(b.amount||0); });
   const byCat={};
   items.filter(b=>(b.currency||'KRW')==='KRW').forEach(b=>{ byCat[b.category]=(byCat[b.category]||0)+Number(b.amount||0); });
   const [y,m]=budgetMonth.split('-');
   const monthBalanceKRW = incomeByCur.KRW - expenseByCur.KRW;
   const monthBalanceGBP = incomeByCur.GBP - expenseByCur.GBP;
   const allIncomeByCur={KRW:0,GBP:0};
-  myBudget.filter(b=>b.type==='income' && b.confirmed!==false).forEach(b=>{ const cur=b.currency||'KRW'; allIncomeByCur[cur]=(allIncomeByCur[cur]||0)+Number(b.amount||0); });
+  myBudget.filter(b=>b.type==='income').forEach(b=>{ const cur=b.currency||'KRW'; allIncomeByCur[cur]=(allIncomeByCur[cur]||0)+Number(b.amount||0); });
   const allExpenseByCur={KRW:0,GBP:0};
   myBudget.filter(b=>b.type!=='income').forEach(b=>{ const cur=b.currency||'KRW'; allExpenseByCur[cur]=(allExpenseByCur[cur]||0)+Number(b.amount||0); });
   const carryover=budgetCarryoverFor(myKey);
@@ -2276,9 +2258,9 @@ function renderBudget(){
       </div>
       ${incomeItems.length? incomeItems.map(b=>`
         <div class="list-item">
-          <div><div><span class="pill">${escapeHtml(b.category)}</span> ${escapeHtml(b.memo)}</div><div class="meta">${b.date}${b.confirmed===false?' · 입금 전':''}</div></div>
+          <div><div><span class="pill">${escapeHtml(b.category)}</span> ${escapeHtml(b.memo)}</div><div class="meta">${b.date}</div></div>
           <div class="row"><b>${fmtCurrency(b.amount,b.currency||'KRW')}</b>
-            <button class="btn small ${b.confirmed===false?'primary':''}" data-edit-inc="${b.id}">${b.confirmed===false?'입금확정':'수정'}</button><button class="btn small danger" data-del-inc="${b.id}">삭제</button></div>
+            <button class="btn small" data-edit-inc="${b.id}">수정</button><button class="btn small danger" data-del-inc="${b.id}">삭제</button></div>
         </div>`).join('') : `<div class="empty">이번달 수입 내역이 없어요</div>`}
     </div>
     <div class="card">
@@ -2417,7 +2399,6 @@ function incomeCategoryDefaults(key, category){
 }
 function openIncomeModal(existing){
   const myCats=myIncomeCategories();
-  const isConfirmStep = !!(existing && existing.confirmed===false);
   const b=existing||{id:null,date:budgetMonth+'-'+pad2(new Date().getDate()),category:myCats[0]||'기타',amount:'',currency:'KRW',memo:''};
   const catOptions = myCats.includes(b.category) ? myCats : myCats.concat([b.category]);
   if(!existing){
@@ -2425,7 +2406,7 @@ function openIncomeModal(existing){
     if(d){ b.amount=d.amount; b.currency=d.currency; b.memo=d.memo; }
   }
   openModal(`
-    <h3>${isConfirmStep?'입금 확정':(existing?'수입 수정':'수입 추가')}</h3>
+    <h3>${existing?'수입 수정':'수입 추가'}</h3>
     <div class="field"><label>날짜</label><input type="text" readonly class="date-input" placeholder="YYYY-MM-DD" id="mDate" value="${b.date}"></div>
     <div class="field"><label>카테고리</label><select id="mCat">${catOptions.map(c=>`<option ${c===b.category?'selected':''}>${escapeHtml(c)}</option>`).join('')}</select></div>
     <div class="grid2">
@@ -2433,7 +2414,7 @@ function openIncomeModal(existing){
       <div class="field"><label>통화</label><select id="mCurrency"><option value="KRW" ${(b.currency||'KRW')==='KRW'?'selected':''}>원 (KRW)</option><option value="GBP" ${b.currency==='GBP'?'selected':''}>£ (GBP)</option></select></div>
     </div>
     <div class="field"><label>메모</label><input id="mMemo" value="${escapeHtml(b.memo)}"></div>
-    <div class="modal-actions"><button class="btn" id="mCancel">취소</button><button class="btn primary" id="mSave">${isConfirmStep?'입금확정':'저장'}</button></div>
+    <div class="modal-actions"><button class="btn" id="mCancel">취소</button><button class="btn primary" id="mSave">저장</button></div>
   `);
   document.getElementById('mCancel').onclick=closeModal;
   attachDatePicker('mDate');
@@ -2452,7 +2433,6 @@ function openIncomeModal(existing){
     const amount=Number(document.getElementById('mAmount').value||0);
     if(!date||!amount){ showToast('날짜와 금액을 입력해주세요'); return; }
     const rec={...b,id:b.id||uid(),date,category:document.getElementById('mCat').value,amount,currency:document.getElementById('mCurrency').value,memo:document.getElementById('mMemo').value,type:'income',owner:b.owner||currentAuthorKey()};
-    if(isConfirmStep) rec.confirmed=true;
     if(b.id){ const idx=state.budget.findIndex(x=>x.id===b.id); state.budget[idx]=rec; }
     else state.budget.push(rec);
     budgetMonth=date.slice(0,7);
