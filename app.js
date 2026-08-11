@@ -633,7 +633,7 @@ function getVisibleTabs(){
 function renderTabs(){
   const tabs=getVisibleTabs();
   if(!tabs.some(t=>t.key===activeTab)) activeTab='home';
-  document.getElementById('tabs').innerHTML = tabs.map(t=>`<button data-tab="${t.key}" class="${t.key===activeTab?'active':''}"${t.title?` title="${t.title}"`:''}>${t.label}</button>`).join('');
+  document.getElementById('tabs').innerHTML = tabs.map(t=>`<button data-tab="${t.key}" class="${t.key===activeTab?'active':''}"${t.title?` title="${t.title}" style="font-size:22px;padding:6px 14px;"`:''}>${t.label}</button>`).join('');
   ALL_TAB_KEYS.forEach(k=>{
     const el=document.getElementById('tab-'+k);
     if(el) el.style.display = (k===activeTab) ? '' : 'none';
