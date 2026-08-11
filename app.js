@@ -366,6 +366,15 @@ function migrateBudgetOwnership(st){
   });
   return st;
 }
+function migrateCalendarDayColors(st){
+  if(!st.calendarDayColors) st.calendarDayColors={};
+  Object.keys(st.calendarDayColors).forEach(k=>{
+    if(typeof st.calendarDayColors[k]!=='object' || st.calendarDayColors[k]===null){
+      delete st.calendarDayColors[k];
+    }
+  });
+  return st;
+}
 function resetWeeklyPaymentDataOnce(st){
   if(!st.weeklyPaymentResetV2){
     st.budget=(st.budget||[]).filter(b=>!b.paymentWeek);
@@ -381,7 +390,7 @@ function loadLocal(){
       const parsed=JSON.parse(raw);
       const base=defaultState();
       base.vehicle=Object.assign(base.vehicle, parsed.vehicle||{});
-      return resetWeeklyPaymentDataOnce(migrateBudgetOwnership(migrateTodos(migrateVehicle(migrateDaily(Object.assign(base, parsed, {vehicle:base.vehicle}))))));
+      return migrateCalendarDayColors(resetWeeklyPaymentDataOnce(migrateBudgetOwnership(migrateTodos(migrateVehicle(migrateDaily(Object.assign(base, parsed, {vehicle:base.vehicle})))))));
     }
   }catch(e){}
   return defaultState();
@@ -450,6 +459,12 @@ function mergeCategoryLists(localObj, cloudObj){
   });
   return merged;
 }
+function mergeKeyedColorMaps(localObj, cloudObj){
+  const merged={};
+  const keys=new Set([...Object.keys(localObj||{}), ...Object.keys(cloudObj||{})]);
+  keys.forEach(k=>{ merged[k]=Object.assign({}, (localObj||{})[k]||{}, (cloudObj||{})[k]||{}); });
+  return merged;
+}
 function mergeDaily(localDaily, cloudDaily){
   const merged=JSON.parse(JSON.stringify(cloudDaily||{}));
   Object.keys(localDaily||{}).forEach(date=>{
@@ -498,7 +513,7 @@ function mergeStates(localState, cloudState){
   merged.daily=mergeDaily(localState.daily, cloudState.daily);
   merged.studyBlocks=mergeStudyBlocks(localState.studyBlocks, cloudState.studyBlocks);
   merged.vehicle=mergeVehicle(localState.vehicle, cloudState.vehicle);
-  merged.calendarDayColors=Object.assign({}, localState.calendarDayColors||{}, cloudState.calendarDayColors||{});
+  merged.calendarDayColors=mergeKeyedColorMaps(localState.calendarDayColors, cloudState.calendarDayColors);
   return merged;
 }
 function initAuth(){
@@ -516,7 +531,7 @@ function initAuth(){
           const data=doc.data();
           const base=defaultState();
           base.vehicle=Object.assign(base.vehicle, data.vehicle||{});
-          const cloudState=resetWeeklyPaymentDataOnce(migrateBudgetOwnership(migrateTodos(migrateVehicle(migrateDaily(Object.assign(base, data, {vehicle:base.vehicle}))))));
+          const cloudState=migrateCalendarDayColors(resetWeeklyPaymentDataOnce(migrateBudgetOwnership(migrateTodos(migrateVehicle(migrateDaily(Object.assign(base, data, {vehicle:base.vehicle})))))));
           state=mergeStates(localState, cloudState);
           await familyDocRef().set(state);
         } else {
@@ -1354,6 +1369,9 @@ function renderSchedule(){
   const holidays=getHolidaysForViewer(y);
   const todayS=todayStr();
   const MAX_SHOWN=3;
+  const myKeyCal=currentAuthorKey();
+  if(!state.calendarDayColors) state.calendarDayColors={};
+  const myDayColors=state.calendarDayColors[myKeyCal]||{};
   let grid='';
   for(let i=0;i<totalCells;i++){
     const dayNum=i-firstDow+1;
@@ -1367,7 +1385,7 @@ function renderSchedule(){
     const dayEntry=((state.daily[dateStr]||{}).entries||{})[currentAuthorKey()];
     const commentText=dayEntry&&dayEntry.diary?dayEntry.diary:'';
     const commentHtml=commentText?`<div class="cal-comment" title="${escapeHtml(commentText)}">📝 ${escapeHtml(commentText)}</div>`:'';
-    const dayColor=state.calendarDayColors[dateStr];
+    const dayColor=myDayColors[dateStr];
     const colorAttr=dayColor?` style="background:${dayColor};"`:'';
     grid += `<div class="cal-cell ${inMonth?'':'other'} ${dateStr===todayS?'today':''} ${dateStr===scheduleSel?'sel':''} ${holidayName?'holiday':''}" data-date="${dateStr}"${colorAttr}>
       <div class="day-row"><span class="day-num">${dateObj.getDate()}</span>${holidayName?`<span class="cal-holiday">${escapeHtml(holidayName)}</span>`:''}</div>${commentHtml}${shown}${more}
@@ -1422,7 +1440,8 @@ function renderSchedule(){
     const c=e.target.closest('.cal-cell'); if(!c) return;
     if(calendarColorPick){
       if(!state.calendarDayColors) state.calendarDayColors={};
-      state.calendarDayColors[c.dataset.date]=calendarColorPick;
+      if(!state.calendarDayColors[myKeyCal]) state.calendarDayColors[myKeyCal]={};
+      state.calendarDayColors[myKeyCal][c.dataset.date]=calendarColorPick;
       queueSave(); renderSchedule();
       return;
     }
