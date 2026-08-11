@@ -2332,6 +2332,7 @@ function weekActivityMinutes(key, weekDates){
   },0);
 }
 const WEEKLY_ALLOWANCE_KRW=200000, WEEKLY_ALLOWANCE_GBP=50;
+const INCENTIVE_RATE_GBP=2.5;
 function currentPayableWeekRange(){
   const lastWeek=mondayWeekRange(fmtDate(addDays(parseDate(todayStr()),-7)));
   const release=addDays(parseDate(lastWeek[6]), 2);
@@ -2342,7 +2343,7 @@ function currentPayableWeekRange(){
 function weeklyPayableBreakdown(){
   const week=currentPayableWeekRange();
   const weekMin=weekActivityMinutes('daughter', week);
-  const gbpIncentive=Math.round((weekMin/60)*2*100)/100;
+  const gbpIncentive=Math.round((weekMin/60)*INCENTIVE_RATE_GBP*100)/100;
   const gbpAllowance=WEEKLY_ALLOWANCE_GBP;
   return {
     weekStart: week[0],
@@ -2402,8 +2403,8 @@ function renderIncomeEstimateCard(){
   const lastWeek=mondayWeekRange(fmtDate(addDays(parseDate(todayStr()),-7)));
   const lastWeekMin=weekActivityMinutes('daughter', lastWeek);
   const thisWeekMin=weekActivityMinutes('daughter', thisWeek);
-  const lastIncentive=Math.round((lastWeekMin/60)*2*100)/100;
-  const thisIncentive=Math.round((thisWeekMin/60)*2*100)/100;
+  const lastIncentive=Math.round((lastWeekMin/60)*INCENTIVE_RATE_GBP*100)/100;
+  const thisIncentive=Math.round((thisWeekMin/60)*INCENTIVE_RATE_GBP*100)/100;
   const latestWeight = latestWeightFor('daughter');
   const milestones=[{w:49,bonus:20},{w:48,bonus:50},{w:45,bonus:100}];
   const myKey=currentAuthorKey();
@@ -2415,13 +2416,13 @@ function renderIncomeEstimateCard(){
   const rowBase=`₩200,000 + £${WEEKLY_ALLOWANCE_GBP}`;
   const weekRow=(icon, labelHtml, weekWord, weekRange, min, incentive)=>{
     const headline=`${labelHtml}: (${rowBase})${incentive>0?` + £${incentive}`:''}`;
-    const detail=`${weekWord}(${weekRange}) <b style="color:${SB_COLORS.exercise};">운동시간 ${fmtStudyMin(min)}</b> × £2 = £${incentive.toFixed(2)}`;
+    const detail=`${weekWord}(${weekRange}) <b style="color:${SB_COLORS.exercise};">운동시간 ${fmtStudyMin(min)}</b> × £${INCENTIVE_RATE_GBP} = £${incentive.toFixed(2)}`;
     if(mobile) return `<div style="display:flex;margin-top:4px;"><span style="flex-shrink:0;">${icon} </span><span>${headline}<br>${detail}</span></div>`;
     return `<div style="margin-top:4px;white-space:nowrap;">${icon} ${headline}, ${detail}</div>`;
   };
   const headerLine = mobile
-    ? `<div style="font-size:13px;display:flex;"><span style="flex-shrink:0;">💡 예상 수입 = </span><span>(${headerBase})<br>+ 지난주(월~일) 운동시간 × £2 + Weight Incentive</span></div>`
-    : `<div style="font-size:13px;white-space:nowrap;">💡 예상 수입 = (${headerBase}) + 지난주(월~일) 운동시간 × £2 + Weight Incentive</div>`;
+    ? `<div style="font-size:13px;display:flex;"><span style="flex-shrink:0;">💡 예상 수입 = </span><span>(${headerBase})<br>+ 지난주(월~일) 운동시간 × £${INCENTIVE_RATE_GBP} + Weight Incentive</span></div>`
+    : `<div style="font-size:13px;white-space:nowrap;">💡 예상 수입 = (${headerBase}) + 지난주(월~일) 운동시간 × £${INCENTIVE_RATE_GBP} + Weight Incentive</div>`;
   return `
     <div class="card">
       <div style="overflow-x:auto;">
@@ -2616,7 +2617,7 @@ function incomeCategoryDefaults(key, category){
   if(category==='학습·운동 인센티브'){
     const lastWeek=mondayWeekRange(fmtDate(addDays(parseDate(todayStr()),-7)));
     const min=weekActivityMinutes(key, lastWeek);
-    const gbp=Math.round((min/60)*2*100)/100;
+    const gbp=Math.round((min/60)*INCENTIVE_RATE_GBP*100)/100;
     return {amount:gbp, currency:'GBP', memo:`지난주 ${pad2(Math.floor(min/60))}시 ${pad2(min%60)}분 달성! 💗`};
   }
   if(category==='체중감량 인센티브') return {amount:'', currency:'GBP', memo:'목표 몸무게 달성! 💗'};
