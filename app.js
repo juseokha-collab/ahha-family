@@ -2690,13 +2690,11 @@ function renderVehicle(){
   const el=document.getElementById('tab-vehicle');
   const v=state.vehicle;
   const renewals=v.renewals.map(r=>({...r,d:dday(r.date)})).sort((a,b)=>a.d-b.d);
-  const fuelSorted=[...v.fuel].sort((a,b)=>b.date.localeCompare(a.date));
   const maintSorted=[...v.maint].sort((a,b)=>b.date.localeCompare(a.date));
   const maintRows=MAINT_ITEMS.map(item=>{
     const records=v.maint.filter(mt=>mt.item===item).sort((a,b)=>b.date.localeCompare(a.date));
     return {item, latest:records[0]};
   });
-  const fuelTotal=v.fuel.reduce((s,f)=>s+Number(f.cost||0),0);
   el.innerHTML=`
     <div class="card">
       <h3>🚗 차량 정보</h3>
@@ -2717,14 +2715,6 @@ function renderVehicle(){
           <div class="row"><span class="pill ${ddayPillClass(r.d)}">${ddayLabel(r.d)}</span>
             <button class="btn small" data-edit-renew="${r.id}">수정</button><button class="btn small danger" data-del-renew="${r.id}">삭제</button></div>
         </div>`).join('') : `<div class="empty">보험/자동차세/정기검사 만기일을 등록해보세요</div>`}
-    </div>
-    <div class="card">
-      <div class="row" style="justify-content:space-between;"><h3 style="margin:0;">⛽ 주유 기록 (누적 ${fuelTotal.toLocaleString()}원)</h3><button class="btn primary small" id="addFuelBtn">+ 추가</button></div>
-      ${fuelSorted.length? fuelSorted.slice(0,12).map(f=>`
-        <div class="list-item">
-          <div><div>${f.liters?f.liters+'L · ':''}${Number(f.cost).toLocaleString()}원</div><div class="meta">${f.date}${f.odo?' · '+f.odo+'km':''}</div></div>
-          <div class="row"><button class="btn small" data-edit-fuel="${f.id}">수정</button><button class="btn small danger" data-del-fuel="${f.id}">삭제</button></div>
-        </div>`).join('') : `<div class="empty">주유 기록이 없어요</div>`}
     </div>
     <div class="card">
       <div class="row" style="justify-content:space-between;"><h3 style="margin:0;">🔧 정비 기록</h3><button class="btn primary small" id="addMaintBtn">+ 추가</button></div>
@@ -2761,9 +2751,6 @@ function renderVehicle(){
   document.getElementById('addRenewBtn').onclick=()=>openRenewModal();
   el.querySelectorAll('[data-edit-renew]').forEach(b=>b.onclick=()=>openRenewModal(v.renewals.find(x=>x.id===b.dataset.editRenew)));
   el.querySelectorAll('[data-del-renew]').forEach(b=>b.onclick=()=>{ if(confirm('삭제할까요?')){ state.vehicle.renewals=v.renewals.filter(x=>x.id!==b.dataset.delRenew); queueSave(); renderVehicle(); renderHome(); } });
-  document.getElementById('addFuelBtn').onclick=()=>openFuelModal();
-  el.querySelectorAll('[data-edit-fuel]').forEach(b=>b.onclick=()=>openFuelModal(v.fuel.find(x=>x.id===b.dataset.editFuel)));
-  el.querySelectorAll('[data-del-fuel]').forEach(b=>b.onclick=()=>{ if(confirm('삭제할까요?')){ state.vehicle.fuel=v.fuel.filter(x=>x.id!==b.dataset.delFuel); queueSave(); renderVehicle(); } });
   document.getElementById('addMaintBtn').onclick=()=>openMaintModal();
   el.querySelectorAll('[data-edit-maint]').forEach(b=>b.onclick=()=>openMaintModal(v.maint.find(x=>x.id===b.dataset.editMaint)));
   el.querySelectorAll('[data-del-maint]').forEach(b=>b.onclick=()=>{ if(confirm('삭제할까요?')){ state.vehicle.maint=v.maint.filter(x=>x.id!==b.dataset.delMaint); queueSave(); renderVehicle(); } });
@@ -2800,30 +2787,6 @@ function openRenewModal(existing){
     if(r.id){ const idx=state.vehicle.renewals.findIndex(x=>x.id===r.id); state.vehicle.renewals[idx]=rec; }
     else state.vehicle.renewals.push(rec);
     queueSave(); closeModal(); renderVehicle(); renderHome();
-  };
-}
-function openFuelModal(existing){
-  const f=existing||{id:null,date:todayStr(),liters:'',cost:'',odo:''};
-  openModal(`
-    <h3>${existing?'주유 기록 수정':'주유 기록 추가'}</h3>
-    <div class="field"><label>날짜</label><input type="text" readonly class="date-input" placeholder="YYYY-MM-DD" id="mDate" value="${f.date}"></div>
-    <div class="grid2">
-      <div class="field"><label>주유량 (L)</label><input type="number" step="0.1" id="mLiters" value="${f.liters}"></div>
-      <div class="field"><label>금액 (원)</label><input type="number" id="mCost" value="${f.cost}"></div>
-    </div>
-    <div class="field"><label>누적 주행거리 (km, 선택)</label><input type="number" id="mOdo" value="${f.odo}"></div>
-    <div class="modal-actions"><button class="btn" id="mCancel">취소</button><button class="btn primary" id="mSave">저장</button></div>
-  `);
-  document.getElementById('mCancel').onclick=closeModal;
-  attachDatePicker('mDate');
-  document.getElementById('mSave').onclick=()=>{
-    const date=document.getElementById('mDate').value;
-    const cost=Number(document.getElementById('mCost').value||0);
-    if(!date||!cost){ showToast('날짜와 금액을 입력해주세요'); return; }
-    const rec={id:f.id||uid(),date,liters:document.getElementById('mLiters').value,cost,odo:document.getElementById('mOdo').value};
-    if(f.id){ const idx=state.vehicle.fuel.findIndex(x=>x.id===f.id); state.vehicle.fuel[idx]=rec; }
-    else state.vehicle.fuel.push(rec);
-    queueSave(); closeModal(); renderVehicle();
   };
 }
 function openMaintModal(existing){
