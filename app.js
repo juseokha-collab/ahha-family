@@ -763,7 +763,7 @@ function computeDayLayoutFromItems(items){
   return {mainStart, skip};
 }
 function computeDayLayout(dateStr){ return computeDayLayoutFromItems(myVisibleScheduleItems(dateStr)); }
-const ROLE_EMOJI={dad:'👨',mom:'👩',daughter:'👧'};
+const ROLE_EMOJI={dad:'🤓',mom:'👱‍♀️',daughter:'👶'};
 const ROLE_BADGE_COLOR={dad:'#4d7fe0',mom:'#e0538f',daughter:'#9a5be0'};
 function authorRoleOf(key){
   if(!key) return null;
@@ -822,7 +822,12 @@ function myHomeVisibleScheduleItems(dateStr){
   const virtualEventItems=state.events
     .filter(ev=>!(ev.hiddenFromDaughter && role==='daughter'))
     .map(ev=>({id:'evt-'+ev.id, date:fmtDate(eventOccurrence(ev)), time:'', title:'🎉 '+ev.name, owner:'common'}));
-  const allItems=state.schedule.map(s=>({...s, owner:s.owner||'common'})).concat(virtualEventItems);
+  const allItems=state.schedule.map(s=>{
+    const ov=s.colorOverrides && s.colorOverrides[dateStr];
+    return {...s, owner:s.owner||'common',
+      color: (ov && ov.color!==undefined) ? ov.color : s.color,
+      bgColor: (ov && ov.bgColor!==undefined) ? ov.bgColor : s.bgColor};
+  }).concat(virtualEventItems);
   const daughterOnly = role && role!=='daughter' && showDaughterOnHome;
   const visible = allItems.filter(it=>{
     if(!role) return it.owner==='common';
@@ -959,13 +964,19 @@ function bindDayTimelineEvents(){
       e.stopPropagation();
       const item=state.schedule.find(x=>x.id===chip.dataset.itemId);
       if(!item) return;
+      const cell=chip.closest('.dt-cell');
+      const occurDate=cell?cell.dataset.addDate:null;
       if(scheduleColorPick){
-        item.color=scheduleColorPick;
+        const isRepeating = item.repeat && item.repeat!=='none';
+        if(isRepeating && occurDate){
+          if(!item.colorOverrides) item.colorOverrides={};
+          item.colorOverrides[occurDate]={...(item.colorOverrides[occurDate]||{}), color:scheduleColorPick};
+        } else {
+          item.color=scheduleColorPick;
+        }
         queueSave(); renderHome();
         return;
       }
-      const cell=chip.closest('.dt-cell');
-      const occurDate=cell?cell.dataset.addDate:null;
       openScheduleModal(item, null, occurDate);
     });
     chip.addEventListener('dragstart', e=>{
@@ -1466,7 +1477,10 @@ function openScheduleModal(existing, prefill, occurDate){
   if(!s.id && s.time && !s.endTime) s.endTime=addOneHour(s.time);
   const ownerOptions = myOwners.some(o=>o.key===(s.owner||'common')) ? myOwners : myOwners.concat([{key:s.owner||'common',label:ownerLabel(s.owner)}]);
   const curRepeat=s.repeat||'none';
-  let selectedColor=s.bgColor||null;
+  const wasRepeating = !!(s.id && s.repeat && s.repeat!=='none');
+  const targetOccurDate = occurDate||s.date;
+  const existingOverride = wasRepeating && s.colorOverrides && s.colorOverrides[targetOccurDate];
+  let selectedColor = (existingOverride && existingOverride.bgColor!==undefined) ? existingOverride.bgColor : (s.bgColor||null);
   openModal(`
     <div class="row" style="justify-content:space-between;align-items:center;padding-right:30px;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
       <h3 style="margin:0;">${existing?'일정 수정':'일정 추가'}</h3>
@@ -1474,7 +1488,7 @@ function openScheduleModal(existing, prefill, occurDate){
         ${ownerOptions.map(o=>`<label class="pill" style="cursor:pointer;"><input type="radio" name="mOwner" value="${o.key}" ${(s.owner||'common')===o.key?'checked':''} style="margin-right:4px;">${scheduleFilterLabel(o.key)}</label>`).join('')}
       </div>
     </div>
-    <div class="field"><label>배경색상</label>${renderColorSwatches(selectedColor, 'modal')}</div>
+    <div class="field" style="flex-direction:row;align-items:center;gap:8px;"><label style="flex-shrink:0;">배경색상</label>${renderColorSwatches(selectedColor, 'modal')}</div>
     <div class="field"><label>날짜</label><input type="text" readonly class="date-input" placeholder="YYYY-MM-DD" id="mDate" value="${s.date}"></div>
     <div class="grid2">
       <div class="field"><label>시작 시간 (선택)</label><input type="time" step="600" id="mTime" value="${s.time||''}"></div>
@@ -1525,7 +1539,14 @@ function openScheduleModal(existing, prefill, occurDate){
     const owner=(document.querySelector('input[name="mOwner"]:checked')||{}).value || 'common';
     const repeat=(document.querySelector('input[name="mRepeat"]:checked')||{}).value || 'none';
     const repeatUntil=document.getElementById('mRepeatUntil').value;
-    const rec={id:s.id||uid(),date,time:document.getElementById('mTime').value,endTime:document.getElementById('mEndTime').value,title,contacts:document.getElementById('mContacts').value,memo:document.getElementById('mMemo').value,owner,repeat,repeatUntil,color:s.color||null,bgColor:selectedColor,createdBy:s.createdBy||currentAuthorKey()};
+    let bgColor=selectedColor;
+    let colorOverrides=s.colorOverrides;
+    if(wasRepeating){
+      bgColor=s.bgColor;
+      colorOverrides={...(s.colorOverrides||{})};
+      colorOverrides[targetOccurDate]={...(colorOverrides[targetOccurDate]||{}), bgColor:selectedColor};
+    }
+    const rec={id:s.id||uid(),date,time:document.getElementById('mTime').value,endTime:document.getElementById('mEndTime').value,title,contacts:document.getElementById('mContacts').value,memo:document.getElementById('mMemo').value,owner,repeat,repeatUntil,color:s.color||null,bgColor,colorOverrides,createdBy:s.createdBy||currentAuthorKey()};
     if(s.id){ const idx=state.schedule.findIndex(x=>x.id===s.id); state.schedule[idx]=rec; }
     else state.schedule.push(rec);
     scheduleSel=date;
