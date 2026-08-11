@@ -901,7 +901,9 @@ function bindDayTimelineEvents(){
     chip.addEventListener('click', e=>{
       e.stopPropagation();
       const item=state.schedule.find(x=>x.id===chip.dataset.itemId);
-      if(item) openScheduleModal(item);
+      const cell=chip.closest('.dt-cell');
+      const occurDate=cell?cell.dataset.addDate:null;
+      if(item) openScheduleModal(item, null, occurDate);
     });
     chip.addEventListener('dragstart', e=>{
       e.dataTransfer.setData('text/plain', chip.dataset.itemId);
@@ -1322,40 +1324,42 @@ function renderSchedule(){
     scheduleSel=c.dataset.date; renderSchedule();
   });
   document.getElementById('addSchedBtn').onclick=()=>openScheduleModal();
-  el.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>openScheduleModal(state.schedule.find(x=>x.id===b.dataset.edit)));
+  el.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>openScheduleModal(state.schedule.find(x=>x.id===b.dataset.edit), null, scheduleSel));
   el.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{
     const item=state.schedule.find(x=>x.id===b.dataset.del);
     if(!item) return;
-    const occurDate=scheduleSel;
-    const isRepeating = item.repeat && item.repeat!=='none';
-    if(!isRepeating){
-      if(confirm('일정을 삭제할까요?')){ state.schedule=state.schedule.filter(x=>x.id!==item.id); queueSave(); renderSchedule(); renderHome(); }
-      return;
-    }
-    openModal(`
-      <h3>반복 일정 삭제</h3>
-      <div class="content-text" style="margin-bottom:14px;">'${escapeHtml(item.title)}'은(는) 반복되는 일정이에요. 어떻게 삭제할까요?</div>
-      <div class="modal-actions" style="flex-direction:column;align-items:stretch;gap:8px;">
-        <button class="btn danger" id="delOne">${occurDate} 이 날짜만 삭제</button>
-        <button class="btn danger" id="delFuture">${occurDate}부터 이후 반복 모두 삭제</button>
-        <button class="btn" id="delCancel">취소</button>
-      </div>
-    `);
-    document.getElementById('delCancel').onclick=closeModal;
-    document.getElementById('delOne').onclick=()=>{
-      if(!item.excludeDates) item.excludeDates=[];
-      if(!item.excludeDates.includes(occurDate)) item.excludeDates.push(occurDate);
-      queueSave(); closeModal(); renderSchedule(); renderHome();
-    };
-    document.getElementById('delFuture').onclick=()=>{
-      if(occurDate===item.date){
-        state.schedule=state.schedule.filter(x=>x.id!==item.id);
-      } else {
-        item.repeatUntil=fmtDate(addDays(parseDate(occurDate),-1));
-      }
-      queueSave(); closeModal(); renderSchedule(); renderHome();
-    };
+    confirmDeleteScheduleItem(item, scheduleSel);
   });
+}
+function confirmDeleteScheduleItem(item, occurDate){
+  const isRepeating = item.repeat && item.repeat!=='none';
+  if(!isRepeating){
+    if(confirm('일정을 삭제할까요?')){ state.schedule=state.schedule.filter(x=>x.id!==item.id); queueSave(); closeModal(); renderSchedule(); renderHome(); }
+    return;
+  }
+  openModal(`
+    <h3>반복 일정 삭제</h3>
+    <div class="content-text" style="margin-bottom:14px;">'${escapeHtml(item.title)}'은(는) 반복되는 일정이에요. 어떻게 삭제할까요?</div>
+    <div class="modal-actions" style="flex-direction:column;align-items:stretch;gap:8px;">
+      <button class="btn danger" id="delOne">${occurDate} 이 날짜만 삭제</button>
+      <button class="btn danger" id="delFuture">${occurDate}부터 이후 반복 모두 삭제</button>
+      <button class="btn" id="delCancel">취소</button>
+    </div>
+  `);
+  document.getElementById('delCancel').onclick=closeModal;
+  document.getElementById('delOne').onclick=()=>{
+    if(!item.excludeDates) item.excludeDates=[];
+    if(!item.excludeDates.includes(occurDate)) item.excludeDates.push(occurDate);
+    queueSave(); closeModal(); renderSchedule(); renderHome();
+  };
+  document.getElementById('delFuture').onclick=()=>{
+    if(occurDate===item.date){
+      state.schedule=state.schedule.filter(x=>x.id!==item.id);
+    } else {
+      item.repeatUntil=fmtDate(addDays(parseDate(occurDate),-1));
+    }
+    queueSave(); closeModal(); renderSchedule(); renderHome();
+  };
 }
 function addOneHour(timeStr){
   if(!timeStr) return '';
@@ -1385,7 +1389,7 @@ function scheduleItemOccursOn(item, dateStr){
   if(item.repeat==='yearly') return base.getMonth()===target.getMonth() && base.getDate()===target.getDate();
   return false;
 }
-function openScheduleModal(existing, prefill){
+function openScheduleModal(existing, prefill, occurDate){
   if(existing && !canManageSchedule(existing)){ showToast('가족공통 일정은 작성자만 수정·삭제할 수 있어요'); return; }
   const myOwners=getAllowedOwners();
   const role=effectiveRole();
@@ -1452,11 +1456,7 @@ function openScheduleModal(existing, prefill){
     queueSave(); closeModal(); renderSchedule(); renderHome();
   };
   const delBtn=document.getElementById('mDelete');
-  if(delBtn) delBtn.onclick=()=>{
-    if(!confirm('이 일정을 완전히 삭제할까요? 삭제하면 되돌릴 수 없어요.')) return;
-    state.schedule=state.schedule.filter(x=>x.id!==s.id);
-    queueSave(); closeModal(); renderSchedule(); renderHome();
-  };
+  if(delBtn) delBtn.onclick=()=>{ confirmDeleteScheduleItem(s, occurDate||s.date); };
 }
 
 /* ---------- HEALTH ---------- */
@@ -2936,13 +2936,13 @@ function updateViewAsButtons(){
     if(daughterBtn) daughterBtn.style.display='none';
     return;
   }
-  const hideWhileDaughter=viewAsOverride==='daughter';
+  const isPreviewing = viewAsOverride==='daughter' || viewAsOverride==='mom';
   const authArea=document.getElementById('authArea');
   const themeToggle=document.getElementById('themeToggle');
-  if(authArea) authArea.style.display = hideWhileDaughter ? 'none' : '';
-  if(themeToggle) themeToggle.style.display = hideWhileDaughter ? 'none' : '';
-  if(momBtn) momBtn.style.display = hideWhileDaughter ? 'none' : '';
-  if(daughterBtn) daughterBtn.style.display = '';
+  if(authArea) authArea.style.display = isPreviewing ? 'none' : '';
+  if(themeToggle) themeToggle.style.display = isPreviewing ? 'none' : '';
+  if(momBtn) momBtn.style.display = viewAsOverride==='daughter' ? 'none' : '';
+  if(daughterBtn) daughterBtn.style.display = viewAsOverride==='mom' ? 'none' : '';
 }
 function setViewAs(role){
   viewAsOverride = viewAsOverride===role ? null : role;
