@@ -780,7 +780,8 @@ function dtChip(it){
   const memoAttr = it.memo ? ` data-memo="${escapeHtml(it.memo)}"` : '';
   if(isVirtual) return `<div class="dt-evt" data-virtual="1"${memoAttr}>${escapeHtml(it.title)}</div>`;
   const badge = authorBadge(it.createdBy);
-  return `<div class="dt-evt" draggable="true" data-item-id="${it.id}"${memoAttr}>${badge}${timeRangeLabel(it)?escapeHtml(timeRangeLabel(it))+' ':''}${escapeHtml(it.title)}</div>`;
+  const colorAttr = it.color ? ` style="background:${it.color};color:#181820;"` : '';
+  return `<div class="dt-evt" draggable="true" data-item-id="${it.id}"${memoAttr}${colorAttr}>${badge}${timeRangeLabel(it)?escapeHtml(timeRangeLabel(it))+' ':''}${escapeHtml(it.title)}</div>`;
 }
 let dtTooltipEl=null;
 function showDtTooltip(target, text){
@@ -850,7 +851,7 @@ function renderDayTimelines(){
       const cell=layout.mainStart[idx];
       const edgeClass=meta.isEdge?' dt-edge':'';
       if(cell){
-        const cellColor=(cell.items.find(it=>it.color)||{}).color;
+        const cellColor=(cell.items.find(it=>it.bgColor)||{}).bgColor;
         const colorAttr=cellColor?` style="background:${cellColor};"`:'';
         return gap+`<td class="dt-cell filled${edgeClass}" rowspan="${cell.span}" data-add-date="${d}" data-add-time="${meta.addTime}"${colorAttr}>${cell.items.map(dtChip).join('')}</td>`;
       }
@@ -1465,7 +1466,7 @@ function openScheduleModal(existing, prefill, occurDate){
   if(!s.id && s.time && !s.endTime) s.endTime=addOneHour(s.time);
   const ownerOptions = myOwners.some(o=>o.key===(s.owner||'common')) ? myOwners : myOwners.concat([{key:s.owner||'common',label:ownerLabel(s.owner)}]);
   const curRepeat=s.repeat||'none';
-  let selectedColor=s.color||null;
+  let selectedColor=s.bgColor||null;
   openModal(`
     <div class="row" style="justify-content:space-between;align-items:center;padding-right:30px;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
       <h3 style="margin:0;">${existing?'일정 수정':'일정 추가'}</h3>
@@ -1524,7 +1525,7 @@ function openScheduleModal(existing, prefill, occurDate){
     const owner=(document.querySelector('input[name="mOwner"]:checked')||{}).value || 'common';
     const repeat=(document.querySelector('input[name="mRepeat"]:checked')||{}).value || 'none';
     const repeatUntil=document.getElementById('mRepeatUntil').value;
-    const rec={id:s.id||uid(),date,time:document.getElementById('mTime').value,endTime:document.getElementById('mEndTime').value,title,contacts:document.getElementById('mContacts').value,memo:document.getElementById('mMemo').value,owner,repeat,repeatUntil,color:selectedColor,createdBy:s.createdBy||currentAuthorKey()};
+    const rec={id:s.id||uid(),date,time:document.getElementById('mTime').value,endTime:document.getElementById('mEndTime').value,title,contacts:document.getElementById('mContacts').value,memo:document.getElementById('mMemo').value,owner,repeat,repeatUntil,color:s.color||null,bgColor:selectedColor,createdBy:s.createdBy||currentAuthorKey()};
     if(s.id){ const idx=state.schedule.findIndex(x=>x.id===s.id); state.schedule[idx]=rec; }
     else state.schedule.push(rec);
     scheduleSel=date;
