@@ -614,11 +614,11 @@ let activeTab='home';
 function getVisibleTabs(){
   if(effectiveRole()==='daughter'){
     return [
-      {key:'home',label:'Home'},
-      {key:'schedule',label:'Calendar'},
-      {key:'study',label:'Learning'},
-      {key:'health',label:'Activity'},
-      {key:'budget',label:'Account'}
+      {key:'home',label:'🏠',title:'Home'},
+      {key:'schedule',label:'📅',title:'Calendar'},
+      {key:'study',label:'📚',title:'Learning'},
+      {key:'health',label:'🏃',title:'Activity'},
+      {key:'budget',label:'💰',title:'Account'}
     ];
   }
   return [
@@ -633,7 +633,7 @@ function getVisibleTabs(){
 function renderTabs(){
   const tabs=getVisibleTabs();
   if(!tabs.some(t=>t.key===activeTab)) activeTab='home';
-  document.getElementById('tabs').innerHTML = tabs.map(t=>`<button data-tab="${t.key}" class="${t.key===activeTab?'active':''}">${t.label}</button>`).join('');
+  document.getElementById('tabs').innerHTML = tabs.map(t=>`<button data-tab="${t.key}" class="${t.key===activeTab?'active':''}"${t.title?` title="${t.title}"`:''}>${t.label}</button>`).join('');
   ALL_TAB_KEYS.forEach(k=>{
     const el=document.getElementById('tab-'+k);
     if(el) el.style.display = (k===activeTab) ? '' : 'none';
