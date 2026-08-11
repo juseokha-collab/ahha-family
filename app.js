@@ -2098,47 +2098,92 @@ function renderWeightChart(keys, goalProjections){
       if(gp.finalTarget && w<Number(gp.finalTarget)) w=Number(gp.finalTarget);
       return w;
     });
-    return {key:gp.key, color, pts};
+    return {key:gp.key, color, pts, finalTarget:gp.finalTarget?Number(gp.finalTarget):null};
   }).filter(Boolean);
   const allVals=series.flatMap(s=>s.pts.filter(v=>v!=null)).concat(goals.flatMap(g=>g.pts.filter(v=>v!=null)));
   if(!allVals.length) return `<div class="empty">체중 기록이 아직 없어요</div>`;
-  let min=Math.min(...allVals), max=Math.max(...allVals);
-  if(min===max){ min-=1; max+=1; }
-  const pad=(max-min)*0.15; min-=pad; max+=pad;
-  const W=600,H=180,ML=32,MR=8,MT=28,MB=26;
+  const keyBand={};
+  keys.forEach(key=>{
+    const s=series.find(x=>x.key===key);
+    const g=goals.find(x=>x.key===key);
+    const vals=(s?s.pts.filter(v=>v!=null):[]).concat(g?g.pts.filter(v=>v!=null):[]);
+    if(!vals.length) return;
+    const localMax=Math.max(...vals), localMin=Math.min(...vals);
+    const bandMax=localMax+1;
+    const bandMin=(g && g.finalTarget!=null) ? Math.min(g.finalTarget-1, localMin-0.5) : localMin-1;
+    keyBand[key]={min:bandMin, max:bandMax};
+  });
+  let useBrokenAxis=false;
+  if(keys.length>1 && Object.keys(keyBand).length===keys.length){
+    const sortedBands=keys.map(k=>keyBand[k]).sort((a,b)=>a.min-b.min);
+    useBrokenAxis=true;
+    for(let i=1;i<sortedBands.length;i++){
+      if(sortedBands[i].min<sortedBands[i-1].max){ useBrokenAxis=false; break; }
+    }
+  }
+  let min,max;
+  if(!useBrokenAxis){
+    min=Math.min(...allVals); max=Math.max(...allVals);
+    if(min===max){ min-=1; max+=1; }
+    const pad=(max-min)*0.15; min-=pad; max+=pad;
+  }
+  const W=600,H=180,ML=36,MR=8,MT=28,MB=26;
   const plotW=W-ML-MR, plotH=H-MT-MB;
   const x=i=>ML+(i/(totalDays-1))*plotW;
-  const y=v=>MT+plotH-((v-min)/(max-min))*plotH;
-  const gridLines=[0,0.25,0.5,0.75,1].map(t=>{
-    const val=min+(max-min)*t;
-    const yy=MT+plotH-(t*plotH);
-    return `<line x1="${ML}" y1="${yy}" x2="${W-MR}" y2="${yy}" stroke="var(--border)" stroke-width="1"/><text x="${ML-5}" y="${yy+3}" font-size="9" fill="var(--muted)" text-anchor="end">${val.toFixed(1)}</text>`;
-  }).join('');
+  let y, gridLines;
+  if(useBrokenAxis){
+    const gapH=20;
+    const n=keys.length;
+    const slotH=(plotH-gapH*(n-1))/n;
+    const orderedKeys=[...keys].sort((a,b)=>keyBand[b].max-keyBand[a].max);
+    const slotTop={};
+    orderedKeys.forEach((k,i)=>{ slotTop[k]=MT+i*(slotH+gapH); });
+    y=(v,key)=>{
+      const band=keyBand[key];
+      return slotTop[key]+slotH-((v-band.min)/(band.max-band.min))*slotH;
+    };
+    gridLines=orderedKeys.map(k=>{
+      const band=keyBand[k];
+      return [0,0.5,1].map(t=>{
+        const val=band.min+(band.max-band.min)*t;
+        const yy=slotTop[k]+slotH-(t*slotH);
+        return `<line x1="${ML}" y1="${yy}" x2="${W-MR}" y2="${yy}" stroke="var(--border)" stroke-width="1"/><text x="${ML-5}" y="${yy+3}" font-size="9" fill="var(--muted)" text-anchor="end">${val.toFixed(1)}</text>`;
+      }).join('');
+    }).join('');
+  } else {
+    y=v=>MT+plotH-((v-min)/(max-min))*plotH;
+    gridLines=[0,0.25,0.5,0.75,1].map(t=>{
+      const val=min+(max-min)*t;
+      const yy=MT+plotH-(t*plotH);
+      return `<line x1="${ML}" y1="${yy}" x2="${W-MR}" y2="${yy}" stroke="var(--border)" stroke-width="1"/><text x="${ML-5}" y="${yy+3}" font-size="9" fill="var(--muted)" text-anchor="end">${val.toFixed(1)}</text>`;
+    }).join('');
+  }
   const todayX=x(todayIdx);
   const todayLine=`<line x1="${todayX}" y1="${MT}" x2="${todayX}" y2="${MT+plotH}" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="3 2"/>`;
   const seriesSvg=series.map(s=>{
     let pathD='', dots='', maxIdx=-1, maxVal=-Infinity;
     s.pts.forEach((v,i)=>{
       if(v==null) return;
-      const px=x(i), py=y(v);
+      const px=x(i), py=useBrokenAxis?y(v,s.key):y(v);
       pathD += (pathD?'L':'M')+px+' '+py+' ';
       dots+=`<circle class="wt-point" data-tip="${escapeHtml(s.label)} ${v}kg (${dateList[i].slice(5)})" cx="${px}" cy="${py}" r="4" fill="${s.color}" style="cursor:pointer;"/>`;
       if(v>maxVal){ maxVal=v; maxIdx=i; }
     });
-    const maxLabel = maxIdx>=0 ? `<text x="${x(maxIdx)}" y="${y(maxVal)-20}" font-size="9" fill="${s.color}" text-anchor="middle"><tspan x="${x(maxIdx)}" dy="0">${dateList[maxIdx].slice(5)}</tspan><tspan x="${x(maxIdx)}" dy="11">${maxVal}kg</tspan></text>` : '';
+    const maxLabel = maxIdx>=0 ? `<text x="${x(maxIdx)}" y="${(useBrokenAxis?y(maxVal,s.key):y(maxVal))-20}" font-size="9" fill="${s.color}" text-anchor="middle"><tspan x="${x(maxIdx)}" dy="0">${dateList[maxIdx].slice(5)}</tspan><tspan x="${x(maxIdx)}" dy="11">${maxVal}kg</tspan></text>` : '';
     return pathD ? `<path d="${pathD.trim()}" fill="none" stroke="${s.color}" stroke-width="2"/>${dots}${maxLabel}` : '';
   }).join('');
   const goalSvg=goals.map(g=>{
     let pathD='', lastIdx=-1, lastVal=null;
     g.pts.forEach((v,i)=>{
       if(v==null) return;
-      pathD += (pathD?'L':'M')+x(i)+' '+y(v)+' ';
+      const py=useBrokenAxis?y(v,g.key):y(v);
+      pathD += (pathD?'L':'M')+x(i)+' '+py+' ';
       lastIdx=i; lastVal=v;
     });
     if(!pathD) return '';
     let svg=`<path d="${pathD.trim()}" fill="none" stroke="${g.color}" stroke-width="2" stroke-dasharray="4 3" opacity="0.7"/>`;
     if(lastIdx>=0){
-      const ex=x(lastIdx), ey=y(lastVal);
+      const ex=x(lastIdx), ey=useBrokenAxis?y(lastVal,g.key):y(lastVal);
       svg+=`<circle cx="${ex}" cy="${ey}" r="4" fill="var(--panel)" stroke="${g.color}" stroke-width="2"/><text x="${ex-2}" y="${ey-10}" font-size="9" fill="${g.color}" text-anchor="end">목표치 ${lastVal.toFixed(1)}kg</text>`;
     }
     return svg;
