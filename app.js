@@ -662,6 +662,11 @@ document.getElementById('tabs').addEventListener('click', e=>{
 function todayPillBtn(id){
   return `<button id="${id}" style="background:#000;color:#fff;border:none;border-radius:999px;padding:3px 12px;font-size:11px;font-weight:700;cursor:pointer;">Today</button>`;
 }
+const SCHED_COLORS=['#FFADAD','#FFD6A5','#CAFFBF','#A0C4FF','#BDB2FF'];
+let scheduleColorPick=null;
+function renderColorSwatches(selectedColor, groupId){
+  return `<div class="row" style="gap:6px;" data-swatch-group="${groupId}">${SCHED_COLORS.map(c=>`<button type="button" class="color-swatch" data-color="${c}" style="width:20px;height:20px;border-radius:50%;background:${c};border:${selectedColor===c?'3px solid var(--text)':'2px solid transparent'};cursor:pointer;padding:0;box-shadow:0 0 0 1px rgba(0,0,0,0.15);"></button>`).join('')}</div>`;
+}
 function fmtShortDateDow(dateStr){
   const d=parseDate(dateStr);
   const dow=['일','월','화','수','목','금','토'][d.getDay()];
@@ -775,7 +780,8 @@ function dtChip(it){
   const memoAttr = it.memo ? ` data-memo="${escapeHtml(it.memo)}"` : '';
   if(isVirtual) return `<div class="dt-evt" data-virtual="1"${memoAttr}>${escapeHtml(it.title)}</div>`;
   const badge = authorBadge(it.createdBy);
-  return `<div class="dt-evt" draggable="true" data-item-id="${it.id}"${memoAttr}>${badge}${timeRangeLabel(it)?escapeHtml(timeRangeLabel(it))+' ':''}${escapeHtml(it.title)}</div>`;
+  const colorAttr = it.color ? ` style="background:${it.color};color:#181820;"` : '';
+  return `<div class="dt-evt" draggable="true" data-item-id="${it.id}"${memoAttr}${colorAttr}>${badge}${timeRangeLabel(it)?escapeHtml(timeRangeLabel(it))+' ':''}${escapeHtml(it.title)}</div>`;
 }
 let dtTooltipEl=null;
 function showDtTooltip(target, text){
@@ -864,13 +870,17 @@ function renderDayTimelines(){
   const role=effectiveRole();
   return `
     <div class="dt-panel">
-      <div class="row" style="justify-content:space-between;margin-bottom:8px;gap:10px;">
-        <div>${!days.includes(todayStr())?todayPillBtn('dtTodayBtn'):''}</div>
+      <div class="row" style="justify-content:space-between;margin-bottom:8px;gap:10px;align-items:center;">
+        <div class="row" style="gap:8px;align-items:center;">
+          ${renderColorSwatches(scheduleColorPick, 'paint')}
+          ${!days.includes(todayStr())?todayPillBtn('dtTodayBtn'):''}
+        </div>
         <div class="row" style="gap:10px;">
           ${role && role!=='daughter' ? `<label class="pill" style="cursor:pointer;"><input type="checkbox" id="showDaughterToggleHome" ${showDaughterOnHome?'checked':''} style="margin-right:4px;">딸</label>` : ''}
           <label class="pill" style="cursor:pointer;"><input type="checkbox" id="showCommonToggleHome" ${showCommonOnHome?'checked':''} style="margin-right:4px;">가족공통</label>
         </div>
       </div>
+      ${scheduleColorPick?`<div class="meta" style="margin-bottom:6px;">🎨 색상을 적용할 일정을 클릭하세요</div>`:''}
       <div style="overflow-x:auto;">
         <table class="dt-table">
           <thead><tr><th class="dt-time-col"></th>${headCells}</tr></thead>
@@ -910,6 +920,13 @@ function bindDayTimelineEvents(){
     homeDate=todayStr();
     renderHome();
   };
+  el.querySelectorAll('[data-swatch-group="paint"] .color-swatch').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const c=btn.dataset.color;
+      scheduleColorPick = (scheduleColorPick===c) ? null : c;
+      renderHome();
+    });
+  });
   const dtPrevBtn=document.getElementById('dtPrevBtn');
   if(dtPrevBtn) dtPrevBtn.onclick=()=>{
     homeDate=fmtDate(addDays(parseDate(homeDate),-1));
@@ -939,9 +956,15 @@ function bindDayTimelineEvents(){
     chip.addEventListener('click', e=>{
       e.stopPropagation();
       const item=state.schedule.find(x=>x.id===chip.dataset.itemId);
+      if(!item) return;
+      if(scheduleColorPick){
+        item.color=scheduleColorPick;
+        queueSave(); renderHome();
+        return;
+      }
       const cell=chip.closest('.dt-cell');
       const occurDate=cell?cell.dataset.addDate:null;
-      if(item) openScheduleModal(item, null, occurDate);
+      openScheduleModal(item, null, occurDate);
     });
     chip.addEventListener('dragstart', e=>{
       e.dataTransfer.setData('text/plain', chip.dataset.itemId);
@@ -1441,6 +1464,7 @@ function openScheduleModal(existing, prefill, occurDate){
   if(!s.id && s.time && !s.endTime) s.endTime=addOneHour(s.time);
   const ownerOptions = myOwners.some(o=>o.key===(s.owner||'common')) ? myOwners : myOwners.concat([{key:s.owner||'common',label:ownerLabel(s.owner)}]);
   const curRepeat=s.repeat||'none';
+  let selectedColor=s.color||null;
   openModal(`
     <div class="row" style="justify-content:space-between;align-items:center;padding-right:30px;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
       <h3 style="margin:0;">${existing?'일정 수정':'일정 추가'}</h3>
@@ -1448,6 +1472,7 @@ function openScheduleModal(existing, prefill, occurDate){
         ${ownerOptions.map(o=>`<label class="pill" style="cursor:pointer;"><input type="radio" name="mOwner" value="${o.key}" ${(s.owner||'common')===o.key?'checked':''} style="margin-right:4px;">${scheduleFilterLabel(o.key)}</label>`).join('')}
       </div>
     </div>
+    <div class="field"><label>색상</label>${renderColorSwatches(selectedColor, 'modal')}</div>
     <div class="field"><label>날짜</label><input type="text" readonly class="date-input" placeholder="YYYY-MM-DD" id="mDate" value="${s.date}"></div>
     <div class="grid2">
       <div class="field"><label>시작 시간 (선택)</label><input type="time" step="600" id="mTime" value="${s.time||''}"></div>
@@ -1483,6 +1508,14 @@ function openScheduleModal(existing, prefill, occurDate){
     const el=document.getElementById('repeatOptions');
     el.style.display = el.style.display==='none' ? '' : 'none';
   };
+  document.querySelectorAll('[data-swatch-group="modal"] .color-swatch').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      selectedColor = (selectedColor===btn.dataset.color) ? null : btn.dataset.color;
+      document.querySelectorAll('[data-swatch-group="modal"] .color-swatch').forEach(b=>{
+        b.style.border = (b.dataset.color===selectedColor) ? '3px solid var(--text)' : '2px solid transparent';
+      });
+    });
+  });
   document.getElementById('mSave').onclick=()=>{
     const date=document.getElementById('mDate').value;
     const title=document.getElementById('mTitle').value.trim();
@@ -1490,7 +1523,7 @@ function openScheduleModal(existing, prefill, occurDate){
     const owner=(document.querySelector('input[name="mOwner"]:checked')||{}).value || 'common';
     const repeat=(document.querySelector('input[name="mRepeat"]:checked')||{}).value || 'none';
     const repeatUntil=document.getElementById('mRepeatUntil').value;
-    const rec={id:s.id||uid(),date,time:document.getElementById('mTime').value,endTime:document.getElementById('mEndTime').value,title,contacts:document.getElementById('mContacts').value,memo:document.getElementById('mMemo').value,owner,repeat,repeatUntil,createdBy:s.createdBy||currentAuthorKey()};
+    const rec={id:s.id||uid(),date,time:document.getElementById('mTime').value,endTime:document.getElementById('mEndTime').value,title,contacts:document.getElementById('mContacts').value,memo:document.getElementById('mMemo').value,owner,repeat,repeatUntil,color:selectedColor,createdBy:s.createdBy||currentAuthorKey()};
     if(s.id){ const idx=state.schedule.findIndex(x=>x.id===s.id); state.schedule[idx]=rec; }
     else state.schedule.push(rec);
     scheduleSel=date;
