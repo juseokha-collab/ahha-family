@@ -765,7 +765,7 @@ function computeDayLayoutFromItems(items){
   return {mainStart, skip};
 }
 function computeDayLayout(dateStr){ return computeDayLayoutFromItems(myVisibleScheduleItems(dateStr)); }
-const ROLE_EMOJI={dad:'👓',mom:'💐',daughter:'🍼'};
+const ROLE_EMOJI={dad:'🍷',mom:'💐',daughter:'🍼'};
 const ROLE_BADGE_COLOR={dad:'#4d7fe0',mom:'#e0538f',daughter:'#9a5be0'};
 function authorRoleOf(key){
   if(!key) return null;
@@ -818,6 +818,7 @@ function unifiedRowMeta(idx){
 }
 let showCommonOnHome=false;
 let showDaughterOnHome=false;
+let momHomeDefaultsApplied=false;
 let studyAnchor=todayStr();
 function myHomeVisibleScheduleItems(dateStr){
   const role=effectiveRole();
@@ -1062,6 +1063,11 @@ function openTodoEditModal(id){
   };
 }
 function renderHome(){
+  if(effectiveRole()==='mom' && !momHomeDefaultsApplied){
+    momHomeDefaultsApplied=true;
+    showCommonOnHome=true;
+    showDaughterOnHome=true;
+  }
   const day = state.daily[homeDate] || {};
   const entries = day.entries || {};
   const myKey = currentAuthorKey();
