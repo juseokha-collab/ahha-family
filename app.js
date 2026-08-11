@@ -258,7 +258,8 @@ function defaultState(){
     study:[],
     todos:{},
     studyBlocks:{},
-    calendarDayColors:{}
+    calendarDayColors:{},
+    todoCategories:{}
   };
 }
 const SB_COLORS={study:'#f5d76e', exercise:'#7ee787'};
@@ -465,6 +466,17 @@ function mergeKeyedColorMaps(localObj, cloudObj){
   keys.forEach(k=>{ merged[k]=Object.assign({}, (localObj||{})[k]||{}, (cloudObj||{})[k]||{}); });
   return merged;
 }
+function mergeTodoCategories(localObj, cloudObj){
+  const merged={};
+  const keys=new Set([...Object.keys(localObj||{}), ...Object.keys(cloudObj||{})]);
+  keys.forEach(k=>{
+    const cloudList=(cloudObj||{})[k]||[];
+    const localList=(localObj||{})[k]||[];
+    const names=new Set(cloudList.map(c=>c.name));
+    merged[k]=cloudList.concat(localList.filter(c=>!names.has(c.name)));
+  });
+  return merged;
+}
 function mergeDaily(localDaily, cloudDaily){
   const merged=JSON.parse(JSON.stringify(cloudDaily||{}));
   Object.keys(localDaily||{}).forEach(date=>{
@@ -514,6 +526,7 @@ function mergeStates(localState, cloudState){
   merged.studyBlocks=mergeStudyBlocks(localState.studyBlocks, cloudState.studyBlocks);
   merged.vehicle=mergeVehicle(localState.vehicle, cloudState.vehicle);
   merged.calendarDayColors=mergeKeyedColorMaps(localState.calendarDayColors, cloudState.calendarDayColors);
+  merged.todoCategories=mergeTodoCategories(localState.todoCategories, cloudState.todoCategories);
   return merged;
 }
 function initAuth(){
@@ -1022,8 +1035,26 @@ function myTodos(){
   if(!state.todos[key]) state.todos[key]=[];
   return state.todos[key];
 }
+const TODO_CATEGORY_DEFAULT=[
+  {name:'학습', color:'#FFADAD'},
+  {name:'다이어트', color:'#FFD6A5'},
+  {name:'건강/운동', color:'#CAFFBF'},
+  {name:'기타', color:'#A0C4FF'}
+];
+function myTodoCategories(){
+  const key=currentAuthorKey();
+  if(!state.todoCategories) state.todoCategories={};
+  if(!state.todoCategories[key]) state.todoCategories[key]=TODO_CATEGORY_DEFAULT.map(c=>({...c}));
+  return state.todoCategories[key];
+}
+let todoSortBy='dueDate';
 function todosForToday(){
-  return myTodos().filter(t=>t.dueDate>=homeDate).sort((a,b)=>a.dueDate.localeCompare(b.dueDate));
+  const list=myTodos().filter(t=>t.dueDate>=homeDate);
+  return list.sort((a,b)=>{
+    if(todoSortBy==='task') return a.task.localeCompare(b.task);
+    if(todoSortBy==='category') return (a.category||'').localeCompare(b.category||'') || a.dueDate.localeCompare(b.dueDate);
+    return a.dueDate.localeCompare(b.dueDate);
+  });
 }
 function todoProgressPct(list){
   if(!list.length) return null;
@@ -1044,17 +1075,30 @@ function commitNewTodo(){
   const task=taskEl.value.trim();
   const due=dueEl.value||todayStr();
   if(!task) return;
-  myTodos().push({id:uid(), task, dueDate:due, done:false, doneDate:'', createdDate:todayStr()});
+  const defaultCat=myTodoCategories()[myTodoCategories().length-1];
+  myTodos().push({id:uid(), task, dueDate:due, dueTime:'', category:defaultCat?defaultCat.name:'', done:false, doneDate:'', createdDate:todayStr()});
   queueSave(); renderHome();
 }
 function openTodoEditModal(id){
   const list=myTodos();
   const t=list.find(x=>x.id===id);
   if(!t) return;
+  const cats=myTodoCategories();
+  const catOptions = (t.category && !cats.some(c=>c.name===t.category)) ? cats.concat([{name:t.category,color:'#ddd'}]) : cats;
   openModal(`
     <h3>To do 수정</h3>
     <div class="field"><label>할 일</label><input id="mTask" value="${escapeHtml(t.task)}"></div>
-    <div class="field"><label>D-day 날짜</label><input type="text" readonly class="date-input" id="mDue" value="${t.dueDate}"></div>
+    <div class="grid2">
+      <div class="field"><label>D-day 날짜</label><input type="text" readonly class="date-input" id="mDue" value="${t.dueDate}"></div>
+      <div class="field"><label>시간 (선택)</label><input type="time" step="600" id="mDueTime" value="${t.dueTime||''}"></div>
+    </div>
+    <div class="field">
+      <div class="row" style="justify-content:space-between;align-items:center;">
+        <label style="margin:0;">카테고리</label>
+        <button type="button" class="link-btn" id="manageTodoCatBtn">카테고리 관리</button>
+      </div>
+      <select id="mCat">${catOptions.map(c=>`<option value="${escapeHtml(c.name)}" ${t.category===c.name?'selected':''}>${escapeHtml(c.name)}</option>`).join('')}</select>
+    </div>
     <label class="pill" style="cursor:pointer;display:inline-block;margin:6px 0;"><input type="checkbox" id="mDone" ${t.done?'checked':''} style="margin-right:4px;">완료</label>
     <div class="modal-actions">
       <button class="btn danger" id="mDelete">삭제</button>
@@ -1064,9 +1108,12 @@ function openTodoEditModal(id){
   `);
   attachDatePicker('mDue');
   document.getElementById('mCancel').onclick=closeModal;
+  document.getElementById('manageTodoCatBtn').onclick=()=>openTodoCategoryManageModal();
   document.getElementById('mSave').onclick=()=>{
     t.task=document.getElementById('mTask').value.trim()||t.task;
     t.dueDate=document.getElementById('mDue').value||t.dueDate;
+    t.dueTime=document.getElementById('mDueTime').value||'';
+    t.category=document.getElementById('mCat').value;
     const doneNow=document.getElementById('mDone').checked;
     if(doneNow && !t.done) t.doneDate=todayStr();
     if(!doneNow) t.doneDate='';
@@ -1078,6 +1125,68 @@ function openTodoEditModal(id){
     const key=currentAuthorKey();
     state.todos[key]=state.todos[key].filter(x=>x.id!==id);
     queueSave(); closeModal(); renderHome();
+  };
+}
+function openTodoCategoryManageModal(){
+  const cats=myTodoCategories();
+  openModal(`
+    <h3>할 일 카테고리 관리</h3>
+    <div class="meta" style="margin-bottom:10px;">여기서 관리하는 카테고리는 지금 로그인한 계정에만 적용돼요.</div>
+    ${cats.map((c,i)=>{
+      const cnt=myTodos().filter(t=>t.category===c.name).length;
+      return `<div class="list-item"><div class="row" style="gap:8px;align-items:center;"><span style="width:14px;height:14px;border-radius:50%;background:${c.color};display:inline-block;flex-shrink:0;"></span>${escapeHtml(c.name)}${cnt?` <span class="meta">(${cnt}건 사용중)</span>`:''}</div><div class="row"><button class="btn small" data-edit-todocat="${i}">수정</button><button class="btn small danger" data-del-todocat="${i}">삭제</button></div></div>`;
+    }).join('')}
+    <div class="modal-actions" style="justify-content:flex-start;">
+      <button class="btn primary small" id="addTodoCatBtn">+ 새 카테고리</button>
+    </div>
+    <div class="modal-actions"><button class="btn" id="mCancel">닫기</button></div>
+  `);
+  document.getElementById('mCancel').onclick=closeModal;
+  document.getElementById('addTodoCatBtn').onclick=()=>openTodoCategoryEditModal(null);
+  document.querySelectorAll('[data-edit-todocat]').forEach(b=>b.onclick=()=>openTodoCategoryEditModal(Number(b.dataset.editTodocat)));
+  document.querySelectorAll('[data-del-todocat]').forEach(b=>b.onclick=()=>{
+    const idx=Number(b.dataset.delTodocat);
+    const cat=cats[idx];
+    const cnt=myTodos().filter(t=>t.category===cat.name).length;
+    const msg = cnt>0 ? `"${cat.name}" 카테고리를 사용한 할 일이 ${cnt}건 있어요. 그래도 삭제할까요? (기존 할 일은 카테고리 없음으로 남아요)` : `"${cat.name}" 카테고리를 삭제할까요?`;
+    if(!confirm(msg)) return;
+    cats.splice(idx,1);
+    queueSave(); openTodoCategoryManageModal();
+  });
+}
+function openTodoCategoryEditModal(idx){
+  const cats=myTodoCategories();
+  const existing = idx!=null ? cats[idx] : null;
+  let selectedColor = existing ? existing.color : SCHED_COLORS[0];
+  openModal(`
+    <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <h3 style="margin:0;">${existing?'카테고리 수정':'카테고리 추가'}</h3>
+      ${renderColorSwatches(selectedColor, 'todocat')}
+    </div>
+    <div class="field"><label>이름</label><input id="mCatName" value="${existing?escapeHtml(existing.name):''}"></div>
+    <div class="modal-actions"><button class="btn" id="mCancel">취소</button><button class="btn primary" id="mSave">저장</button></div>
+  `);
+  document.getElementById('mCancel').onclick=closeModal;
+  document.querySelectorAll('[data-swatch-group="todocat"] .color-swatch').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      selectedColor=btn.dataset.color;
+      document.querySelectorAll('[data-swatch-group="todocat"] .color-swatch').forEach(b=>{
+        b.style.border=(b.dataset.color===selectedColor)?'3px solid var(--text)':'2px solid transparent';
+      });
+    });
+  });
+  document.getElementById('mSave').onclick=()=>{
+    const name=document.getElementById('mCatName').value.trim();
+    if(!name){ showToast('이름을 입력해주세요'); return; }
+    if(existing){
+      const oldName=existing.name;
+      existing.name=name; existing.color=selectedColor;
+      if(oldName!==name){ myTodos().forEach(t=>{ if(t.category===oldName) t.category=name; }); }
+    } else {
+      if(cats.some(c=>c.name===name)){ showToast('이미 있는 카테고리예요'); return; }
+      cats.push({name, color:selectedColor});
+    }
+    queueSave(); closeModal(); openTodoCategoryManageModal();
   };
 }
 function renderHome(){
@@ -1138,8 +1247,19 @@ function renderHome(){
         ${todoPct!=null?`<span class="meta">오늘 진행률 ${todoPct}%</span>`:''}
       </div>
       ${todoPct!=null?`<div class="bar-track" style="margin:8px 0;"><div class="bar-fill" style="width:${todoPct}%"></div></div>`:''}
+      <div class="row" style="justify-content:flex-end;align-items:center;gap:6px;margin:6px 0;">
+        <span class="meta">정렬</span>
+        <select id="todoSortSelect" style="font-size:12px;padding:2px 6px;border-radius:6px;background:var(--panel2);border:1px solid var(--border);color:var(--text);">
+          <option value="dueDate" ${todoSortBy==='dueDate'?'selected':''}>D-day순</option>
+          <option value="task" ${todoSortBy==='task'?'selected':''}>이름순</option>
+          <option value="category" ${todoSortBy==='category'?'selected':''}>카테고리순</option>
+        </select>
+      </div>
       ${todayTodos.map(t=>{
         const d=dday(t.dueDate);
+        const cat=myTodoCategories().find(c=>c.name===t.category);
+        const catLabel=cat ? (cat.name.length>3?cat.name.slice(0,3):cat.name) : '';
+        const catPill=cat ? `<span class="pill" style="background:${cat.color};color:#181820;border:none;" title="${escapeHtml(cat.name)}">${escapeHtml(catLabel)}</span>` : '';
         return `
         <div class="list-item" style="align-items:center;">
           <div class="row" style="flex:1;gap:8px;min-width:0;">
@@ -1147,6 +1267,7 @@ function renderHome(){
             <span class="content-text" style="${t.done?'text-decoration:line-through;color:var(--muted);':''}flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(t.task)}</span>
           </div>
           <div class="row" style="flex-shrink:0;">
+            ${catPill}
             <span class="pill ${ddayPillClass(d)}">${ddayLabel(d)}</span>
             <button class="icon-btn" data-edit-todo="${t.id}" title="수정">✏️</button>
           </div>
@@ -1232,6 +1353,8 @@ function renderHome(){
     queueSave(); renderHome();
   }));
   el.querySelectorAll('[data-edit-todo]').forEach(btn=>btn.onclick=()=>openTodoEditModal(btn.dataset.editTodo));
+  const todoSortSelectEl=document.getElementById('todoSortSelect');
+  if(todoSortSelectEl) todoSortSelectEl.addEventListener('change', e=>{ todoSortBy=e.target.value; renderHome(); });
   const newTodoDueEl=document.getElementById('newTodoDue');
   if(newTodoDueEl){
     attachDatePicker('newTodoDue');
