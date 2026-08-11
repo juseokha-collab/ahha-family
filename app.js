@@ -780,8 +780,7 @@ function dtChip(it){
   const memoAttr = it.memo ? ` data-memo="${escapeHtml(it.memo)}"` : '';
   if(isVirtual) return `<div class="dt-evt" data-virtual="1"${memoAttr}>${escapeHtml(it.title)}</div>`;
   const badge = authorBadge(it.createdBy);
-  const colorAttr = it.color ? ` style="background:${it.color};color:#181820;"` : '';
-  return `<div class="dt-evt" draggable="true" data-item-id="${it.id}"${memoAttr}${colorAttr}>${badge}${timeRangeLabel(it)?escapeHtml(timeRangeLabel(it))+' ':''}${escapeHtml(it.title)}</div>`;
+  return `<div class="dt-evt" draggable="true" data-item-id="${it.id}"${memoAttr}>${badge}${timeRangeLabel(it)?escapeHtml(timeRangeLabel(it))+' ':''}${escapeHtml(it.title)}</div>`;
 }
 let dtTooltipEl=null;
 function showDtTooltip(target, text){
@@ -851,7 +850,9 @@ function renderDayTimelines(){
       const cell=layout.mainStart[idx];
       const edgeClass=meta.isEdge?' dt-edge':'';
       if(cell){
-        return gap+`<td class="dt-cell filled${edgeClass}" rowspan="${cell.span}" data-add-date="${d}" data-add-time="${meta.addTime}">${cell.items.map(dtChip).join('')}</td>`;
+        const cellColor=(cell.items.find(it=>it.color)||{}).color;
+        const colorAttr=cellColor?` style="background:${cellColor};"`:'';
+        return gap+`<td class="dt-cell filled${edgeClass}" rowspan="${cell.span}" data-add-date="${d}" data-add-time="${meta.addTime}"${colorAttr}>${cell.items.map(dtChip).join('')}</td>`;
       }
       return gap+`<td class="dt-cell${edgeClass}" data-add-date="${d}" data-add-time="${meta.addTime}"></td>`;
     }).join('');
@@ -1472,7 +1473,7 @@ function openScheduleModal(existing, prefill, occurDate){
         ${ownerOptions.map(o=>`<label class="pill" style="cursor:pointer;"><input type="radio" name="mOwner" value="${o.key}" ${(s.owner||'common')===o.key?'checked':''} style="margin-right:4px;">${scheduleFilterLabel(o.key)}</label>`).join('')}
       </div>
     </div>
-    <div class="field"><label>색상</label>${renderColorSwatches(selectedColor, 'modal')}</div>
+    <div class="field"><label>배경색상</label>${renderColorSwatches(selectedColor, 'modal')}</div>
     <div class="field"><label>날짜</label><input type="text" readonly class="date-input" placeholder="YYYY-MM-DD" id="mDate" value="${s.date}"></div>
     <div class="grid2">
       <div class="field"><label>시작 시간 (선택)</label><input type="time" step="600" id="mTime" value="${s.time||''}"></div>
