@@ -257,7 +257,8 @@ function defaultState(){
     budgetCategories:{},
     study:[],
     todos:{},
-    studyBlocks:{}
+    studyBlocks:{},
+    calendarDayColors:{}
   };
 }
 const SB_COLORS={study:'#f5d76e', exercise:'#7ee787'};
@@ -497,6 +498,7 @@ function mergeStates(localState, cloudState){
   merged.daily=mergeDaily(localState.daily, cloudState.daily);
   merged.studyBlocks=mergeStudyBlocks(localState.studyBlocks, cloudState.studyBlocks);
   merged.vehicle=mergeVehicle(localState.vehicle, cloudState.vehicle);
+  merged.calendarDayColors=Object.assign({}, localState.calendarDayColors||{}, cloudState.calendarDayColors||{});
   return merged;
 }
 function initAuth(){
@@ -666,6 +668,7 @@ function todayPillBtn(id){
 }
 const SCHED_COLORS=['#FFADAD','#FFD6A5','#CAFFBF','#A0C4FF','#BDB2FF'];
 let scheduleColorPick=null;
+let calendarColorPick=null;
 function renderColorSwatches(selectedColor, groupId){
   return `<div class="row" style="gap:6px;" data-swatch-group="${groupId}">${SCHED_COLORS.map(c=>`<button type="button" class="color-swatch" data-color="${c}" style="width:20px;height:20px;border-radius:50%;background:${c};border:${selectedColor===c?'3px solid var(--text)':'2px solid transparent'};cursor:pointer;padding:0;box-shadow:0 0 0 1px rgba(0,0,0,0.15);"></button>`).join('')}</div>`;
 }
@@ -1364,16 +1367,20 @@ function renderSchedule(){
     const dayEntry=((state.daily[dateStr]||{}).entries||{})[currentAuthorKey()];
     const commentText=dayEntry&&dayEntry.diary?dayEntry.diary:'';
     const commentHtml=commentText?`<div class="cal-comment" title="${escapeHtml(commentText)}">📝 ${escapeHtml(commentText)}</div>`:'';
-    grid += `<div class="cal-cell ${inMonth?'':'other'} ${dateStr===todayS?'today':''} ${dateStr===scheduleSel?'sel':''} ${holidayName?'holiday':''}" data-date="${dateStr}">
+    const dayColor=state.calendarDayColors[dateStr];
+    const colorAttr=dayColor?` style="background:${dayColor};"`:'';
+    grid += `<div class="cal-cell ${inMonth?'':'other'} ${dateStr===todayS?'today':''} ${dateStr===scheduleSel?'sel':''} ${holidayName?'holiday':''}" data-date="${dateStr}"${colorAttr}>
       <div class="day-row"><span class="day-num">${dateObj.getDate()}</span>${holidayName?`<span class="cal-holiday">${escapeHtml(holidayName)}</span>`:''}</div>${commentHtml}${shown}${more}
     </div>`;
   }
   const dayItems = filtered.filter(s=>scheduleItemOccursOn(s,scheduleSel)).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
   el.innerHTML=`
     <div class="card">
-      <div class="row" style="justify-content:flex-end;margin-bottom:4px;">
+      <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:4px;gap:10px;">
+        ${renderColorSwatches(calendarColorPick, 'cal-paint')}
         <label class="pill" style="cursor:pointer;"><input type="checkbox" id="showCommonToggleSchedule" ${showCommonOnHome?'checked':''} style="margin-right:4px;">가족공통</label>
       </div>
+      ${calendarColorPick?`<div class="meta" style="margin-bottom:6px;">🎨 색상을 적용할 날짜를 클릭하세요</div>`:''}
       <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
         <div class="datebar" style="margin-bottom:0;"><button class="iconbtn" id="sPrev">‹</button><div class="d">${y}년 ${m+1}월</div><button class="iconbtn" id="sNext">›</button></div>
         ${myRole==='dad'?`<div class="row" id="schedFilterRow" style="gap:6px;">
@@ -1404,8 +1411,21 @@ function renderSchedule(){
     const b=e.target.closest('button[data-owner]'); if(!b) return;
     scheduleFilter=b.dataset.owner; renderSchedule();
   });
+  el.querySelectorAll('[data-swatch-group="cal-paint"] .color-swatch').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const c=btn.dataset.color;
+      calendarColorPick = (calendarColorPick===c) ? null : c;
+      renderSchedule();
+    });
+  });
   el.querySelector('.cal-grid').addEventListener('click', e=>{
     const c=e.target.closest('.cal-cell'); if(!c) return;
+    if(calendarColorPick){
+      if(!state.calendarDayColors) state.calendarDayColors={};
+      state.calendarDayColors[c.dataset.date]=calendarColorPick;
+      queueSave(); renderSchedule();
+      return;
+    }
     scheduleSel=c.dataset.date; renderSchedule();
   });
   document.getElementById('addSchedBtn').onclick=()=>openScheduleModal();
