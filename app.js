@@ -1762,12 +1762,12 @@ function openScheduleModal(existing, prefill, occurDate){
 const FAMILY_MEMBERS=[{key:'dad',label:'아빠'},{key:'mom',label:'엄마'},{key:'daughter',label:'딸'}];
 const MEAL_TYPES=['아침','점심','저녁','간식'];
 const MEAL_AMOUNTS=['조금 적게','적당하게','조금 많이','너무 많이'];
-function openMealEditModal(id){
-  const meals=(state.daily[healthDate] && state.daily[healthDate].health && state.daily[healthDate].health[healthPerson] && state.daily[healthDate].health[healthPerson].meals) || [];
+function openMealEditModal(dateStr, id){
+  const meals=(state.daily[dateStr] && state.daily[dateStr].health && state.daily[dateStr].health[healthPerson] && state.daily[dateStr].health[healthPerson].meals) || [];
   const m=meals.find(x=>x.id===id);
   if(!m) return;
   openModal(`
-    <h3>식단 기록 수정</h3>
+    <h3>식단 기록 수정 (${dateStr.slice(5)})</h3>
     <div class="field"><label>식사 종류</label>
       <div class="row" style="gap:6px;">
         ${MEAL_TYPES.map(t=>`<label class="pill" style="cursor:pointer;"><input type="radio" name="mMealType" value="${t}" ${m.mealType===t?'checked':''} style="margin-right:4px;">${t}</label>`).join('')}
@@ -1786,7 +1786,7 @@ function openMealEditModal(id){
   };
   document.getElementById('mDelete').onclick=()=>{
     if(!confirm('삭제할까요?')) return;
-    state.daily[healthDate].health[healthPerson].meals=meals.filter(x=>x.id!==id);
+    state.daily[dateStr].health[healthPerson].meals=meals.filter(x=>x.id!==id);
     queueSave(); closeModal(); renderHealth();
   };
 }
@@ -1844,6 +1844,13 @@ function latestWeightEntryFor(key){
   const d=dates[dates.length-1];
   return {date:d, weight:Number(state.daily[d].health[key].weight)};
 }
+function firstWeightEntryFor(key){
+  const today=todayStr();
+  const dates=Object.keys(state.daily).filter(d=>d<=today && state.daily[d].health && state.daily[d].health[key] && state.daily[d].health[key].weight).sort();
+  if(!dates.length) return null;
+  const d=dates[0];
+  return {date:d, weight:Number(state.daily[d].health[key].weight)};
+}
 function latestWeightFor(key){
   const entry=latestWeightEntryFor(key);
   return entry ? entry.weight : null;
@@ -1863,7 +1870,11 @@ function renderHealth(){
   healthPerson = effectiveRole() || 'mom';
   const day=state.daily[healthDate]||{};
   const rec=(day.health&&day.health[healthPerson])||{};
-  const mealList=(rec.meals||[]).slice().sort((a,b)=>a.time.localeCompare(b.time));
+  const mealWindowDates=Array.from({length:7},(_,i)=>fmtDate(addDays(parseDate(healthDate), -(6-i))));
+  const mealList=mealWindowDates.flatMap(d=>{
+    const dayRec=(state.daily[d] && state.daily[d].health && state.daily[d].health[healthPerson]) || {};
+    return (dayRec.meals||[]).map(m=>({...m, date:d}));
+  }).sort((a,b)=> b.date.localeCompare(a.date) || b.time.localeCompare(a.time));
   const el=document.getElementById('tab-health');
   const dLabel = parseDate(healthDate).toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'});
   const dLabelColor = weekdayColor(healthDate);
@@ -1871,8 +1882,28 @@ function renderHealth(){
   const otherMembers=FAMILY_MEMBERS.filter(m=>m.key!==healthPerson);
   const goals = weightGoalsFor(healthPerson);
   const curWeight = latestWeightFor(healthPerson);
+  const firstEntry = firstWeightEntryFor(healthPerson);
   const targetDate = projectedAchievementDate(curWeight, goals.target, goals.weeklyLoss);
   const finalDate = projectedAchievementDate(curWeight, goals.finalTarget, goals.weeklyLoss);
+  let targetNote='', finalNote='';
+  if(firstEntry && curWeight!=null){
+    const kgDiff=Math.round((curWeight-firstEntry.weight)*10)/10;
+    if(kgDiff!==0) targetNote = kgDiff<0 ? `최초 기록보다 ${Math.abs(kgDiff)}kg 줄었네요` : `최초 기록보다 ${kgDiff}kg 늘었네요`;
+  }
+  if(firstEntry && goals.finalTarget && goals.weeklyLoss && finalDate){
+    const firstProjDate=projectedAchievementDate(firstEntry.weight, goals.finalTarget, goals.weeklyLoss);
+    if(firstProjDate){
+      const dayDiff=Math.round((parseDate(finalDate)-parseDate(firstProjDate))/86400000);
+      if(dayDiff!==0) finalNote = dayDiff<0 ? `최초 기록날짜보다 ${Math.abs(dayDiff)}일 줄었네요` : `최초 기록날짜보다 ${dayDiff}일 늘었네요`;
+    }
+  }
+  const goalLineHtml=(icon, mainText, note)=>{
+    if(!note) return `<div class="meta" style="margin-top:2px;">${icon} ${mainText}</div>`;
+    if(isMobileViewport()){
+      return `<div class="meta" style="margin-top:2px;display:flex;justify-content:flex-end;"><span style="text-align:left;">${icon} ${mainText}<br>(${note})</span></div>`;
+    }
+    return `<div class="meta" style="margin-top:2px;">${icon} ${mainText} (${note})</div>`;
+  };
   el.innerHTML=`
     <div class="card">
       <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
@@ -1887,8 +1918,8 @@ function renderHealth(){
       </div>
       <div style="margin-top:10px;">${renderWeightChart([healthPerson].concat(weightChartOthers), [healthPerson].concat(weightChartOthers).map(k=>{ const g=weightGoalsFor(k); return {key:k, weeklyLoss:g.weeklyLoss, finalTarget:g.finalTarget, target:g.target}; }))}</div>
       <div style="margin-top:8px;text-align:right;">
-        ${targetDate?`<div class="meta">🎯 1차 목표 ${goals.target}kg, ${fmtKoreanDate(targetDate)} 달성 목표</div>`:''}
-        ${finalDate?`<div class="meta" style="margin-top:2px;">🏁 최종목표 ${goals.finalTarget}kg, ${fmtKoreanDate(finalDate)} 달성 목표</div>`:''}
+        ${targetDate?goalLineHtml('🎯', `1차 목표 ${goals.target}kg, ${fmtKoreanDate(targetDate)} 달성 목표`, targetNote):''}
+        ${finalDate?goalLineHtml('🏁', `최종목표 ${goals.finalTarget}kg, ${fmtKoreanDate(finalDate)} 달성 목표`, finalNote):''}
       </div>
     </div>
     <div class="card">
@@ -1948,8 +1979,8 @@ function renderHealth(){
         <div style="margin-top:8px;">
           ${mealList.length? mealList.map(mEntry=>`
             <div class="list-item">
-              <div class="content-text">${mEntry.time} ${mEntry.mealType} · ${escapeHtml(mEntry.content)} · ${mEntry.amount}</div>
-              <button class="icon-btn" data-edit-meal="${mEntry.id}" title="수정">✏️</button>
+              <div class="content-text">${mEntry.date.slice(5)} ${mEntry.time} ${mEntry.mealType} · ${escapeHtml(mEntry.content)} · ${mEntry.amount}</div>
+              <button class="icon-btn" data-edit-meal="${mEntry.id}" data-meal-date="${mEntry.date}" title="수정">✏️</button>
             </div>`).join('') : `<div class="empty">아직 기록된 식단이 없어요</div>`}
         </div>
       </div>
@@ -2056,7 +2087,7 @@ function renderHealth(){
     state.daily[healthDate].health[healthPerson].meals.push(entry);
     queueSave(); renderHealth();
   };
-  el.querySelectorAll('[data-edit-meal]').forEach(b=>b.onclick=()=>openMealEditModal(b.dataset.editMeal));
+  el.querySelectorAll('[data-edit-meal]').forEach(b=>b.onclick=()=>openMealEditModal(b.dataset.mealDate, b.dataset.editMeal));
   const addHealthSchedBtn=document.getElementById('addHealthSchedBtn');
   if(addHealthSchedBtn) addHealthSchedBtn.onclick=()=>openHealthSchedModal();
   el.querySelectorAll('[data-edit-hsched]').forEach(b=>b.onclick=()=>openHealthSchedModal((state.healthSchedule[healthPerson]||[]).find(x=>x.id===b.dataset.editHsched)));
@@ -3131,6 +3162,7 @@ function openRenewModal(existing){
 }
 function openMaintModal(existing){
   const mt=existing||{id:null,date:todayStr(),item:MAINT_ITEMS[0],place:'',cost:'',odo:'',memo:''};
+  const curCycle=(state.vehicle.maintCycle||{})[mt.item]||'';
   openModal(`
     <h3>${existing?'정비 기록 수정':'정비 기록 추가'}</h3>
     <div class="field"><label>점검 항목</label><select id="mItem">${MAINT_ITEMS.map(i=>`<option ${i===mt.item?'selected':''}>${i}</option>`).join('')}</select></div>
@@ -3142,11 +3174,15 @@ function openMaintModal(existing){
       <div class="field"><label>점검 장소 (선택)</label><input id="mPlace" value="${escapeHtml(mt.place)}" placeholder="예: 형주카센터"></div>
       <div class="field"><label>비용 (선택)</label><input type="number" id="mCost" value="${mt.cost}"></div>
     </div>
+    <div class="field"><label>점검주기 (선택)</label><input id="mCycle" value="${escapeHtml(curCycle)}" placeholder="예: 6개월"></div>
     <div class="field"><label>메모</label><input id="mMemo" value="${escapeHtml(mt.memo)}"></div>
     <div class="modal-actions"><button class="btn" id="mCancel">취소</button><button class="btn primary" id="mSave">저장</button></div>
   `);
   document.getElementById('mCancel').onclick=closeModal;
   attachDatePicker('mDate');
+  document.getElementById('mItem').addEventListener('change', e=>{
+    document.getElementById('mCycle').value=(state.vehicle.maintCycle||{})[e.target.value]||'';
+  });
   document.getElementById('mSave').onclick=()=>{
     const date=document.getElementById('mDate').value;
     const item=document.getElementById('mItem').value;
@@ -3154,6 +3190,8 @@ function openMaintModal(existing){
     const rec={id:mt.id||uid(),date,item,place:document.getElementById('mPlace').value,cost:document.getElementById('mCost').value,odo:document.getElementById('mOdo').value,memo:document.getElementById('mMemo').value};
     if(mt.id){ const idx=state.vehicle.maint.findIndex(x=>x.id===mt.id); state.vehicle.maint[idx]=rec; }
     else state.vehicle.maint.push(rec);
+    if(!state.vehicle.maintCycle) state.vehicle.maintCycle={};
+    state.vehicle.maintCycle[item]=document.getElementById('mCycle').value;
     queueSave(); closeModal(); renderVehicle();
   };
 }
