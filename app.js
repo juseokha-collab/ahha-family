@@ -694,7 +694,7 @@ document.getElementById('tabs').addEventListener('click', e=>{
 function todayPillBtn(id){
   return `<button id="${id}" style="background:#000;color:#fff;border:none;border-radius:999px;padding:3px 12px;font-size:11px;font-weight:700;cursor:pointer;">Today</button>`;
 }
-const SCHED_COLORS=['#FFADAD','#FFD6A5','#CAFFBF','#A0C4FF','#BDB2FF'];
+const SCHED_COLORS=['rgba(255,173,173,0.55)','rgba(255,214,165,0.55)','rgba(202,255,191,0.55)','rgba(160,196,255,0.55)','rgba(189,178,255,0.55)'];
 let scheduleColorPick=null;
 let calendarColorPick=null;
 function renderColorSwatches(selectedColor, groupId){
