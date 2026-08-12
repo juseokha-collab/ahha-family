@@ -1004,9 +1004,20 @@ function bindDayTimelineEvents(){
         const isRepeating = item.repeat && item.repeat!=='none';
         if(isRepeating && occurDate){
           if(!item.colorOverrides) item.colorOverrides={};
-          item.colorOverrides[occurDate]={...(item.colorOverrides[occurDate]||{}), color:scheduleColorPick};
+          const curColor=(item.colorOverrides[occurDate]||{}).color;
+          if(curColor===scheduleColorPick){
+            item.colorOverrides[occurDate]={...(item.colorOverrides[occurDate]||{}), color:null};
+            scheduleColorPick=null;
+          } else {
+            item.colorOverrides[occurDate]={...(item.colorOverrides[occurDate]||{}), color:scheduleColorPick};
+          }
         } else {
-          item.color=scheduleColorPick;
+          if(item.color===scheduleColorPick){
+            item.color=null;
+            scheduleColorPick=null;
+          } else {
+            item.color=scheduleColorPick;
+          }
         }
         queueSave(); renderHome();
         return;
@@ -1579,7 +1590,13 @@ function renderSchedule(){
     if(calendarColorPick){
       if(!state.calendarDayColors) state.calendarDayColors={};
       if(!state.calendarDayColors[myKeyCal]) state.calendarDayColors[myKeyCal]={};
-      state.calendarDayColors[myKeyCal][c.dataset.date]=calendarColorPick;
+      const curColor=state.calendarDayColors[myKeyCal][c.dataset.date];
+      if(curColor===calendarColorPick){
+        delete state.calendarDayColors[myKeyCal][c.dataset.date];
+        calendarColorPick=null;
+      } else {
+        state.calendarDayColors[myKeyCal][c.dataset.date]=calendarColorPick;
+      }
       queueSave(); renderSchedule();
       return;
     }
@@ -1974,8 +1991,11 @@ function renderHealth(){
   };
   document.getElementById('hWeight').addEventListener('change',e=>{
     const newVal=e.target.value?Number(e.target.value):'';
+    const prevWeight=latestWeightFor(healthPerson);
+    const prevDate=(goals.finalTarget && goals.weeklyLoss) ? projectedAchievementDate(prevWeight, goals.finalTarget, goals.weeklyLoss) : null;
     save('weight', newVal);
-    if(newVal) checkWeightGoalReached(healthPerson, newVal);
+    const reachedGoal = newVal ? checkWeightGoalReached(healthPerson, newVal) : false;
+    if(newVal && !reachedGoal) checkWeightDateChange(healthPerson, prevDate, newVal, goals);
     renderHealth();
   });
   document.getElementById('hCalories').addEventListener('change',e=>save('calories', e.target.value?Number(e.target.value):''));
@@ -2765,13 +2785,45 @@ function checkWeightGoalReached(key, newWeight){
     flags.weightGoalCelebrated.target=true;
     queueSave();
     celebrate('1차 목표 달성! 🎯', `${memberLabel(key)} ${goals.target}kg 목표를 달성했어요!`);
-    return;
+    return true;
   }
   if(goals.finalTarget && Number(newWeight)<=Number(goals.finalTarget) && !flags.weightGoalCelebrated.finalTarget){
     flags.weightGoalCelebrated.finalTarget=true;
     queueSave();
     celebrate('최종 목표 달성! 🏁', `${memberLabel(key)} 최종 목표 ${goals.finalTarget}kg 달성! 정말 대단해요!`);
+    return true;
   }
+  return false;
+}
+function checkWeightDateChange(key, prevDate, curWeight, goals){
+  if(!goals.finalTarget || !goals.weeklyLoss || !prevDate) return;
+  const newDate=projectedAchievementDate(curWeight, goals.finalTarget, goals.weeklyLoss);
+  if(!newDate) return;
+  const diffDays=Math.round((parseDate(newDate)-parseDate(prevDate))/86400000);
+  let icon, title, message;
+  if(diffDays<0){
+    icon='🎉';
+    title='목표달성일이 앞당겨졌어요!';
+    message=`축하합니다! 목표달성일이 ${-diffDays}일 줄었습니다`;
+  } else if(diffDays>0){
+    icon='💪';
+    title='목표달성일이 늘었어요';
+    message=`목표달성일이 ${diffDays}일 늘었군요. 다시 화이팅!!`;
+  } else {
+    icon='♥';
+    title='잘 하고 있어요';
+    message='잘 하고 있습니다. 오늘도 행복하세용 ♥';
+  }
+  openModal(`
+    <div style="text-align:center;padding:20px 10px;">
+      <div style="font-size:36px;">${icon}</div>
+      <h3 style="margin:10px 0 4px;">${title}</h3>
+      <div style="font-size:14px;color:var(--text);">${escapeHtml(message)}</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:8px;">${fmtKoreanDate(newDate)} 최종목표 달성 예상</div>
+      <button class="btn primary" style="margin-top:16px;" id="wtDateCloseBtn">확인</button>
+    </div>
+  `);
+  document.getElementById('wtDateCloseBtn').onclick=closeModal;
 }
 function weeklyWeightTrend(key){
   const today=todayStr();
