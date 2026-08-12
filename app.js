@@ -1243,7 +1243,7 @@ function renderHome(){
             <button class="btn small primary" id="diarySaveBtn">저장</button>
           </div>
         </div>
-        <textarea id="diaryInput" placeholder="오늘 하루는 어땠나요?">${escapeHtml(mine.diary)}</textarea>
+        <textarea id="diaryInput" placeholder="오늘 하루는 어땠나요?" style="overflow:hidden;">${escapeHtml(mine.diary)}</textarea>
         <div class="row" style="justify-content:space-between;align-items:center;margin-top:8px;">
           <label id="diaryArchiveToggle" style="cursor:pointer;">${diaryArchiveOpen?'▲':'▼'} Comment 모아보기</label>
           ${diaryArchiveOpen?`<label class="pill" style="cursor:pointer;"><input type="checkbox" id="diaryArchiveFamilyToggle" ${diaryArchiveIncludeFamily?'checked':''} style="margin-right:4px;">가족 Comment 포함</label>`:''}
@@ -1324,8 +1324,12 @@ function renderHome(){
     state.daily[homeDate].entries[myKey]=cur;
     queueSave(); renderHome();
   });
-  document.getElementById('diaryInput').addEventListener('input', ()=>{
+  const diaryInputEl=document.getElementById('diaryInput');
+  const autoResizeDiary=()=>{ diaryInputEl.style.height='auto'; diaryInputEl.style.height=diaryInputEl.scrollHeight+'px'; };
+  autoResizeDiary();
+  diaryInputEl.addEventListener('input', ()=>{
     document.getElementById('diarySaveStatus').textContent='';
+    autoResizeDiary();
   });
   document.getElementById('diarySaveBtn').onclick=()=>{
     ensureDay(homeDate);
