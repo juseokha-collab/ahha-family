@@ -2685,9 +2685,9 @@ function renderBudget(){
           <thead>
             <tr>
               <th data-sort-key-inc="date" style="cursor:pointer;text-align:left;padding:4px 3px 4px 0;white-space:nowrap;width:82px;${incomeSortKey==='date'?'color:var(--accent);':'color:var(--muted);'}">날짜${incomeSortKey==='date'?' ▲':''}</th>
-              <th data-sort-key-inc="category" style="cursor:pointer;text-align:left;padding:4px 3px;width:78px;${incomeSortKey==='category'?'color:var(--accent);':'color:var(--muted);'}">카테고리${incomeSortKey==='category'?' ▲':''}</th>
+              <th data-sort-key-inc="category" style="cursor:pointer;text-align:left;padding:4px 3px;width:156px;${incomeSortKey==='category'?'color:var(--accent);':'color:var(--muted);'}">카테고리${incomeSortKey==='category'?' ▲':''}</th>
               <th data-sort-key-inc="amount" style="cursor:pointer;text-align:right;padding:4px 6px 4px 4px;width:90px;${incomeSortKey==='amount'?'color:var(--accent);':'color:var(--muted);'}">금액${incomeSortKey==='amount'?' ▲':''}</th>
-              <th data-sort-key-inc="memo" style="cursor:pointer;text-align:left;padding:4px 4px 4px 3px;${incomeSortKey==='memo'?'color:var(--accent);':'color:var(--muted);'}">내역/비고${incomeSortKey==='memo'?' ▲':''}</th>
+              <th data-sort-key-inc="memo" style="cursor:pointer;text-align:left;padding:4px 4px 4px 27px;${incomeSortKey==='memo'?'color:var(--accent);':'color:var(--muted);'}">내역/비고${incomeSortKey==='memo'?' ▲':''}</th>
               <th></th>
             </tr>
           </thead>
@@ -2697,7 +2697,7 @@ function renderBudget(){
                 <td style="text-align:left;padding:5px 3px 5px 0;font-size:12px;white-space:nowrap;">${b.date}</td>
                 <td style="text-align:left;padding:5px 3px;font-size:12px;"><span class="pill">${escapeHtml(b.category)}</span></td>
                 <td style="text-align:right;padding:5px 6px 5px 4px;font-size:12px;white-space:nowrap;">${fmtCurrency(b.amount,b.currency||'KRW')}</td>
-                <td style="text-align:left;padding:5px 4px 5px 3px;font-size:12px;">${escapeHtml(b.memo)}</td>
+                <td style="text-align:left;padding:5px 4px 5px 27px;font-size:12px;">${escapeHtml(b.memo)}</td>
                 <td style="text-align:right;padding:5px 0 5px 18px;white-space:nowrap;"><button class="btn small" style="font-size:11px;padding:3px 8px;" data-edit-inc="${b.id}" title="수정">✏️</button> <button class="btn small danger" style="font-size:11px;padding:3px 8px;" data-del-inc="${b.id}" title="삭제">✕</button></td>
               </tr>`).join('')}
           </tbody>
@@ -2735,9 +2735,9 @@ function renderBudget(){
           <thead>
             <tr>
               <th data-sort-key="date" style="cursor:pointer;text-align:left;padding:4px 3px 4px 0;white-space:nowrap;width:82px;${expenseSortKey==='date'?'color:var(--accent);':'color:var(--muted);'}">날짜${expenseSortKey==='date'?' ▲':''}</th>
-              <th data-sort-key="category" style="cursor:pointer;text-align:left;padding:4px 3px;width:78px;${expenseSortKey==='category'?'color:var(--accent);':'color:var(--muted);'}">카테고리${expenseSortKey==='category'?' ▲':''}</th>
+              <th data-sort-key="category" style="cursor:pointer;text-align:left;padding:4px 3px;width:156px;${expenseSortKey==='category'?'color:var(--accent);':'color:var(--muted);'}">카테고리${expenseSortKey==='category'?' ▲':''}</th>
               <th data-sort-key="amount" style="cursor:pointer;text-align:right;padding:4px 6px 4px 4px;width:90px;${expenseSortKey==='amount'?'color:var(--accent);':'color:var(--muted);'}">금액${expenseSortKey==='amount'?' ▲':''}</th>
-              <th data-sort-key="memo" style="cursor:pointer;text-align:left;padding:4px 4px 4px 3px;${expenseSortKey==='memo'?'color:var(--accent);':'color:var(--muted);'}">내역/비고${expenseSortKey==='memo'?' ▲':''}</th>
+              <th data-sort-key="memo" style="cursor:pointer;text-align:left;padding:4px 4px 4px 27px;${expenseSortKey==='memo'?'color:var(--accent);':'color:var(--muted);'}">내역/비고${expenseSortKey==='memo'?' ▲':''}</th>
               <th></th>
             </tr>
           </thead>
@@ -2747,7 +2747,7 @@ function renderBudget(){
                 <td style="text-align:left;padding:5px 3px 5px 0;font-size:12px;white-space:nowrap;">${b.date}</td>
                 <td style="text-align:left;padding:5px 3px;font-size:12px;"><span class="pill">${escapeHtml(b.category)}</span></td>
                 <td style="text-align:right;padding:5px 6px 5px 4px;font-size:12px;white-space:nowrap;">${fmtCurrency(b.amount,b.currency||'KRW')}</td>
-                <td style="text-align:left;padding:5px 4px 5px 3px;font-size:12px;">${escapeHtml(b.memo)}</td>
+                <td style="text-align:left;padding:5px 4px 5px 27px;font-size:12px;">${escapeHtml(b.memo)}</td>
                 <td style="text-align:right;padding:5px 0 5px 18px;white-space:nowrap;"><button class="btn small" style="font-size:11px;padding:3px 8px;" data-edit="${b.id}" title="수정">✏️</button> <button class="btn small danger" style="font-size:11px;padding:3px 8px;" data-del="${b.id}" title="삭제">✕</button></td>
               </tr>`).join('')}
           </tbody>
@@ -3193,7 +3193,7 @@ function renderStudy(){
   }).join('');
   const summaryCells=days.map((d,di)=>{
     const gap=di>0?'<td class="dt-gap"></td>':'';
-    return gap+`<td class="sb-summary-cell">공부 ${fmtStudyMin(summaries[di].study)}<br>운동 ${fmtStudyMin(summaries[di].exercise)}</td>`;
+    return gap+`<td class="sb-summary-cell"><span style="color:var(--warn);font-weight:700;">🟡 공부 ${fmtStudyMin(summaries[di].study)}</span><br><span style="color:var(--good);font-weight:700;">🟢 운동 ${fmtStudyMin(summaries[di].exercise)}</span></td>`;
   }).join('');
   const gapCells=days.map((d,di)=>{
     const gap=di>0?'<td class="dt-gap"></td>':'';
@@ -3557,10 +3557,47 @@ function updateWorldClock(){
   el.innerHTML = `${FLAG_GB_SVG} ${uk} · ${FLAG_KR_SVG} ${kr}`;
 }
 
+function hasContentToday(){
+  const role=effectiveRole();
+  if(!role) return false;
+  const authorKey=currentAuthorKey();
+  const today=todayStr();
+  const day=state.daily[today];
+  if(day){
+    const entry=day.entries && day.entries[authorKey];
+    if(entry && ((entry.diary||'').trim() || entry.mood)) return true;
+    const health=day.health && day.health[role];
+    if(health && Object.keys(health).some(k=>{
+      if(k==='meals') return Array.isArray(health[k]) && health[k].length>0;
+      const v=health[k];
+      return v!==undefined && v!=='' && v!==false;
+    })) return true;
+  }
+  const sb=state.studyBlocks && state.studyBlocks[authorKey] && state.studyBlocks[authorKey][today];
+  if(sb && sb.some(v=>v)) return true;
+  return false;
+}
+function weightTrendDown(){
+  const role=effectiveRole();
+  if(!role) return false;
+  const today=todayStr();
+  const dates=Object.keys(state.daily).filter(d=>d<=today && state.daily[d].health && state.daily[d].health[role] && state.daily[d].health[role].weight!=null && state.daily[d].health[role].weight!=='').sort();
+  if(dates.length<2) return false;
+  const lastW=Number(state.daily[dates[dates.length-1]].health[role].weight);
+  const prevW=Number(state.daily[dates[dates.length-2]].health[role].weight);
+  return lastW<prevW;
+}
+function updateHeartIcon(){
+  const el=document.getElementById('heartIcon');
+  if(!el) return;
+  el.textContent = hasContentToday() ? '💗' : '🩶';
+  el.classList.toggle('heart-sparkle', weightTrendDown());
+}
 /* ---------- init ---------- */
 function renderAll(){
   renderTabs();
   renderHome(); renderSchedule(); renderHealth(); renderBudget(); renderVehicle(); renderEvents(); renderStudy();
+  updateHeartIcon();
   if(!viewAsOverride) checkWeightPaceNudge(effectiveRole());
 }
 initTheme();
