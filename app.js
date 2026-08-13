@@ -1130,13 +1130,16 @@ function computeDailyProgress(dateStr, authorKey){
 function commitNewTodo(){
   const taskEl=document.getElementById('newTodoTask');
   const dueEl=document.getElementById('newTodoDue');
+  const catEl=document.getElementById('newTodoCat');
   if(!taskEl||!dueEl) return;
   const task=taskEl.value.trim();
   const due=dueEl.value||todayStr();
-  if(!task) return;
+  if(!task){ showToast('할 일을 입력해주세요'); return; }
   const defaultCat=myTodoCategories()[myTodoCategories().length-1];
-  myTodos().push({id:uid(), task, dueDate:due, dueTime:'', category:defaultCat?defaultCat.name:'', done:false, doneDate:'', createdDate:todayStr()});
+  const category=(catEl && catEl.value) ? catEl.value : (defaultCat?defaultCat.name:'');
+  myTodos().push({id:uid(), task, dueDate:due, dueTime:'', category, done:false, doneDate:'', createdDate:todayStr()});
   queueSave(); renderHome();
+  showToast('할 일이 추가되었어요');
 }
 function openTodoEditModal(id){
   const list=myTodos();
@@ -1344,12 +1347,16 @@ function renderHome(){
           </div>
         </div>`;
       }).join('')}
-      <div class="list-item" style="align-items:center;">
-        <div class="row" style="flex:1;gap:8px;">
+      <div class="list-item" style="align-items:center;flex-wrap:wrap;">
+        <div class="row" style="flex:1;gap:8px;min-width:140px;">
           <span style="width:16px;flex-shrink:0;"></span>
           <input id="newTodoTask" placeholder="할 일을 입력하고 Enter" style="flex:1;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:13px;">
         </div>
+        <select id="newTodoCat" style="flex-shrink:0;width:80px;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 4px;font-size:12px;">
+          ${myTodoCategories().map((c,i,arr)=>`<option value="${escapeHtml(c.name)}" ${i===arr.length-1?'selected':''}>${escapeHtml(c.name)}</option>`).join('')}
+        </select>
         <input type="text" readonly class="date-input" id="newTodoDue" placeholder="D-day" style="width:110px;flex-shrink:0;" value="">
+        <button class="btn small primary" id="newTodoSaveBtn" style="flex-shrink:0;">저장</button>
       </div>
     </div>
 
@@ -1446,6 +1453,8 @@ function renderHome(){
   if(newTodoTaskEl){
     newTodoTaskEl.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); commitNewTodo(); } });
   }
+  const newTodoSaveBtn=document.getElementById('newTodoSaveBtn');
+  if(newTodoSaveBtn) newTodoSaveBtn.onclick=commitNewTodo;
   bindDayTimelineEvents();
 }
 function diaryArchiveRowsHtml(){
@@ -1966,7 +1975,7 @@ function renderHealth(){
   const goalLineHtml=(icon, mainText, note, noteColor)=>{
     if(isMobileViewport()){
       const coloredNote=note?`<span style="color:${noteColor};">(${note})</span>`:'';
-      return `<div style="margin-top:2px;text-align:right;color:var(--text);">${icon} ${mainText}${note?`<br>${coloredNote}`:''}</div>`;
+      return `<div class="meta" style="margin-top:2px;text-align:right;color:var(--text);">${icon} ${mainText}${note?`<br>${coloredNote}`:''}</div>`;
     }
     if(!note) return `<div class="meta" style="margin-top:2px;">${icon} ${mainText}</div>`;
     const coloredNote=`<span style="color:${noteColor};">(${note})</span>`;
@@ -3151,6 +3160,10 @@ function renderStudy(){
     const gap=di>0?'<td class="dt-gap"></td>':'';
     return gap+`<td class="sb-summary-cell">공부 ${fmtStudyMin(summaries[di].study)}<br>운동 ${fmtStudyMin(summaries[di].exercise)}</td>`;
   }).join('');
+  const gapCells=days.map((d,di)=>{
+    const gap=di>0?'<td class="dt-gap"></td>':'';
+    return gap+`<td></td>`;
+  }).join('');
   const logRows=weeklyLogRows(key);
   el.innerHTML=`
     <div class="card">
@@ -3165,6 +3178,7 @@ function renderStudy(){
           <thead><tr><th class="dt-time-col"></th>${headCells}</tr></thead>
           <tbody>
             <tr class="sb-summary-row"><td class="dt-time-col"></td>${summaryCells}</tr>
+            <tr class="sb-gap-row"><td class="dt-time-col"></td>${gapCells}</tr>
             ${rows}
           </tbody>
         </table>
