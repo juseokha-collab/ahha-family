@@ -1144,13 +1144,13 @@ function openTodoEditModal(id){
   if(!t) return;
   const cats=myTodoCategories();
   const catOptions = (t.category && !cats.some(c=>c.name===t.category)) ? cats.concat([{name:t.category,color:'#ddd'}]) : cats;
-  const [curH,curM]=(t.dueTime||'').split(':');
+  const [curH,curM]=(t.dueTime||'18:00').split(':');
   const hourOptions=Array.from({length:24},(_,h)=>pad2(h));
   const minOptions=['00','10','20','30','40','50'];
   openModal(`
     <h3>To do 수정</h3>
     <div class="field"><label>할 일</label><input id="mTask" value="${escapeHtml(t.task)}"></div>
-    <div class="grid2">
+    <div class="grid2" style="margin-top:18px;">
       <div class="field"><label>D-day 날짜</label><input type="text" readonly class="date-input" id="mDue" value="${t.dueDate}"></div>
       <div class="field"><label>시간 (선택)</label>
         <div class="row" style="gap:4px;">
@@ -1340,7 +1340,7 @@ function renderHome(){
           <div class="row" style="flex-shrink:0;">
             ${catPill}
             <span class="pill ${ddayPillClass(d)}">${ddayLabel(d)}</span>
-            <button class="icon-btn" data-edit-todo="${t.id}" title="수정">✏️</button>
+            <button class="btn small" style="font-size:11px;padding:3px 8px;" data-edit-todo="${t.id}" title="수정">✏️</button> <button class="btn small danger" style="font-size:11px;padding:3px 8px;" data-del-todo="${t.id}" title="삭제">✕</button>
           </div>
         </div>`;
       }).join('')}
@@ -1428,6 +1428,13 @@ function renderHome(){
     queueSave(); renderHome();
   }));
   el.querySelectorAll('[data-edit-todo]').forEach(btn=>btn.onclick=()=>openTodoEditModal(btn.dataset.editTodo));
+  el.querySelectorAll('[data-del-todo]').forEach(btn=>btn.onclick=()=>{
+    if(!confirm('이 할 일을 삭제할까요?')) return;
+    const key=currentAuthorKey(), id=btn.dataset.delTodo;
+    state.todos[key]=state.todos[key].filter(x=>x.id!==id);
+    markDeleted(id);
+    queueSave(); renderHome();
+  });
   const todoSortSelectEl=document.getElementById('todoSortSelect');
   if(todoSortSelectEl) todoSortSelectEl.addEventListener('change', e=>{ todoSortBy=e.target.value; renderHome(); });
   const newTodoDueEl=document.getElementById('newTodoDue');
@@ -1957,11 +1964,12 @@ function renderHealth(){
     }
   }
   const goalLineHtml=(icon, mainText, note, noteColor)=>{
+    if(isMobileViewport()){
+      const coloredNote=note?`<span style="color:${noteColor};">(${note})</span>`:'';
+      return `<div style="margin-top:2px;text-align:right;color:var(--text);">${icon} ${mainText}${note?`<br>${coloredNote}`:''}</div>`;
+    }
     if(!note) return `<div class="meta" style="margin-top:2px;">${icon} ${mainText}</div>`;
     const coloredNote=`<span style="color:${noteColor};">(${note})</span>`;
-    if(isMobileViewport()){
-      return `<div class="meta" style="margin-top:2px;display:flex;justify-content:flex-end;"><span style="text-align:left;">${icon} ${mainText}<br>${coloredNote}</span></div>`;
-    }
     return `<div class="meta" style="margin-top:2px;">${icon} ${mainText} ${coloredNote}</div>`;
   };
   el.innerHTML=`
@@ -2040,7 +2048,7 @@ function renderHealth(){
           ${mealList.length? mealList.map(mEntry=>`
             <div class="list-item">
               <div class="content-text">${mEntry.date.slice(5)} ${mEntry.time} ${mEntry.mealType} · ${escapeHtml(mEntry.content)} · ${mEntry.amount}</div>
-              <button class="icon-btn" data-edit-meal="${mEntry.id}" data-meal-date="${mEntry.date}" title="수정">✏️</button>
+              <div class="row" style="flex-shrink:0;"><button class="btn small" style="font-size:11px;padding:3px 8px;" data-edit-meal="${mEntry.id}" data-meal-date="${mEntry.date}" title="수정">✏️</button> <button class="btn small danger" style="font-size:11px;padding:3px 8px;" data-del-meal="${mEntry.id}" data-meal-date="${mEntry.date}" title="삭제">✕</button></div>
             </div>`).join('') : `<div class="empty">아직 기록된 식단이 없어요</div>`}
         </div>
       </div>
@@ -2052,8 +2060,7 @@ function renderHealth(){
         <div class="list-item">
           <div><div>${escapeHtml(it.name)}</div><div class="meta">${it.date}${it.memo?' · '+escapeHtml(it.memo):''}</div></div>
           <div class="row"><span class="pill ${ddayPillClass(it.d)}">${ddayLabel(it.d)}</span>
-            <button class="icon-btn" data-edit-hsched="${it.id}" title="수정">✏️</button>
-            <button class="btn small danger" data-del-hsched="${it.id}">삭제</button></div>
+            <button class="btn small" style="font-size:11px;padding:3px 8px;" data-edit-hsched="${it.id}" title="수정">✏️</button> <button class="btn small danger" style="font-size:11px;padding:3px 8px;" data-del-hsched="${it.id}" title="삭제">✕</button></div>
         </div>`).join('') : `<div class="empty">건강검진, 정기검사 등 예정된 일정을 등록해보세요</div>`}
     </div>`:''}
   `;
@@ -2148,6 +2155,13 @@ function renderHealth(){
     queueSave(); renderHealth();
   };
   el.querySelectorAll('[data-edit-meal]').forEach(b=>b.onclick=()=>openMealEditModal(b.dataset.mealDate, b.dataset.editMeal));
+  el.querySelectorAll('[data-del-meal]').forEach(b=>b.onclick=()=>{
+    if(!confirm('삭제할까요?')) return;
+    const date=b.dataset.mealDate, id=b.dataset.delMeal;
+    const meals=(state.daily[date] && state.daily[date].health && state.daily[date].health[healthPerson] && state.daily[date].health[healthPerson].meals) || [];
+    state.daily[date].health[healthPerson].meals = meals.filter(x=>x.id!==id);
+    queueSave(); renderHealth();
+  });
   const addHealthSchedBtn=document.getElementById('addHealthSchedBtn');
   if(addHealthSchedBtn) addHealthSchedBtn.onclick=()=>openHealthSchedModal();
   el.querySelectorAll('[data-edit-hsched]').forEach(b=>b.onclick=()=>openHealthSchedModal((state.healthSchedule[healthPerson]||[]).find(x=>x.id===b.dataset.editHsched)));
@@ -2648,7 +2662,7 @@ function renderBudget(){
         <div class="list-item">
           <div><div><span class="pill">${escapeHtml(b.category)}</span> ${escapeHtml(b.memo)}</div><div class="meta">${b.date}</div></div>
           <div class="row"><b>${fmtCurrency(b.amount,b.currency||'KRW')}</b>
-            <button class="btn small" data-edit-inc="${b.id}">수정</button><button class="btn small danger" data-del-inc="${b.id}">삭제</button></div>
+            <button class="btn small" style="font-size:11px;padding:3px 8px;" data-edit-inc="${b.id}" title="수정">✏️</button> <button class="btn small danger" style="font-size:11px;padding:3px 8px;" data-del-inc="${b.id}" title="삭제">✕</button></div>
         </div>`).join('') : `<div class="empty">이번달 수입 내역이 없어요</div>`}
     </div>
     <div class="card">
@@ -3447,9 +3461,10 @@ function updateViewAsButtons(){
   const daughterBtn=document.getElementById('viewAsDaughterBtn');
   const realRole = user ? EMAIL_ROLE[user.email] : null;
   const isDadOrGuest = !realRole || realRole==='dad';
+  const canViewDaughter = isDadOrGuest || realRole==='mom';
   if(momBtn) momBtn.classList.toggle('active', viewAsOverride==='mom');
   if(daughterBtn) daughterBtn.classList.toggle('active', viewAsOverride==='daughter');
-  if(!isDadOrGuest){
+  if(!isDadOrGuest && !canViewDaughter){
     if(momBtn) momBtn.style.display='none';
     if(daughterBtn) daughterBtn.style.display='none';
     return;
@@ -3459,8 +3474,8 @@ function updateViewAsButtons(){
   const themeToggle=document.getElementById('themeToggle');
   if(authArea) authArea.style.display = isPreviewing ? 'none' : '';
   if(themeToggle) themeToggle.style.display = isPreviewing ? 'none' : '';
-  if(momBtn) momBtn.style.display = viewAsOverride==='daughter' ? 'none' : '';
-  if(daughterBtn) daughterBtn.style.display = viewAsOverride==='mom' ? 'none' : '';
+  if(momBtn) momBtn.style.display = (isDadOrGuest && viewAsOverride!=='daughter') ? '' : 'none';
+  if(daughterBtn) daughterBtn.style.display = (canViewDaughter && viewAsOverride!=='mom') ? '' : 'none';
 }
 function setViewAs(role){
   viewAsOverride = viewAsOverride===role ? null : role;
