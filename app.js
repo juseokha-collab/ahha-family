@@ -1107,6 +1107,7 @@ function myTodoCategories(){
 }
 let todoSortBy='dueDate';
 let expenseSortKey=null;
+let incomeSortKey=null;
 function todosForToday(){
   const list=myTodos().filter(t=>t.dueDate>=homeDate);
   return list.sort((a,b)=>{
@@ -1828,6 +1829,7 @@ function openScheduleModal(existing, prefill, occurDate){
 
 /* ---------- HEALTH ---------- */
 const FAMILY_MEMBERS=[{key:'dad',label:'아빠'},{key:'mom',label:'엄마'},{key:'daughter',label:'딸'}];
+const MEMBER_EMOJI={dad:'👨',mom:'👩',daughter:'👧'};
 const MEAL_TYPES=['아침','점심','저녁','간식'];
 const MEAL_AMOUNTS=['조금 적게','적당하게','조금 많이','너무 많이'];
 function openMealEditModal(dateStr, id){
@@ -1838,7 +1840,7 @@ function openMealEditModal(dateStr, id){
     <h3>식단 기록 수정 (${dateStr.slice(5)})</h3>
     <div class="field"><label>식사 종류</label>
       <div class="row" style="gap:6px;">
-        ${MEAL_TYPES.map(t=>`<label class="pill" style="cursor:pointer;"><input type="radio" name="mMealType" value="${t}" ${m.mealType===t?'checked':''} style="margin-right:4px;">${t}</label>`).join('')}
+        ${MEAL_TYPES.map(t=>`<label class="pill" style="cursor:pointer;"><input type="radio" name="mMealType" value="${t}" ${m.mealType===t?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">${t}</label>`).join('')}
       </div>
     </div>
     <div class="field"><label>내용</label><input id="mMealContent" value="${escapeHtml(m.content)}"></div>
@@ -1990,7 +1992,7 @@ function renderHealth(){
           <button class="icon-btn" id="editWeightGoalBtn" title="목표 수정" style="padding:0 2px;font-size:13px;">✏️</button>
         </div>
         <div class="row" style="gap:10px;">
-          ${otherMembers.map(m=>`<label class="pill" style="cursor:pointer;"><input type="checkbox" class="weightExtraToggle" value="${m.key}" ${weightChartOthers.includes(m.key)?'checked':''} style="margin-right:4px;transform:scale(0.5);vertical-align:middle;">${m.label}</label>`).join('')}
+          ${otherMembers.map(m=>`<label class="pill" style="cursor:pointer;"><input type="checkbox" class="weightExtraToggle" value="${m.key}" ${weightChartOthers.includes(m.key)?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">${MEMBER_EMOJI[m.key]||''} ${m.label}</label>`).join('')}
         </div>
       </div>
       <div style="margin-top:10px;">${renderWeightChart([healthPerson].concat(weightChartOthers), [healthPerson].concat(weightChartOthers).map(k=>{ const g=weightGoalsFor(k); return {key:k, weeklyLoss:g.weeklyLoss, finalTarget:g.finalTarget, target:g.target}; }))}</div>
@@ -2043,7 +2045,7 @@ function renderHealth(){
         <div class="row" style="justify-content:space-between;align-items:center;">
           <label style="margin:0;">식단 기록</label>
           <div class="row" style="gap:6px;">
-            ${MEAL_TYPES.map((t,i)=>`<label class="pill" style="cursor:pointer;"><input type="radio" name="mealTypeDraft" value="${t}" ${i===0?'checked':''} style="margin-right:4px;">${t}</label>`).join('')}
+            ${MEAL_TYPES.map((t,i)=>`<label class="pill" style="cursor:pointer;"><input type="radio" name="mealTypeDraft" value="${t}" ${i===0?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">${t}</label>`).join('')}
           </div>
         </div>
         <div class="row" style="gap:8px;flex-wrap:wrap;">
@@ -2636,6 +2638,16 @@ function renderBudget(){
       return 0;
     });
   }
+  let sortedIncomeItems=incomeItems;
+  if(incomeSortKey){
+    sortedIncomeItems=[...incomeItems].sort((a,b)=>{
+      if(incomeSortKey==='date') return a.date.localeCompare(b.date);
+      if(incomeSortKey==='category') return (a.category||'').localeCompare(b.category||'');
+      if(incomeSortKey==='memo') return (a.memo||'').localeCompare(b.memo||'');
+      if(incomeSortKey==='amount') return Number(a.amount||0)-Number(b.amount||0);
+      return 0;
+    });
+  }
   const [y,m]=budgetMonth.split('-');
   const monthBalanceKRW = incomeByCur.KRW - expenseByCur.KRW;
   const monthBalanceGBP = incomeByCur.GBP - expenseByCur.GBP;
@@ -2664,15 +2676,33 @@ function renderBudget(){
     </div>
     ${isDaughter?renderIncomeEstimateCard():''}
     <div class="card">
-      <div class="row" style="justify-content:space-between;"><h3 style="margin:0;">💰 수입</h3>
+      <div class="row" style="justify-content:space-between;"><h3 style="margin:0;">💰 수입 내역</h3>
         <div class="row"><button class="btn small" id="manageIncCatBtn">카테고리 관리</button><button class="btn primary small" id="addIncomeBtn">+ 수입 추가</button></div>
       </div>
-      ${incomeItems.length? incomeItems.map(b=>`
-        <div class="list-item">
-          <div><div><span class="pill">${escapeHtml(b.category)}</span> ${escapeHtml(b.memo)}</div><div class="meta">${b.date}</div></div>
-          <div class="row"><b>${fmtCurrency(b.amount,b.currency||'KRW')}</b>
-            <button class="btn small" style="font-size:11px;padding:3px 8px;" data-edit-inc="${b.id}" title="수정">✏️</button> <button class="btn small danger" style="font-size:11px;padding:3px 8px;" data-del-inc="${b.id}" title="삭제">✕</button></div>
-        </div>`).join('') : `<div class="empty">이번달 수입 내역이 없어요</div>`}
+      ${sortedIncomeItems.length?`
+      <div style="overflow-x:auto;margin-top:20px;">
+        <table style="width:100%;border-collapse:collapse;font-size:12px;">
+          <thead>
+            <tr>
+              <th data-sort-key-inc="date" style="cursor:pointer;text-align:left;padding:4px 3px 4px 0;white-space:nowrap;${incomeSortKey==='date'?'color:var(--accent);':'color:var(--muted);'}">날짜${incomeSortKey==='date'?' ▲':''}</th>
+              <th data-sort-key-inc="category" style="cursor:pointer;text-align:left;padding:4px 3px;${incomeSortKey==='category'?'color:var(--accent);':'color:var(--muted);'}">카테고리${incomeSortKey==='category'?' ▲':''}</th>
+              <th data-sort-key-inc="memo" style="cursor:pointer;text-align:left;padding:4px 4px 4px 3px;${incomeSortKey==='memo'?'color:var(--accent);':'color:var(--muted);'}">내역${incomeSortKey==='memo'?' ▲':''}</th>
+              <th data-sort-key-inc="amount" style="cursor:pointer;text-align:right;padding:4px 6px 4px 4px;${incomeSortKey==='amount'?'color:var(--accent);':'color:var(--muted);'}">금액${incomeSortKey==='amount'?' ▲':''}</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            ${sortedIncomeItems.map(b=>`
+              <tr>
+                <td style="text-align:left;padding:5px 3px 5px 0;font-size:12px;white-space:nowrap;">${b.date}</td>
+                <td style="text-align:left;padding:5px 3px;font-size:12px;"><span class="pill">${escapeHtml(b.category)}</span></td>
+                <td style="text-align:left;padding:5px 4px 5px 3px;font-size:12px;">${escapeHtml(b.memo)}</td>
+                <td style="text-align:right;padding:5px 6px 5px 4px;font-size:12px;white-space:nowrap;">${fmtCurrency(b.amount,b.currency||'KRW')}</td>
+                <td style="text-align:right;padding:5px 0 5px 18px;white-space:nowrap;"><button class="btn small" style="font-size:11px;padding:3px 8px;" data-edit-inc="${b.id}" title="수정">✏️</button> <button class="btn small danger" style="font-size:11px;padding:3px 8px;" data-del-inc="${b.id}" title="삭제">✕</button></td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>` : `<div class="empty">이번달 수입 내역이 없어요</div>`}
     </div>
     <div class="card">
       <h3>지출 카테고리별</h3>
@@ -2686,7 +2716,7 @@ function renderBudget(){
       }).join('') : `<div class="empty">지출 내역이 없어요</div>`}
     </div>
     <div class="card">
-      <div class="row" style="justify-content:space-between;"><h3 style="margin:0;">지출 내역</h3>
+      <div class="row" style="justify-content:space-between;"><h3 style="margin:0;">🧾 지출 내역</h3>
         <div class="row"><button class="btn small" id="manageCatBtn">카테고리 관리</button><button class="btn primary small" id="addBudgetBtn">+ 지출 추가</button></div>
       </div>
       ${showPendingPayment?`
@@ -2746,6 +2776,11 @@ function renderBudget(){
   el.querySelectorAll('[data-sort-key]').forEach(th=>th.onclick=()=>{
     const k=th.dataset.sortKey;
     expenseSortKey = (expenseSortKey===k) ? null : k;
+    renderBudget();
+  });
+  el.querySelectorAll('[data-sort-key-inc]').forEach(th=>th.onclick=()=>{
+    const k=th.dataset.sortKeyInc;
+    incomeSortKey = (incomeSortKey===k) ? null : k;
     renderBudget();
   });
   el.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>openBudgetModal(state.budget.find(x=>x.id===b.dataset.edit)));

@@ -54,7 +54,8 @@ nav.tabs button.active{background:var(--panel2);color:var(--text);border-color:v
 .list-item .content-text{margin-top:2px;}
 .sched-item{background:var(--panel2);border-radius:10px;padding:10px 12px;margin-bottom:8px;border-bottom:none;}
 .sched-item:last-child{margin-bottom:0;}
-.pill{display:inline-block;font-size:11px;padding:2px 8px;border-radius:999px;background:var(--panel2);color:var(--muted);border:1px solid var(--border);}
+.pill{display:inline-block;position:relative;font-size:11px;padding:2px 8px;border-radius:999px;background:var(--panel2);color:var(--muted);border:1px solid var(--border);}
+.pill:has(input:checked){background:var(--accent-soft);border-color:var(--accent);color:var(--text);font-weight:600;}
 .pill.d-urgent{color:var(--bad);border-color:var(--bad);}
 .pill.d-soon{color:var(--warn);border-color:var(--warn);}
 .pill.d-far{color:var(--good);border-color:var(--good);}
@@ -207,7 +208,7 @@ input.date-input{cursor:pointer;background:var(--panel2) url('data:image/svg+xml
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-<script src="firebase-config.js?v=20260814c"></script>
-<script src="app.js?v=20260814c"></script>
+<script src="firebase-config.js?v=20260814d"></script>
+<script src="app.js?v=20260814d"></script>
 </body>
 </html>
