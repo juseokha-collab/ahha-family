@@ -1885,24 +1885,32 @@ function renderHealth(){
   const firstEntry = firstWeightEntryFor(healthPerson);
   const targetDate = projectedAchievementDate(curWeight, goals.target, goals.weeklyLoss);
   const finalDate = projectedAchievementDate(curWeight, goals.finalTarget, goals.weeklyLoss);
-  let targetNote='', finalNote='';
+  let targetNote='', targetNoteColor='', finalNote='', finalNoteColor='';
+  const WT_BLUE='#4d7fe0';
   if(firstEntry && curWeight!=null){
     const kgDiff=Math.round((curWeight-firstEntry.weight)*10)/10;
-    if(kgDiff!==0) targetNote = kgDiff<0 ? `최초 기록보다 ${Math.abs(kgDiff)}kg 줄었네요` : `최초 기록보다 ${kgDiff}kg 늘었네요`;
+    if(kgDiff!==0){
+      targetNote = kgDiff<0 ? `최초 기록보다 ${Math.abs(kgDiff)}kg 줄었네요` : `최초 기록보다 ${kgDiff}kg 늘었네요`;
+      targetNoteColor = kgDiff<0 ? WT_BLUE : 'var(--bad)';
+    }
   }
   if(firstEntry && goals.finalTarget && goals.weeklyLoss && finalDate){
     const firstProjDate=projectedAchievementDate(firstEntry.weight, goals.finalTarget, goals.weeklyLoss);
     if(firstProjDate){
       const dayDiff=Math.round((parseDate(finalDate)-parseDate(firstProjDate))/86400000);
-      if(dayDiff!==0) finalNote = dayDiff<0 ? `최초 기록날짜보다 ${Math.abs(dayDiff)}일 줄었네요` : `최초 기록날짜보다 ${dayDiff}일 늘었네요`;
+      if(dayDiff!==0){
+        finalNote = dayDiff<0 ? `최초 기록날짜보다 ${Math.abs(dayDiff)}일 줄었네요` : `최초 기록날짜보다 ${dayDiff}일 늘었네요`;
+        finalNoteColor = dayDiff<0 ? WT_BLUE : 'var(--bad)';
+      }
     }
   }
-  const goalLineHtml=(icon, mainText, note)=>{
+  const goalLineHtml=(icon, mainText, note, noteColor)=>{
     if(!note) return `<div class="meta" style="margin-top:2px;">${icon} ${mainText}</div>`;
+    const coloredNote=`<span style="color:${noteColor};">(${note})</span>`;
     if(isMobileViewport()){
-      return `<div class="meta" style="margin-top:2px;display:flex;justify-content:flex-end;"><span style="text-align:left;">${icon} ${mainText}<br>(${note})</span></div>`;
+      return `<div class="meta" style="margin-top:2px;display:flex;justify-content:flex-end;"><span style="text-align:left;">${icon} ${mainText}<br>${coloredNote}</span></div>`;
     }
-    return `<div class="meta" style="margin-top:2px;">${icon} ${mainText} (${note})</div>`;
+    return `<div class="meta" style="margin-top:2px;">${icon} ${mainText} ${coloredNote}</div>`;
   };
   el.innerHTML=`
     <div class="card">
@@ -1918,8 +1926,8 @@ function renderHealth(){
       </div>
       <div style="margin-top:10px;">${renderWeightChart([healthPerson].concat(weightChartOthers), [healthPerson].concat(weightChartOthers).map(k=>{ const g=weightGoalsFor(k); return {key:k, weeklyLoss:g.weeklyLoss, finalTarget:g.finalTarget, target:g.target}; }))}</div>
       <div style="margin-top:8px;text-align:right;">
-        ${targetDate?goalLineHtml('🎯', `1차 목표 ${goals.target}kg, ${fmtKoreanDate(targetDate)} 달성 목표`, targetNote):''}
-        ${finalDate?goalLineHtml('🏁', `최종목표 ${goals.finalTarget}kg, ${fmtKoreanDate(finalDate)} 달성 목표`, finalNote):''}
+        ${targetDate?goalLineHtml('🎯', `1차 목표 ${goals.target}kg, ${fmtKoreanDate(targetDate)} 달성 목표`, targetNote, targetNoteColor):''}
+        ${finalDate?goalLineHtml('🏁', `최종목표 ${goals.finalTarget}kg, ${fmtKoreanDate(finalDate)} 달성 목표`, finalNote, finalNoteColor):''}
       </div>
     </div>
     <div class="card">
@@ -2373,6 +2381,33 @@ function openCarryoverModal(){
     queueSave(); closeModal(); renderBudget();
   };
 }
+function openCurrencyExchangeModal(){
+  openModal(`
+    <h3>💱 환전</h3>
+    <div class="meta" style="margin-bottom:10px;">원화를 파운드로 환전한 내역을 기록해요. 원화 지출과 파운드 수입이 함께 추가되고, 각각의 통화 잔액에 바로 반영돼요.</div>
+    <div class="field"><label>날짜</label><input type="text" readonly class="date-input" id="mDate" value="${todayStr()}"></div>
+    <div class="grid2">
+      <div class="field"><label>보낸 금액 (원)</label><input type="number" id="mKrw" placeholder="예: 100000"></div>
+      <div class="field"><label>받은 금액 (£)</label><input type="number" id="mGbp" placeholder="예: 58"></div>
+    </div>
+    <div class="modal-actions"><button class="btn" id="mCancel">취소</button><button class="btn primary" id="mSave">환전 기록</button></div>
+  `);
+  document.getElementById('mCancel').onclick=closeModal;
+  attachDatePicker('mDate');
+  document.getElementById('mSave').onclick=()=>{
+    const date=document.getElementById('mDate').value;
+    const krw=Number(document.getElementById('mKrw').value||0);
+    const gbp=Number(document.getElementById('mGbp').value||0);
+    if(!date||!krw||!gbp){ showToast('날짜, 원화 금액, 파운드 금액을 모두 입력해주세요'); return; }
+    const myKey=currentAuthorKey();
+    const rate=Math.round((krw/gbp)*100)/100;
+    state.budget.push({id:uid(), date, category:'환전', amount:krw, currency:'KRW', memo:`£${gbp} 환전 (환율 ${rate.toLocaleString()})`, type:'expense', owner:myKey});
+    state.budget.push({id:uid(), date, category:'환전', amount:gbp, currency:'GBP', memo:`₩${krw.toLocaleString()} 환전`, type:'income', owner:myKey});
+    budgetMonth=date.slice(0,7);
+    queueSave(); closeModal(); renderBudget(); renderHome();
+    showToast('환전 내역이 기록됐어요');
+  };
+}
 function mondayWeekRange(dateStr){
   const d=parseDate(dateStr);
   const dow=d.getDay();
@@ -2523,7 +2558,10 @@ function renderBudget(){
   const weeklyPaymentIsPaid = pendingPayment && isWeeklyPaymentPaid(pendingPayment.weekStart);
   el.innerHTML=`
     <div class="card">
-      <div class="datebar"><button class="iconbtn" id="bPrev">‹</button><div class="d">${y}년 ${Number(m)}월</div><button class="iconbtn" id="bNext">›</button></div>
+      <div class="row" style="justify-content:space-between;align-items:center;">
+        <div class="datebar" style="margin-bottom:0;"><button class="iconbtn" id="bPrev">‹</button><div class="d">${y}년 ${Number(m)}월</div><button class="iconbtn" id="bNext">›</button></div>
+        <button class="btn small" id="exchangeCurBtn">💱 환전</button>
+      </div>
       <div class="stat-grid">
         <div class="stat"><div class="v">${fmtCurrencyColored(expenseByCur.KRW,'KRW')}${expenseByCur.GBP?' / '+fmtCurrencyColored(expenseByCur.GBP,'GBP'):''}</div><div class="l">이번달 총 지출</div></div>
         <div class="stat"><div class="v">${fmtCurrencyColored(incomeByCur.KRW,'KRW')}${incomeByCur.GBP?' / '+fmtCurrencyColored(incomeByCur.GBP,'GBP'):''}</div><div class="l">이번달 총 수입</div></div>
@@ -2573,6 +2611,7 @@ function renderBudget(){
   `;
   document.getElementById('bPrev').onclick=()=>{ budgetMonth=shiftMonth(budgetMonth,-1); renderBudget(); };
   document.getElementById('bNext').onclick=()=>{ budgetMonth=shiftMonth(budgetMonth,1); renderBudget(); };
+  document.getElementById('exchangeCurBtn').onclick=()=>openCurrencyExchangeModal();
   document.getElementById('totalBalanceStat').onclick=()=>openCarryoverModal();
   const markWeeklyPaidBtn=document.getElementById('markWeeklyPaidBtn');
   if(markWeeklyPaidBtn) markWeeklyPaidBtn.onclick=()=>{ markWeeklyPaymentPaid(); renderBudget(); };
@@ -3100,7 +3139,7 @@ function renderVehicle(){
                 <td>${latest&&latest.odo?Number(latest.odo).toLocaleString()+'km':'-'}</td>
                 <td>${latest&&latest.cost?Number(latest.cost).toLocaleString()+'원':'-'}</td>
                 <td class="wrap">${latest?(escapeHtml([latest.place,latest.memo].filter(Boolean).join(' · '))||'-'):'-'}</td>
-                <td><input class="cycle-input" data-cycle-item="${escapeHtml(item)}" value="${escapeHtml((v.maintCycle||{})[item]||'')}" placeholder="예: 6개월"></td>
+                <td>${escapeHtml((v.maintCycle||{})[item]||'-')}</td>
                 <td><button class="icon-btn" data-maint-item="${escapeHtml(item)}" title="기록 추가/수정">✏️</button></td>
               </tr>`).join('')}
           </tbody>
@@ -3133,11 +3172,6 @@ function renderVehicle(){
     if(records.length) openMaintModal(records[0]);
     else openMaintModal({id:null,date:todayStr(),item,place:'',cost:'',odo:'',memo:''});
   });
-  el.querySelectorAll('[data-cycle-item]').forEach(inp=>inp.addEventListener('change',e=>{
-    if(!state.vehicle.maintCycle) state.vehicle.maintCycle={};
-    state.vehicle.maintCycle[e.target.dataset.cycleItem]=e.target.value;
-    queueSave();
-  }));
 }
 function openRenewModal(existing){
   const r=existing||{id:null,name:'',date:todayStr(),memo:''};
