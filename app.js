@@ -2018,16 +2018,16 @@ function renderHealth(){
         <div class="field">
           <label>수면 시간 (취침 → 기상)</label>
           <div class="row" style="gap:4px;flex-wrap:nowrap;">
-            <input type="time" id="hSleepStart" value="${rec.sleepStart||''}" style="flex:1;min-width:0;">
-            <input type="time" id="hSleepEnd" value="${rec.sleepEnd||''}" style="flex:1;min-width:0;">
+            <input type="time" id="hSleepStart" value="${rec.sleepStart||'22:00'}" style="flex:1;min-width:0;">
+            <input type="time" id="hSleepEnd" value="${rec.sleepEnd||'07:00'}" style="flex:1;min-width:0;">
           </div>
           <div class="meta" id="sleepCalcResult" style="margin-top:2px;">${rec.sleep?rec.sleep+'시간':''}</div>
         </div>
         <div class="field">
           <label>공복시간 (Last Meal → First Meal)</label>
           <div class="row" style="gap:4px;flex-wrap:nowrap;">
-            <input type="time" id="hLastMeal" value="${rec.lastMeal||''}" style="flex:1;min-width:0;">
-            <input type="time" id="hFirstMeal" value="${rec.firstMeal||''}" style="flex:1;min-width:0;">
+            <input type="time" id="hLastMeal" value="${rec.lastMeal||'18:30'}" style="flex:1;min-width:0;">
+            <input type="time" id="hFirstMeal" value="${rec.firstMeal||'07:30'}" style="flex:1;min-width:0;">
           </div>
           <div class="meta" id="fastingCalcResult" style="margin-top:2px;">${rec.fasting?rec.fasting+'시간':''}</div>
         </div>
@@ -2684,10 +2684,10 @@ function renderBudget(){
         <table style="width:100%;border-collapse:collapse;font-size:12px;">
           <thead>
             <tr>
-              <th data-sort-key-inc="date" style="cursor:pointer;text-align:left;padding:4px 3px 4px 0;white-space:nowrap;${incomeSortKey==='date'?'color:var(--accent);':'color:var(--muted);'}">날짜${incomeSortKey==='date'?' ▲':''}</th>
-              <th data-sort-key-inc="category" style="cursor:pointer;text-align:left;padding:4px 3px;${incomeSortKey==='category'?'color:var(--accent);':'color:var(--muted);'}">카테고리${incomeSortKey==='category'?' ▲':''}</th>
-              <th data-sort-key-inc="memo" style="cursor:pointer;text-align:left;padding:4px 4px 4px 3px;${incomeSortKey==='memo'?'color:var(--accent);':'color:var(--muted);'}">내역${incomeSortKey==='memo'?' ▲':''}</th>
-              <th data-sort-key-inc="amount" style="cursor:pointer;text-align:right;padding:4px 6px 4px 4px;${incomeSortKey==='amount'?'color:var(--accent);':'color:var(--muted);'}">금액${incomeSortKey==='amount'?' ▲':''}</th>
+              <th data-sort-key-inc="date" style="cursor:pointer;text-align:left;padding:4px 3px 4px 0;white-space:nowrap;width:82px;${incomeSortKey==='date'?'color:var(--accent);':'color:var(--muted);'}">날짜${incomeSortKey==='date'?' ▲':''}</th>
+              <th data-sort-key-inc="category" style="cursor:pointer;text-align:left;padding:4px 3px;width:78px;${incomeSortKey==='category'?'color:var(--accent);':'color:var(--muted);'}">카테고리${incomeSortKey==='category'?' ▲':''}</th>
+              <th data-sort-key-inc="amount" style="cursor:pointer;text-align:right;padding:4px 6px 4px 4px;width:90px;${incomeSortKey==='amount'?'color:var(--accent);':'color:var(--muted);'}">금액${incomeSortKey==='amount'?' ▲':''}</th>
+              <th data-sort-key-inc="memo" style="cursor:pointer;text-align:left;padding:4px 4px 4px 3px;${incomeSortKey==='memo'?'color:var(--accent);':'color:var(--muted);'}">내역/비고${incomeSortKey==='memo'?' ▲':''}</th>
               <th></th>
             </tr>
           </thead>
@@ -2696,8 +2696,8 @@ function renderBudget(){
               <tr>
                 <td style="text-align:left;padding:5px 3px 5px 0;font-size:12px;white-space:nowrap;">${b.date}</td>
                 <td style="text-align:left;padding:5px 3px;font-size:12px;"><span class="pill">${escapeHtml(b.category)}</span></td>
-                <td style="text-align:left;padding:5px 4px 5px 3px;font-size:12px;">${escapeHtml(b.memo)}</td>
                 <td style="text-align:right;padding:5px 6px 5px 4px;font-size:12px;white-space:nowrap;">${fmtCurrency(b.amount,b.currency||'KRW')}</td>
+                <td style="text-align:left;padding:5px 4px 5px 3px;font-size:12px;">${escapeHtml(b.memo)}</td>
                 <td style="text-align:right;padding:5px 0 5px 18px;white-space:nowrap;"><button class="btn small" style="font-size:11px;padding:3px 8px;" data-edit-inc="${b.id}" title="수정">✏️</button> <button class="btn small danger" style="font-size:11px;padding:3px 8px;" data-del-inc="${b.id}" title="삭제">✕</button></td>
               </tr>`).join('')}
           </tbody>
@@ -2734,10 +2734,10 @@ function renderBudget(){
         <table style="width:100%;border-collapse:collapse;font-size:12px;">
           <thead>
             <tr>
-              <th data-sort-key="date" style="cursor:pointer;text-align:left;padding:4px 3px 4px 0;white-space:nowrap;${expenseSortKey==='date'?'color:var(--accent);':'color:var(--muted);'}">날짜${expenseSortKey==='date'?' ▲':''}</th>
-              <th data-sort-key="category" style="cursor:pointer;text-align:left;padding:4px 3px;${expenseSortKey==='category'?'color:var(--accent);':'color:var(--muted);'}">카테고리${expenseSortKey==='category'?' ▲':''}</th>
-              <th data-sort-key="memo" style="cursor:pointer;text-align:left;padding:4px 4px 4px 3px;${expenseSortKey==='memo'?'color:var(--accent);':'color:var(--muted);'}">내역${expenseSortKey==='memo'?' ▲':''}</th>
-              <th data-sort-key="amount" style="cursor:pointer;text-align:right;padding:4px 6px 4px 4px;${expenseSortKey==='amount'?'color:var(--accent);':'color:var(--muted);'}">금액${expenseSortKey==='amount'?' ▲':''}</th>
+              <th data-sort-key="date" style="cursor:pointer;text-align:left;padding:4px 3px 4px 0;white-space:nowrap;width:82px;${expenseSortKey==='date'?'color:var(--accent);':'color:var(--muted);'}">날짜${expenseSortKey==='date'?' ▲':''}</th>
+              <th data-sort-key="category" style="cursor:pointer;text-align:left;padding:4px 3px;width:78px;${expenseSortKey==='category'?'color:var(--accent);':'color:var(--muted);'}">카테고리${expenseSortKey==='category'?' ▲':''}</th>
+              <th data-sort-key="amount" style="cursor:pointer;text-align:right;padding:4px 6px 4px 4px;width:90px;${expenseSortKey==='amount'?'color:var(--accent);':'color:var(--muted);'}">금액${expenseSortKey==='amount'?' ▲':''}</th>
+              <th data-sort-key="memo" style="cursor:pointer;text-align:left;padding:4px 4px 4px 3px;${expenseSortKey==='memo'?'color:var(--accent);':'color:var(--muted);'}">내역/비고${expenseSortKey==='memo'?' ▲':''}</th>
               <th></th>
             </tr>
           </thead>
@@ -2746,8 +2746,8 @@ function renderBudget(){
               <tr>
                 <td style="text-align:left;padding:5px 3px 5px 0;font-size:12px;white-space:nowrap;">${b.date}</td>
                 <td style="text-align:left;padding:5px 3px;font-size:12px;"><span class="pill">${escapeHtml(b.category)}</span></td>
-                <td style="text-align:left;padding:5px 4px 5px 3px;font-size:12px;">${escapeHtml(b.memo)}</td>
                 <td style="text-align:right;padding:5px 6px 5px 4px;font-size:12px;white-space:nowrap;">${fmtCurrency(b.amount,b.currency||'KRW')}</td>
+                <td style="text-align:left;padding:5px 4px 5px 3px;font-size:12px;">${escapeHtml(b.memo)}</td>
                 <td style="text-align:right;padding:5px 0 5px 18px;white-space:nowrap;"><button class="btn small" style="font-size:11px;padding:3px 8px;" data-edit="${b.id}" title="수정">✏️</button> <button class="btn small danger" style="font-size:11px;padding:3px 8px;" data-del="${b.id}" title="삭제">✕</button></td>
               </tr>`).join('')}
           </tbody>
