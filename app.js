@@ -260,8 +260,14 @@ function defaultState(){
     todos:{},
     studyBlocks:{},
     calendarDayColors:{},
-    todoCategories:{}
+    todoCategories:{},
+    deletedIds:[]
   };
+}
+function markDeleted(id){
+  if(!id) return;
+  if(!state.deletedIds) state.deletedIds=[];
+  state.deletedIds.push(id);
 }
 const SB_COLORS={study:'#f5d76e', exercise:'#7ee787'};
 const SEED_DUE_DATE='2026-11-13';
@@ -439,16 +445,16 @@ try{
   }
 }catch(e){ console.warn('firebase init skipped', e); }
 
-function mergeById(localArr, cloudArr){
-  const cloud=(cloudArr||[]).slice();
+function mergeById(localArr, cloudArr, deletedSet){
+  const cloud=(cloudArr||[]).filter(x=>!(deletedSet && x && deletedSet.has(x.id)));
   const cloudIds=new Set(cloud.map(x=>x&&x.id));
-  const onlyLocal=(localArr||[]).filter(x=>x && x.id && !cloudIds.has(x.id));
+  const onlyLocal=(localArr||[]).filter(x=>x && x.id && !cloudIds.has(x.id) && !(deletedSet && deletedSet.has(x.id)));
   return cloud.concat(onlyLocal);
 }
-function mergeKeyedArrays(localObj, cloudObj){
+function mergeKeyedArrays(localObj, cloudObj, deletedSet){
   const merged={};
   const keys=new Set([...Object.keys(localObj||{}), ...Object.keys(cloudObj||{})]);
-  keys.forEach(k=>{ merged[k]=mergeById((localObj||{})[k], (cloudObj||{})[k]); });
+  keys.forEach(k=>{ merged[k]=mergeById((localObj||{})[k], (cloudObj||{})[k], deletedSet); });
   return merged;
 }
 function mergeCategoryLists(localObj, cloudObj){
@@ -503,11 +509,11 @@ function mergeStudyBlocks(localSB, cloudSB){
   });
   return merged;
 }
-function mergeVehicle(localV, cloudV){
+function mergeVehicle(localV, cloudV, deletedSet){
   const merged=JSON.parse(JSON.stringify(cloudV||{}));
-  merged.fuel=mergeById(localV&&localV.fuel, cloudV&&cloudV.fuel);
-  merged.maint=mergeById(localV&&localV.maint, cloudV&&cloudV.maint);
-  merged.renewals=mergeById(localV&&localV.renewals, cloudV&&cloudV.renewals);
+  merged.fuel=mergeById(localV&&localV.fuel, cloudV&&cloudV.fuel, deletedSet);
+  merged.maint=mergeById(localV&&localV.maint, cloudV&&cloudV.maint, deletedSet);
+  merged.renewals=mergeById(localV&&localV.renewals, cloudV&&cloudV.renewals, deletedSet);
   merged.maintCycle=Object.assign({}, (localV&&localV.maintCycle)||{}, (cloudV&&cloudV.maintCycle)||{});
   ['plate','model','regDate','tireSize'].forEach(f=>{
     if(!merged[f] && localV && localV[f]) merged[f]=localV[f];
@@ -516,16 +522,18 @@ function mergeVehicle(localV, cloudV){
 }
 function mergeStates(localState, cloudState){
   const merged=JSON.parse(JSON.stringify(cloudState));
-  merged.schedule=mergeById(localState.schedule, cloudState.schedule);
-  merged.budget=mergeById(localState.budget, cloudState.budget);
-  merged.events=mergeById(localState.events, cloudState.events);
-  merged.study=mergeById(localState.study, cloudState.study);
-  merged.todos=mergeKeyedArrays(localState.todos, cloudState.todos);
-  merged.healthSchedule=mergeKeyedArrays(localState.healthSchedule, cloudState.healthSchedule);
+  const deletedSet=new Set([...(localState.deletedIds||[]), ...(cloudState.deletedIds||[])]);
+  merged.deletedIds=[...deletedSet];
+  merged.schedule=mergeById(localState.schedule, cloudState.schedule, deletedSet);
+  merged.budget=mergeById(localState.budget, cloudState.budget, deletedSet);
+  merged.events=mergeById(localState.events, cloudState.events, deletedSet);
+  merged.study=mergeById(localState.study, cloudState.study, deletedSet);
+  merged.todos=mergeKeyedArrays(localState.todos, cloudState.todos, deletedSet);
+  merged.healthSchedule=mergeKeyedArrays(localState.healthSchedule, cloudState.healthSchedule, deletedSet);
   merged.budgetCategories=mergeCategoryLists(localState.budgetCategories, cloudState.budgetCategories);
   merged.daily=mergeDaily(localState.daily, cloudState.daily);
   merged.studyBlocks=mergeStudyBlocks(localState.studyBlocks, cloudState.studyBlocks);
-  merged.vehicle=mergeVehicle(localState.vehicle, cloudState.vehicle);
+  merged.vehicle=mergeVehicle(localState.vehicle, cloudState.vehicle, deletedSet);
   merged.calendarDayColors=mergeKeyedColorMaps(localState.calendarDayColors, cloudState.calendarDayColors);
   merged.todoCategories=mergeTodoCategories(localState.todoCategories, cloudState.todoCategories);
   return merged;
@@ -1151,7 +1159,7 @@ function openTodoEditModal(id){
         </div>
       </div>
     </div>
-    <div class="field">
+    <div class="field" style="margin-top:18px;">
       <div class="row" style="justify-content:space-between;align-items:center;">
         <label style="margin:0;">카테고리</label>
         <button type="button" class="link-btn" id="manageTodoCatBtn">카테고리 관리</button>
@@ -1186,6 +1194,7 @@ function openTodoEditModal(id){
     if(!confirm('이 할 일을 삭제할까요?')) return;
     const key=currentAuthorKey();
     state.todos[key]=state.todos[key].filter(x=>x.id!==id);
+    markDeleted(id);
     queueSave(); closeModal(); renderHome();
   };
 }
@@ -1655,7 +1664,7 @@ function renderSchedule(){
 function confirmDeleteScheduleItem(item, occurDate){
   const isRepeating = item.repeat && item.repeat!=='none';
   if(!isRepeating){
-    if(confirm('일정을 삭제할까요?')){ state.schedule=state.schedule.filter(x=>x.id!==item.id); queueSave(); closeModal(); renderSchedule(); renderHome(); }
+    if(confirm('일정을 삭제할까요?')){ state.schedule=state.schedule.filter(x=>x.id!==item.id); markDeleted(item.id); queueSave(); closeModal(); renderSchedule(); renderHome(); }
     return;
   }
   openModal(`
@@ -1676,6 +1685,7 @@ function confirmDeleteScheduleItem(item, occurDate){
   document.getElementById('delFuture').onclick=()=>{
     if(occurDate===item.date){
       state.schedule=state.schedule.filter(x=>x.id!==item.id);
+      markDeleted(item.id);
     } else {
       item.repeatUntil=fmtDate(addDays(parseDate(occurDate),-1));
     }
@@ -1932,7 +1942,7 @@ function renderHealth(){
   if(firstEntry && curWeight!=null){
     const kgDiff=Math.round((curWeight-firstEntry.weight)*10)/10;
     if(kgDiff!==0){
-      targetNote = kgDiff<0 ? `최초 기록보다 ${Math.abs(kgDiff)}kg 줄었네요` : `최초 기록보다 ${kgDiff}kg 늘었네요`;
+      targetNote = kgDiff<0 ? `첫 기록에서 ${Math.abs(kgDiff)}kg 줄었어요` : `첫 기록에서 ${kgDiff}kg 늘었어요`;
       targetNoteColor = kgDiff<0 ? WT_BLUE : 'var(--bad)';
     }
   }
@@ -1941,7 +1951,7 @@ function renderHealth(){
     if(firstProjDate){
       const dayDiff=Math.round((parseDate(finalDate)-parseDate(firstProjDate))/86400000);
       if(dayDiff!==0){
-        finalNote = dayDiff<0 ? `최초 기록날짜보다 ${Math.abs(dayDiff)}일 줄었네요` : `최초 기록날짜보다 ${dayDiff}일 늘었네요`;
+        finalNote = dayDiff<0 ? `첫 기록에서 ${Math.abs(dayDiff)}일 줄었어요` : `첫 기록에서 ${dayDiff}일 늘었어요`;
         finalNoteColor = dayDiff<0 ? WT_BLUE : 'var(--bad)';
       }
     }
@@ -2142,7 +2152,7 @@ function renderHealth(){
   if(addHealthSchedBtn) addHealthSchedBtn.onclick=()=>openHealthSchedModal();
   el.querySelectorAll('[data-edit-hsched]').forEach(b=>b.onclick=()=>openHealthSchedModal((state.healthSchedule[healthPerson]||[]).find(x=>x.id===b.dataset.editHsched)));
   el.querySelectorAll('[data-del-hsched]').forEach(b=>b.onclick=()=>{
-    if(confirm('삭제할까요?')){ state.healthSchedule[healthPerson]=(state.healthSchedule[healthPerson]||[]).filter(x=>x.id!==b.dataset.delHsched); queueSave(); renderHealth(); }
+    if(confirm('삭제할까요?')){ state.healthSchedule[healthPerson]=(state.healthSchedule[healthPerson]||[]).filter(x=>x.id!==b.dataset.delHsched); markDeleted(b.dataset.delHsched); queueSave(); renderHealth(); }
   });
 }
 function openHealthSchedModal(existing){
@@ -2717,11 +2727,11 @@ function renderBudget(){
   });
   el.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>openBudgetModal(state.budget.find(x=>x.id===b.dataset.edit)));
   el.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{
-    if(confirm('삭제할까요?')){ state.budget=state.budget.filter(x=>x.id!==b.dataset.del); queueSave(); renderBudget(); renderHome(); }
+    if(confirm('삭제할까요?')){ state.budget=state.budget.filter(x=>x.id!==b.dataset.del); markDeleted(b.dataset.del); queueSave(); renderBudget(); renderHome(); }
   });
   el.querySelectorAll('[data-edit-inc]').forEach(b=>b.onclick=()=>openIncomeModal(state.budget.find(x=>x.id===b.dataset.editInc)));
   el.querySelectorAll('[data-del-inc]').forEach(b=>b.onclick=()=>{
-    if(confirm('삭제할까요?')){ state.budget=state.budget.filter(x=>x.id!==b.dataset.delInc); queueSave(); renderBudget(); renderHome(); }
+    if(confirm('삭제할까요?')){ state.budget=state.budget.filter(x=>x.id!==b.dataset.delInc); markDeleted(b.dataset.delInc); queueSave(); renderBudget(); renderHome(); }
   });
 }
 function openCategoryManageModal(){
@@ -3079,6 +3089,13 @@ function weeklyLogRows(key){
   }
   return rows;
 }
+function nowInfoForRole(role){
+  const tz = role==='daughter' ? 'Europe/London' : 'Asia/Seoul';
+  const parts=new Intl.DateTimeFormat('en-CA',{timeZone:tz,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',hour12:false}).formatToParts(new Date());
+  const y=parts.find(p=>p.type==='year').value, m=parts.find(p=>p.type==='month').value, d=parts.find(p=>p.type==='day').value;
+  const hour=Number(parts.find(p=>p.type==='hour').value)%24;
+  return { dateStr:`${y}-${m}-${d}`, hour };
+}
 function renderStudy(){
   const el=document.getElementById('tab-study');
   if(!el) return;
@@ -3088,6 +3105,8 @@ function renderStudy(){
   const days=Array.from({length:dayCount},(_,i)=>dayCount-1-i).map(n=>fmtDate(addDays(parseDate(studyAnchor), -n)));
   const arrays=days.map(d=>studyBlocksFor(key,d));
   const summaries=arrays.map(studySummary);
+  const nowInfo=nowInfoForRole(effectiveRole());
+  const showNowMarker=days.includes(nowInfo.dateStr);
   let rows='';
   for(let h=0; h<24; h++){
     const cells=days.map((d,di)=>{
@@ -3100,7 +3119,8 @@ function renderStudy(){
       }
       return gap+`<td class="sb-cell"><div class="sb-row">${segs}</div></td>`;
     }).join('');
-    rows+=`<tr><td class="dt-time-col">${pad2(h)}:00</td>${cells}</tr>`;
+    const nowMarker=(showNowMarker && h===nowInfo.hour) ? `<span style="color:#e5383b;">▶</span> ` : '';
+    rows+=`<tr><td class="dt-time-col">${nowMarker}${pad2(h)}:00</td>${cells}</tr>`;
   }
   const showNext = studyAnchor!==todayStr();
   const headCells=days.map((d,i)=>{
@@ -3248,10 +3268,10 @@ function renderVehicle(){
   document.getElementById('vTireSize').addEventListener('change',e=>{ state.vehicle.tireSize=e.target.value; queueSave(); });
   document.getElementById('addRenewBtn').onclick=()=>openRenewModal();
   el.querySelectorAll('[data-edit-renew]').forEach(b=>b.onclick=()=>openRenewModal(v.renewals.find(x=>x.id===b.dataset.editRenew)));
-  el.querySelectorAll('[data-del-renew]').forEach(b=>b.onclick=()=>{ if(confirm('삭제할까요?')){ state.vehicle.renewals=v.renewals.filter(x=>x.id!==b.dataset.delRenew); queueSave(); renderVehicle(); renderHome(); } });
+  el.querySelectorAll('[data-del-renew]').forEach(b=>b.onclick=()=>{ if(confirm('삭제할까요?')){ state.vehicle.renewals=v.renewals.filter(x=>x.id!==b.dataset.delRenew); markDeleted(b.dataset.delRenew); queueSave(); renderVehicle(); renderHome(); } });
   document.getElementById('addMaintBtn').onclick=()=>openMaintModal();
   el.querySelectorAll('[data-edit-maint]').forEach(b=>b.onclick=()=>openMaintModal(v.maint.find(x=>x.id===b.dataset.editMaint)));
-  el.querySelectorAll('[data-del-maint]').forEach(b=>b.onclick=()=>{ if(confirm('삭제할까요?')){ state.vehicle.maint=v.maint.filter(x=>x.id!==b.dataset.delMaint); queueSave(); renderVehicle(); } });
+  el.querySelectorAll('[data-del-maint]').forEach(b=>b.onclick=()=>{ if(confirm('삭제할까요?')){ state.vehicle.maint=v.maint.filter(x=>x.id!==b.dataset.delMaint); markDeleted(b.dataset.delMaint); queueSave(); renderVehicle(); } });
   const toggleBtn=document.getElementById('toggleMaintHistory');
   if(toggleBtn) toggleBtn.onclick=()=>{ maintHistoryOpen=!maintHistoryOpen; renderVehicle(); };
   el.querySelectorAll('[data-maint-item]').forEach(b=>b.onclick=()=>{
@@ -3345,7 +3365,7 @@ function renderEvents(){
   document.getElementById('addEventBtn').onclick=()=>openEventModal();
   el.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>openEventModal(state.events.find(x=>x.id===b.dataset.edit)));
   el.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{
-    if(confirm('삭제할까요?')){ state.events=state.events.filter(x=>x.id!==b.dataset.del); queueSave(); renderEvents(); renderHome(); renderSchedule(); }
+    if(confirm('삭제할까요?')){ state.events=state.events.filter(x=>x.id!==b.dataset.del); markDeleted(b.dataset.del); queueSave(); renderEvents(); renderHome(); renderSchedule(); }
   });
 }
 function openEventModal(existing){
@@ -3462,7 +3482,7 @@ function bindShowCommonToggle(id){
     renderSchedule();
   });
 }
-const FLAG_KR_SVG=`<svg width="18" height="13" viewBox="0 0 16 11" style="vertical-align:-2px;"><rect width="16" height="11" fill="#fff"/><circle cx="8" cy="5.5" r="3" fill="#c60c30"/><path d="M8 2.5a3 3 0 0 0 0 6 1.5 1.5 0 0 1 0-3 1.5 1.5 0 0 0 0-3z" fill="#003478"/></svg>`;
+const FLAG_KR_SVG=`<svg width="14" height="14" viewBox="0 0 100 100" style="vertical-align:-2px;"><path d="M50,0 A50,50 0 0,1 50,100 A25,25 0 0,1 50,50 A25,25 0 0,0 50,0 Z" fill="#c60c30"/><path d="M50,0 A50,50 0 0,0 50,100 A25,25 0 0,0 50,50 A25,25 0 0,1 50,0 Z" fill="#003478"/></svg>`;
 const FLAG_GB_SVG=`<svg width="18" height="13" viewBox="0 0 16 11" style="vertical-align:-2px;"><rect width="16" height="11" fill="#00247d"/><path d="M0,0 L16,11 M16,0 L0,11" stroke="#fff" stroke-width="2.2"/><path d="M0,0 L16,11 M16,0 L0,11" stroke="#cf142b" stroke-width="1.1"/><path d="M8,0 V11 M0,5.5 H16" stroke="#fff" stroke-width="3.6"/><path d="M8,0 V11 M0,5.5 H16" stroke="#cf142b" stroke-width="2.2"/></svg>`;
 function updateWorldClock(){
   const el=document.getElementById('worldClock');
