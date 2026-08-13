@@ -114,7 +114,8 @@ input.date-input{cursor:pointer;background:var(--panel2) url('data:image/svg+xml
 .datepicker-pop .datebar{margin-bottom:6px;}
 .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;z-index:50;padding:16px;}
 .modal-bg.show{display:flex;}
-.modal{position:relative;background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:18px;width:100%;max-width:420px;max-height:88vh;overflow-y:auto;}
+.modal{position:relative;background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:18px;width:100%;max-width:420px;max-height:88vh;overflow-y:auto;cursor:grab;}
+.modal.dragging{cursor:grabbing;}
 .modal h3{margin-top:0;}
 .modal-close{position:absolute;top:12px;right:12px;background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer;padding:4px 9px;border-radius:8px;line-height:1;}
 .modal-close:hover{color:var(--text);background:var(--panel2);}
@@ -143,8 +144,9 @@ input.date-input{cursor:pointer;background:var(--panel2) url('data:image/svg+xml
 :root[data-theme="light"] .dt-evt{background:var(--accent);color:#ffffff;}
 .author-badge{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;font-size:10px;line-height:1;margin-right:3px;vertical-align:middle;}
 .sb-table td.sb-cell{padding:0;border-bottom:1px solid var(--border);}
-.sb-summary-cell{background:var(--panel2);text-align:center;font-size:12.5px;line-height:1.5;padding:6px 4px;font-weight:400;border-bottom:8px solid var(--panel);}
-.sb-summary-row .dt-time-col{border-bottom:8px solid var(--panel);}
+.sb-summary-cell{background:var(--panel2);text-align:center;font-size:12.5px;line-height:1.5;padding:6px 4px;font-weight:400;border-bottom:12px solid var(--panel);}
+.sb-summary-row .dt-time-col{border-bottom:12px solid var(--panel);background:var(--panel);}
+.sb-summary-row td.dt-gap{background:var(--panel);}
 .sb-row{display:flex;height:18px;}
 .sb-seg{flex:1;cursor:pointer;border-right:1px solid var(--bg);background:var(--panel2);}
 .sb-seg:last-child{border-right:none;}
@@ -205,7 +207,7 @@ input.date-input{cursor:pointer;background:var(--panel2) url('data:image/svg+xml
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-<script src="firebase-config.js?v=20260812j"></script>
-<script src="app.js?v=20260812j"></script>
+<script src="firebase-config.js?v=20260812k"></script>
+<script src="app.js?v=20260812k"></script>
 </body>
 </html>

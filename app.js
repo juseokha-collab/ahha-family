@@ -4,6 +4,7 @@ function multiDayCount(){ return isMobileViewport() ? 2 : 3; }
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
 function pad2(n){ return String(n).padStart(2,'0'); }
 function fmtDate(d){ return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`; }
+function fmtSlashMD(mmdd){ const [mm,dd]=mmdd.split('-').map(Number); return `${mm}/${dd}`; }
 function shortDate(s){ const [y,m,d]=s.split('-'); return y.slice(2)+'.'+m+'.'+d; }
 function timeRangeLabel(s){ return s.time ? (s.time + (s.endTime?'~'+s.endTime:'')) : ''; }
 const KST_OFFSET_MIN=540;
@@ -581,10 +582,46 @@ function renderAuthArea(){
 /* ---------- modal / toast ---------- */
 function openModal(html){
   document.getElementById('modalBody').innerHTML=html;
+  const modalEl=document.querySelector('.modal-bg .modal');
+  modalEl.style.position='';
+  modalEl.style.left='';
+  modalEl.style.top='';
+  modalEl.style.margin='';
+  modalEl.scrollTop=0;
   document.getElementById('modalBg').classList.add('show');
 }
 function closeModal(){ document.getElementById('modalBg').classList.remove('show'); closeDatePicker(); }
 document.getElementById('modalCloseBtn').addEventListener('click', closeModal);
+(function initModalDrag(){
+  const modalEl=document.querySelector('.modal-bg .modal');
+  let dragging=false, startX=0, startY=0, startLeft=0, startTop=0;
+  modalEl.addEventListener('pointerdown', e=>{
+    if(e.pointerType!=='mouse') return;
+    if(e.target.closest('button,input,textarea,select,label,a,.color-swatch')) return;
+    dragging=true;
+    const rect=modalEl.getBoundingClientRect();
+    startLeft=rect.left; startTop=rect.top;
+    startX=e.clientX; startY=e.clientY;
+    modalEl.style.position='fixed';
+    modalEl.style.margin='0';
+    modalEl.style.left=startLeft+'px';
+    modalEl.style.top=startTop+'px';
+    modalEl.classList.add('dragging');
+    modalEl.setPointerCapture(e.pointerId);
+  });
+  modalEl.addEventListener('pointermove', e=>{
+    if(!dragging) return;
+    const dx=e.clientX-startX, dy=e.clientY-startY;
+    let newLeft=startLeft+dx, newTop=startTop+dy;
+    newLeft=Math.max(-modalEl.offsetWidth+60, Math.min(newLeft, window.innerWidth-60));
+    newTop=Math.max(0, Math.min(newTop, window.innerHeight-40));
+    modalEl.style.left=newLeft+'px';
+    modalEl.style.top=newTop+'px';
+  });
+  const endDrag=e=>{ dragging=false; modalEl.classList.remove('dragging'); try{modalEl.releasePointerCapture(e.pointerId);}catch(_){} };
+  modalEl.addEventListener('pointerup', endDrag);
+  modalEl.addEventListener('pointercancel', endDrag);
+})();
 
 /* ---------- date picker ---------- */
 let activeDatePicker=null;
@@ -851,17 +888,19 @@ let showCommonOnHome=false;
 let showDaughterOnHome=false;
 let momHomeDefaultsApplied=false;
 let studyAnchor=todayStr();
+function resolveItemColors(s, dateStr){
+  const ov=s.colorOverrides && s.colorOverrides[dateStr];
+  return {
+    color: (ov && ov.color!==undefined) ? ov.color : s.color,
+    bgColor: (ov && ov.bgColor!==undefined) ? ov.bgColor : s.bgColor
+  };
+}
 function myHomeVisibleScheduleItems(dateStr){
   const role=effectiveRole();
   const virtualEventItems=state.events
     .filter(ev=>!(ev.hiddenFromDaughter && role==='daughter'))
     .map(ev=>({id:'evt-'+ev.id, date:fmtDate(eventOccurrence(ev)), time:'', title:'🎉 '+ev.name, owner:'common'}));
-  const allItems=state.schedule.map(s=>{
-    const ov=s.colorOverrides && s.colorOverrides[dateStr];
-    return {...s, owner:s.owner||'common',
-      color: (ov && ov.color!==undefined) ? ov.color : s.color,
-      bgColor: (ov && ov.bgColor!==undefined) ? ov.bgColor : s.bgColor};
-  }).concat(virtualEventItems);
+  const allItems=state.schedule.map(s=>({...s, owner:s.owner||'common', ...resolveItemColors(s,dateStr)})).concat(virtualEventItems);
   const daughterOnly = role && role!=='daughter' && showDaughterOnHome;
   const visible = allItems.filter(it=>{
     if(!role) return it.owner==='common';
@@ -1542,7 +1581,7 @@ function renderSchedule(){
       <div class="day-row"><span class="day-num">${dateObj.getDate()}</span>${holidayName?`<span class="cal-holiday">${escapeHtml(holidayName)}</span>`:''}</div>${commentHtml}${shown}${more}
     </div>`;
   }
-  const dayItems = filtered.filter(s=>scheduleItemOccursOn(s,scheduleSel)).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+  const dayItems = filtered.filter(s=>scheduleItemOccursOn(s,scheduleSel)).sort((a,b)=>(a.time||'').localeCompare(b.time||'')).map(s=>({...s, ...resolveItemColors(s,scheduleSel)}));
   el.innerHTML=`
     <div class="card">
       <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:4px;gap:10px;">
@@ -1560,13 +1599,14 @@ function renderSchedule(){
     </div>
     ${renderProgressChart(y, m)}
     <div class="card">
-      <div class="row" style="justify-content:space-between;"><h3 style="margin:0;">${weekdayColor(scheduleSel)?`<span style="color:${weekdayColor(scheduleSel)};">${scheduleSel}</span>`:scheduleSel} 일정${holidays[scheduleSel]?` <span class="pill">${escapeHtml(holidays[scheduleSel])}</span>`:''}</h3><button class="btn primary small" id="addSchedBtn">+ 일정 추가</button></div>
+      <div class="row" style="justify-content:space-between;margin-bottom:14px;"><h3 style="margin:0;">${weekdayColor(scheduleSel)?`<span style="color:${weekdayColor(scheduleSel)};">${scheduleSel}</span>`:scheduleSel} 일정${holidays[scheduleSel]?` <span class="pill">${escapeHtml(holidays[scheduleSel])}</span>`:''}</h3><button class="btn primary small" id="addSchedBtn">+ 일정 추가</button></div>
       ${dayItems.length? dayItems.map(s=>{
         const canManage = !s.virtual && canManageSchedule(s);
         const badge = authorBadge(s.createdBy);
+        const showOwnerPill = s.owner==='common' || s.owner!==effectiveRole();
         return `
-        <div class="list-item sched-item">
-          <div><div style="font-size:14px;">${timeRangeLabel(s)?escapeHtml(timeRangeLabel(s))+' ':''}${badge}${escapeHtml(s.title)} <span class="pill">${ownerLabel(s.owner)}</span></div>${s.memo?`<div class="content-text" style="font-size:12.5px;">${escapeHtml(s.memo)}</div>`:''}</div>
+        <div class="list-item sched-item"${s.bgColor?` style="background:${s.bgColor};"`:''}>
+          <div><div style="font-size:14px;">${timeRangeLabel(s)?escapeHtml(timeRangeLabel(s))+' ':''}${badge}${escapeHtml(s.title)} ${showOwnerPill?`<span class="pill">${ownerLabel(s.owner)}</span>`:''}</div>${s.memo?`<div class="content-text" style="font-size:12.5px;">${escapeHtml(s.memo)}</div>`:''}</div>
           <div class="row">${s.virtual? `<span class="meta">경조사 탭에서 수정</span>` : (canManage?`<button class="btn small" data-edit="${s.id}">수정</button><button class="btn small danger" data-del="${s.id}">삭제</button>`:`<span class="meta">작성자만 관리 가능</span>`)}</div>
         </div>`;
       }).join('') : `<div class="empty">일정이 없어요</div>`}
@@ -1692,7 +1732,7 @@ function openScheduleModal(existing, prefill, occurDate){
         ${ownerOptions.map(o=>`<label class="pill" style="cursor:pointer;"><input type="radio" name="mOwner" value="${o.key}" ${(s.owner||'common')===o.key?'checked':''} style="margin-right:4px;">${scheduleFilterLabel(o.key)}</label>`).join('')}
       </div>
     </div>
-    <div class="field" style="flex-direction:row;align-items:center;gap:8px;margin-bottom:22px;"><label style="flex-shrink:0;">배경색상</label>${renderColorSwatches(selectedColor, 'modal')}</div>
+    <div class="field" style="flex-direction:row;align-items:center;gap:8px;margin-bottom:22px;"><label style="flex-shrink:0;">일정색상</label>${renderColorSwatches(selectedColor, 'modal')}</div>
     <div class="field"><label>날짜</label><input type="text" readonly class="date-input" placeholder="YYYY-MM-DD" id="mDate" value="${s.date}"></div>
     <div class="grid2">
       <div class="field"><label>시작 시간 (선택)</label><input type="time" step="600" id="mTime" value="${s.time||''}"></div>
@@ -2242,10 +2282,10 @@ function renderWeightChart(keys, goalProjections){
       if(v==null) return;
       const px=x(i), py=useBrokenAxis?y(v,s.key):y(v);
       pathD += (pathD?'L':'M')+px+' '+py+' ';
-      dots+=`<circle class="wt-point" data-tip="${escapeHtml(s.label)} ${v}kg (${dateList[i].slice(5)})" cx="${px}" cy="${py}" r="4" fill="${s.color}" style="cursor:pointer;"/>`;
+      dots+=`<circle class="wt-point" data-tip="${escapeHtml(s.label)} ${v}kg (${fmtSlashMD(dateList[i].slice(5))})" cx="${px}" cy="${py}" r="4" fill="${s.color}" style="cursor:pointer;"/>`;
       if(v>maxVal){ maxVal=v; maxIdx=i; }
     });
-    const maxLabel = maxIdx>=0 ? `<text x="${x(maxIdx)}" y="${(useBrokenAxis?y(maxVal,s.key):y(maxVal))-20}" font-size="8" fill="${s.color}" text-anchor="middle"><tspan x="${x(maxIdx)}" dy="0">${dateList[maxIdx].slice(5)}</tspan><tspan x="${x(maxIdx)}" dy="11">${maxVal}kg</tspan></text>` : '';
+    const maxLabel = maxIdx>=0 ? `<text x="${x(maxIdx)}" y="${(useBrokenAxis?y(maxVal,s.key):y(maxVal))-20}" font-size="8" fill="${s.color}" text-anchor="middle"><tspan x="${x(maxIdx)}" dy="0">${fmtSlashMD(dateList[maxIdx].slice(5))}</tspan><tspan x="${x(maxIdx)}" dy="11">${maxVal}kg</tspan></text>` : '';
     return pathD ? `<path d="${pathD.trim()}" fill="none" stroke="${s.color}" stroke-width="2"/>${dots}${maxLabel}` : '';
   }).join('');
   const goalSvg=goals.map(g=>{
@@ -2257,19 +2297,25 @@ function renderWeightChart(keys, goalProjections){
     });
     if(!pathD) return '';
     let svg=`<path d="${pathD.trim()}" fill="none" stroke="${g.color}" stroke-width="1.2" stroke-dasharray="4 3" opacity="0.7"/>`;
-    const pointLabel=(idx,val,dateStr,prefix)=>{
+    const pointLabelAbove=(idx,val,dateStr,prefix)=>{
       if(val==null) return '';
       const ex=x(idx), ey=useBrokenAxis?y(val,g.key):y(val);
-      const dLabel=dateStr?dateStr.slice(5):'';
-      return `<circle cx="${ex}" cy="${ey}" r="4" fill="var(--panel)" stroke="${g.color}" stroke-width="2"/><text x="${ex-2}" y="${ey-16}" font-size="8" fill="${g.color}" text-anchor="end"><tspan x="${ex-2}" dy="0">${escapeHtml(dLabel)}</tspan><tspan x="${ex-2}" dy="10">${prefix} ${val.toFixed(1)}kg</tspan></text>`;
+      const dLabel=dateStr?fmtSlashMD(dateStr.slice(5)):'';
+      return `<circle cx="${ex}" cy="${ey}" r="4" fill="var(--panel)" stroke="${g.color}" stroke-width="2"/><text x="${ex}" y="${ey-10}" font-size="8" fill="${g.color}" text-anchor="middle">${escapeHtml(dLabel)} ${prefix} ${val.toFixed(1)}kg</text>`;
     };
-    svg += pointLabel(midIdx, g.pts[midIdx], g.midDate, '1차');
-    svg += pointLabel(endIdx, g.pts[endIdx], g.endDate, '최종');
+    const pointLabelLeft=(idx,val,dateStr,prefix)=>{
+      if(val==null) return '';
+      const ex=x(idx), ey=useBrokenAxis?y(val,g.key):y(val);
+      const dLabel=dateStr?fmtSlashMD(dateStr.slice(5)):'';
+      return `<circle cx="${ex}" cy="${ey}" r="4" fill="var(--panel)" stroke="${g.color}" stroke-width="2"/><text x="${ex-8}" y="${ey+3}" font-size="8" fill="${g.color}" text-anchor="end">${escapeHtml(dLabel)} ${prefix} ${val.toFixed(1)}kg</text>`;
+    };
+    svg += pointLabelAbove(midIdx, g.pts[midIdx], g.midDate, '1차');
+    svg += pointLabelLeft(endIdx, g.pts[endIdx], g.endDate, '최종');
     return svg;
   }).join('');
   const xLabels=dateList.map((d,i)=>{
     if(i%7!==0 && i!==todayIdx) return '';
-    return `<text x="${x(i)}" y="${H-4}" font-size="9" fill="var(--muted)" text-anchor="middle">${d.slice(5)}</text>`;
+    return `<text x="${x(i)}" y="${H-4}" font-size="9" fill="var(--muted)" text-anchor="middle">${fmtSlashMD(d.slice(5))}</text>`;
   }).join('');
   return `
     <div style="overflow-x:auto;">
@@ -2621,25 +2667,25 @@ function renderBudget(){
           <div class="row"><button class="btn small" id="editWeeklyPaidBtn">수정</button><button class="btn small danger" id="revertWeeklyPaidBtn">지급전으로 되돌리기</button></div>
         </div>`:''}
       ${sortedExpenseItems.length?`
-      <div style="overflow-x:auto;">
+      <div style="overflow-x:auto;margin-top:20px;">
         <table style="width:100%;border-collapse:collapse;font-size:12px;">
           <thead>
             <tr>
-              <th data-sort-key="date" style="cursor:pointer;text-align:left;padding:4px 6px 4px 0;white-space:nowrap;${expenseSortKey==='date'?'color:var(--accent);':'color:var(--muted);'}">날짜${expenseSortKey==='date'?' ▲':''}</th>
-              <th data-sort-key="category" style="cursor:pointer;text-align:left;padding:4px 6px;${expenseSortKey==='category'?'color:var(--accent);':'color:var(--muted);'}">카테고리${expenseSortKey==='category'?' ▲':''}</th>
-              <th data-sort-key="memo" style="cursor:pointer;text-align:left;padding:4px 6px;${expenseSortKey==='memo'?'color:var(--accent);':'color:var(--muted);'}">내역${expenseSortKey==='memo'?' ▲':''}</th>
-              <th data-sort-key="amount" style="cursor:pointer;text-align:right;padding:4px 6px;${expenseSortKey==='amount'?'color:var(--accent);':'color:var(--muted);'}">금액${expenseSortKey==='amount'?' ▲':''}</th>
+              <th data-sort-key="date" style="cursor:pointer;text-align:left;padding:4px 3px 4px 0;white-space:nowrap;${expenseSortKey==='date'?'color:var(--accent);':'color:var(--muted);'}">날짜${expenseSortKey==='date'?' ▲':''}</th>
+              <th data-sort-key="category" style="cursor:pointer;text-align:left;padding:4px 3px;${expenseSortKey==='category'?'color:var(--accent);':'color:var(--muted);'}">카테고리${expenseSortKey==='category'?' ▲':''}</th>
+              <th data-sort-key="memo" style="cursor:pointer;text-align:left;padding:4px 4px 4px 3px;${expenseSortKey==='memo'?'color:var(--accent);':'color:var(--muted);'}">내역${expenseSortKey==='memo'?' ▲':''}</th>
+              <th data-sort-key="amount" style="cursor:pointer;text-align:right;padding:4px 6px 4px 4px;${expenseSortKey==='amount'?'color:var(--accent);':'color:var(--muted);'}">금액${expenseSortKey==='amount'?' ▲':''}</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
             ${sortedExpenseItems.map(b=>`
               <tr>
-                <td style="text-align:left;padding:5px 6px 5px 0;font-size:12px;white-space:nowrap;">${b.date}</td>
-                <td style="text-align:left;padding:5px 6px;font-size:12px;"><span class="pill">${escapeHtml(b.category)}</span></td>
-                <td style="text-align:left;padding:5px 6px;font-size:12px;">${escapeHtml(b.memo)}</td>
-                <td style="text-align:right;padding:5px 6px;font-size:12px;white-space:nowrap;">${fmtCurrency(b.amount,b.currency||'KRW')}</td>
-                <td style="text-align:right;padding:5px 0 5px 18px;white-space:nowrap;"><button class="btn small" style="font-size:11px;padding:3px 8px;" data-edit="${b.id}">수정</button> <button class="btn small danger" style="font-size:11px;padding:3px 8px;" data-del="${b.id}">삭제</button></td>
+                <td style="text-align:left;padding:5px 3px 5px 0;font-size:12px;white-space:nowrap;">${b.date}</td>
+                <td style="text-align:left;padding:5px 3px;font-size:12px;"><span class="pill">${escapeHtml(b.category)}</span></td>
+                <td style="text-align:left;padding:5px 4px 5px 3px;font-size:12px;">${escapeHtml(b.memo)}</td>
+                <td style="text-align:right;padding:5px 6px 5px 4px;font-size:12px;white-space:nowrap;">${fmtCurrency(b.amount,b.currency||'KRW')}</td>
+                <td style="text-align:right;padding:5px 0 5px 18px;white-space:nowrap;"><button class="btn small" style="font-size:11px;padding:3px 8px;" data-edit="${b.id}" title="수정">✏️</button> <button class="btn small danger" style="font-size:11px;padding:3px 8px;" data-del="${b.id}" title="삭제">✕</button></td>
               </tr>`).join('')}
           </tbody>
         </table>
@@ -3100,7 +3146,7 @@ function renderStudy(){
               const studyT=fmtStudyMin(w.study), exT=fmtStudyMin(w.exercise);
               const detailCell = isMobileViewport()
                 ? `<div>${range} 총 ${total}</div><div style="color:var(--muted);">(학습 ${studyT} / 운동 ${exT})</div>`
-                : `<b>${range} 총 ${total}</b> (<span style="color:var(--warn);">학습 ${studyT}</span> / <span style="color:${SB_COLORS.exercise};">운동 ${exT}</span>)`;
+                : `<b>${range} 총 ${total}</b> (<span style="color:var(--warn);">학습 ${studyT}</span> / <span style="color:var(--good);">운동 ${exT}</span>)`;
               return `
               <tr>
                 <td style="width:18px;padding:4px 2px 4px 0;vertical-align:top;">${i===0?'📅':''}</td>
