@@ -1059,6 +1059,7 @@ function myTodoCategories(){
   return state.todoCategories[key];
 }
 let todoSortBy='dueDate';
+let expenseSortKey=null;
 function todosForToday(){
   const list=myTodos().filter(t=>t.dueDate>=homeDate);
   return list.sort((a,b)=>{
@@ -1534,7 +1535,8 @@ function renderSchedule(){
     const dayEntry=((state.daily[dateStr]||{}).entries||{})[currentAuthorKey()];
     const commentText=dayEntry&&dayEntry.diary?dayEntry.diary:'';
     const commentHtml=commentText?`<div class="cal-comment" title="${escapeHtml(commentText)}">📝 ${escapeHtml(commentText)}</div>`:'';
-    const dayColor=myDayColors[dateStr];
+    const defaultDayBg = dateStr<todayS ? 'rgba(255,105,180,0.04)' : (dateStr>todayS ? 'rgba(128,128,128,0.03)' : '');
+    const dayColor=myDayColors[dateStr]||defaultDayBg;
     const colorAttr=dayColor?` style="background:${dayColor};"`:'';
     grid += `<div class="cal-cell ${inMonth?'':'other'} ${dateStr===todayS?'today':''} ${dateStr===scheduleSel?'sel':''} ${holidayName?'holiday':''}" data-date="${dateStr}"${colorAttr}>
       <div class="day-row"><span class="day-num">${dateObj.getDate()}</span>${holidayName?`<span class="cal-holiday">${escapeHtml(holidayName)}</span>`:''}</div>${commentHtml}${shown}${more}
@@ -2148,12 +2150,13 @@ function renderWeightChart(keys, goalProjections){
   const pastDays=31, futureDays=10;
   const totalDays=pastDays+futureDays;
   const todayIdx=pastDays-1;
+  const midIdx=todayIdx+Math.round(futureDays/2);
+  const endIdx=todayIdx+futureDays;
   const today=parseDate(todayStr());
-  const dateList=Array.from({length:totalDays},(_,i)=>fmtDate(addDays(today, i-todayIdx)));
+  const dateList=Array.from({length:pastDays},(_,i)=>fmtDate(addDays(today, i-todayIdx)));
   const series=keys.map(key=>({
     key, label:memberLabel(key), color:ROLE_BADGE_COLOR[key]||'#8b7cf6',
-    pts:dateList.map((d,i)=>{
-      if(i>todayIdx) return null;
+    pts:dateList.map(d=>{
       const w=state.daily[d] && state.daily[d].health && state.daily[d].health[key] && state.daily[d].health[key].weight;
       return w?Number(w):null;
     })
@@ -2165,14 +2168,13 @@ function renderWeightChart(keys, goalProjections){
     let anchorIdx=dateList.indexOf(anchorEntry.date);
     if(anchorIdx===-1) anchorIdx=todayIdx;
     const color=ROLE_BADGE_COLOR[gp.key]||'#8b7cf6';
-    const pts=dateList.map((d,i)=>{
-      if(i<anchorIdx) return null;
-      const daysAhead=i-anchorIdx;
-      let w=anchorEntry.weight-(Number(gp.weeklyLoss)/1000)*(daysAhead/7);
-      if(gp.finalTarget && w<Number(gp.finalTarget)) w=Number(gp.finalTarget);
-      return w;
-    });
-    return {key:gp.key, color, pts, firstTarget:gp.target?Number(gp.target):null};
+    const midDate = gp.target ? projectedAchievementDate(anchorEntry.weight, gp.target, gp.weeklyLoss) : null;
+    const endDate = gp.finalTarget ? projectedAchievementDate(anchorEntry.weight, gp.finalTarget, gp.weeklyLoss) : null;
+    const pts=new Array(totalDays).fill(null);
+    pts[anchorIdx]=anchorEntry.weight;
+    if(gp.target) pts[midIdx]=Number(gp.target);
+    if(gp.finalTarget) pts[endIdx]=Number(gp.finalTarget);
+    return {key:gp.key, color, pts, firstTarget:gp.target?Number(gp.target):null, midDate, endDate};
   }).filter(Boolean);
   const allVals=series.flatMap(s=>s.pts.filter(v=>v!=null)).concat(goals.flatMap(g=>g.pts.filter(v=>v!=null)));
   if(!allVals.length) return `<div class="empty">체중 기록이 아직 없어요</div>`;
@@ -2243,29 +2245,31 @@ function renderWeightChart(keys, goalProjections){
       dots+=`<circle class="wt-point" data-tip="${escapeHtml(s.label)} ${v}kg (${dateList[i].slice(5)})" cx="${px}" cy="${py}" r="4" fill="${s.color}" style="cursor:pointer;"/>`;
       if(v>maxVal){ maxVal=v; maxIdx=i; }
     });
-    const maxLabel = maxIdx>=0 ? `<text x="${x(maxIdx)}" y="${(useBrokenAxis?y(maxVal,s.key):y(maxVal))-20}" font-size="9" fill="${s.color}" text-anchor="middle"><tspan x="${x(maxIdx)}" dy="0">${dateList[maxIdx].slice(5)}</tspan><tspan x="${x(maxIdx)}" dy="11">${maxVal}kg</tspan></text>` : '';
+    const maxLabel = maxIdx>=0 ? `<text x="${x(maxIdx)}" y="${(useBrokenAxis?y(maxVal,s.key):y(maxVal))-20}" font-size="8" fill="${s.color}" text-anchor="middle"><tspan x="${x(maxIdx)}" dy="0">${dateList[maxIdx].slice(5)}</tspan><tspan x="${x(maxIdx)}" dy="11">${maxVal}kg</tspan></text>` : '';
     return pathD ? `<path d="${pathD.trim()}" fill="none" stroke="${s.color}" stroke-width="2"/>${dots}${maxLabel}` : '';
   }).join('');
   const goalSvg=goals.map(g=>{
-    let pathD='', lastIdx=-1, lastVal=null;
+    let pathD='';
     g.pts.forEach((v,i)=>{
       if(v==null) return;
       const py=useBrokenAxis?y(v,g.key):y(v);
       pathD += (pathD?'L':'M')+x(i)+' '+py+' ';
-      lastIdx=i; lastVal=v;
     });
     if(!pathD) return '';
-    let svg=`<path d="${pathD.trim()}" fill="none" stroke="${g.color}" stroke-width="2" stroke-dasharray="4 3" opacity="0.7"/>`;
-    if(lastIdx>=0){
-      const ex=x(lastIdx), ey=useBrokenAxis?y(lastVal,g.key):y(lastVal);
-      svg+=`<circle cx="${ex}" cy="${ey}" r="4" fill="var(--panel)" stroke="${g.color}" stroke-width="2"/><text x="${ex-2}" y="${ey-10}" font-size="9" fill="${g.color}" text-anchor="end">목표치 ${lastVal.toFixed(1)}kg</text>`;
-    }
+    let svg=`<path d="${pathD.trim()}" fill="none" stroke="${g.color}" stroke-width="1.2" stroke-dasharray="4 3" opacity="0.7"/>`;
+    const pointLabel=(idx,val,dateStr,prefix)=>{
+      if(val==null) return '';
+      const ex=x(idx), ey=useBrokenAxis?y(val,g.key):y(val);
+      const dLabel=dateStr?dateStr.slice(5):'';
+      return `<circle cx="${ex}" cy="${ey}" r="4" fill="var(--panel)" stroke="${g.color}" stroke-width="2"/><text x="${ex-2}" y="${ey-16}" font-size="8" fill="${g.color}" text-anchor="end"><tspan x="${ex-2}" dy="0">${escapeHtml(dLabel)}</tspan><tspan x="${ex-2}" dy="10">${prefix} ${val.toFixed(1)}kg</tspan></text>`;
+    };
+    svg += pointLabel(midIdx, g.pts[midIdx], g.midDate, '1차');
+    svg += pointLabel(endIdx, g.pts[endIdx], g.endDate, '최종');
     return svg;
   }).join('');
   const xLabels=dateList.map((d,i)=>{
-    if(i%7!==0 && i!==totalDays-1 && i!==todayIdx) return '';
-    const anchor = i===totalDays-1 ? 'end' : 'middle';
-    return `<text x="${x(i)}" y="${H-4}" font-size="9" fill="var(--muted)" text-anchor="${anchor}">${d.slice(5)}</text>`;
+    if(i%7!==0 && i!==todayIdx) return '';
+    return `<text x="${x(i)}" y="${H-4}" font-size="9" fill="var(--muted)" text-anchor="middle">${d.slice(5)}</text>`;
   }).join('');
   return `
     <div style="overflow-x:auto;">
@@ -2541,8 +2545,18 @@ function renderBudget(){
   items.forEach(b=>{ const cur=b.currency||'KRW'; expenseByCur[cur]=(expenseByCur[cur]||0)+Number(b.amount||0); });
   const incomeByCur={KRW:0,GBP:0};
   incomeItems.forEach(b=>{ const cur=b.currency||'KRW'; incomeByCur[cur]=(incomeByCur[cur]||0)+Number(b.amount||0); });
-  const byCat={};
-  items.filter(b=>(b.currency||'KRW')==='KRW').forEach(b=>{ byCat[b.category]=(byCat[b.category]||0)+Number(b.amount||0); });
+  const byCatByCur={KRW:{},GBP:{}};
+  items.forEach(b=>{ const cur=b.currency||'KRW'; byCatByCur[cur][b.category]=(byCatByCur[cur][b.category]||0)+Number(b.amount||0); });
+  let sortedExpenseItems=items;
+  if(expenseSortKey){
+    sortedExpenseItems=[...items].sort((a,b)=>{
+      if(expenseSortKey==='date') return a.date.localeCompare(b.date);
+      if(expenseSortKey==='category') return (a.category||'').localeCompare(b.category||'');
+      if(expenseSortKey==='memo') return (a.memo||'').localeCompare(b.memo||'');
+      if(expenseSortKey==='amount') return Number(a.amount||0)-Number(b.amount||0);
+      return 0;
+    });
+  }
   const [y,m]=budgetMonth.split('-');
   const monthBalanceKRW = incomeByCur.KRW - expenseByCur.KRW;
   const monthBalanceGBP = incomeByCur.GBP - expenseByCur.GBP;
@@ -2583,9 +2597,14 @@ function renderBudget(){
     </div>
     <div class="card">
       <h3>지출 카테고리별</h3>
-      ${Object.keys(byCat).length? Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([c,v])=>`
-        <div class="bar-row"><span style="width:70px;">${c}</span><div class="bar-track"><div class="bar-fill" style="width:${expenseByCur.KRW?Math.round(v/expenseByCur.KRW*100):0}%"></div></div><span style="width:80px;text-align:right;">${v.toLocaleString()}원</span></div>
-      `).join('') : `<div class="empty">지출 내역이 없어요</div>`}
+      ${['KRW','GBP'].some(cur=>Object.keys(byCatByCur[cur]).length) ? ['KRW','GBP'].map(cur=>{
+        const byCat=byCatByCur[cur];
+        if(!Object.keys(byCat).length) return '';
+        const total=expenseByCur[cur]||0;
+        return Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([c,v])=>`
+          <div class="bar-row"><span style="width:70px;">${escapeHtml(c)}</span><div class="bar-track"><div class="bar-fill" style="width:${total?Math.round(v/total*100):0}%"></div></div><span style="width:80px;text-align:right;">${fmtCurrency(v,cur)}</span></div>
+        `).join('');
+      }).join('') : `<div class="empty">지출 내역이 없어요</div>`}
     </div>
     <div class="card">
       <div class="row" style="justify-content:space-between;"><h3 style="margin:0;">지출 내역</h3>
@@ -2601,12 +2620,30 @@ function renderBudget(){
           <div><div class="content-text"><b>딸 주급 (${pendingPayment.weekStart.slice(5)}~${pendingPayment.weekEnd.slice(5)})</b></div><div class="meta" style="margin-top:2px;color:var(--good);">✅ 지급완료</div></div>
           <div class="row"><button class="btn small" id="editWeeklyPaidBtn">수정</button><button class="btn small danger" id="revertWeeklyPaidBtn">지급전으로 되돌리기</button></div>
         </div>`:''}
-      ${items.length? items.map(b=>`
-        <div class="list-item">
-          <div><div><span class="pill">${b.category}</span> ${escapeHtml(b.memo)}</div><div class="meta">${b.date}</div></div>
-          <div class="row"><b>${fmtCurrency(b.amount,b.currency||'KRW')}</b>
-            <button class="btn small" data-edit="${b.id}">수정</button><button class="btn small danger" data-del="${b.id}">삭제</button></div>
-        </div>`).join('') : `<div class="empty">이번달 지출 내역이 없어요</div>`}
+      ${sortedExpenseItems.length?`
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:12px;">
+          <thead>
+            <tr>
+              <th data-sort-key="date" style="cursor:pointer;text-align:left;padding:4px 6px 4px 0;white-space:nowrap;${expenseSortKey==='date'?'color:var(--accent);':'color:var(--muted);'}">날짜${expenseSortKey==='date'?' ▲':''}</th>
+              <th data-sort-key="category" style="cursor:pointer;text-align:left;padding:4px 6px;${expenseSortKey==='category'?'color:var(--accent);':'color:var(--muted);'}">카테고리${expenseSortKey==='category'?' ▲':''}</th>
+              <th data-sort-key="memo" style="cursor:pointer;text-align:left;padding:4px 6px;${expenseSortKey==='memo'?'color:var(--accent);':'color:var(--muted);'}">내역${expenseSortKey==='memo'?' ▲':''}</th>
+              <th data-sort-key="amount" style="cursor:pointer;text-align:right;padding:4px 6px;${expenseSortKey==='amount'?'color:var(--accent);':'color:var(--muted);'}">금액${expenseSortKey==='amount'?' ▲':''}</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            ${sortedExpenseItems.map(b=>`
+              <tr>
+                <td style="text-align:left;padding:5px 6px 5px 0;font-size:12px;white-space:nowrap;">${b.date}</td>
+                <td style="text-align:left;padding:5px 6px;font-size:12px;"><span class="pill">${escapeHtml(b.category)}</span></td>
+                <td style="text-align:left;padding:5px 6px;font-size:12px;">${escapeHtml(b.memo)}</td>
+                <td style="text-align:right;padding:5px 6px;font-size:12px;white-space:nowrap;">${fmtCurrency(b.amount,b.currency||'KRW')}</td>
+                <td style="text-align:right;padding:5px 0 5px 18px;white-space:nowrap;"><button class="btn small" style="font-size:11px;padding:3px 8px;" data-edit="${b.id}">수정</button> <button class="btn small danger" style="font-size:11px;padding:3px 8px;" data-del="${b.id}">삭제</button></td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>` : `<div class="empty">이번달 지출 내역이 없어요</div>`}
     </div>
   `;
   document.getElementById('bPrev').onclick=()=>{ budgetMonth=shiftMonth(budgetMonth,-1); renderBudget(); };
@@ -2627,6 +2664,11 @@ function renderBudget(){
   document.getElementById('manageCatBtn').onclick=()=>openCategoryManageModal();
   document.getElementById('addIncomeBtn').onclick=()=>openIncomeModal();
   document.getElementById('manageIncCatBtn').onclick=()=>openIncomeCategoryManageModal();
+  el.querySelectorAll('[data-sort-key]').forEach(th=>th.onclick=()=>{
+    const k=th.dataset.sortKey;
+    expenseSortKey = (expenseSortKey===k) ? null : k;
+    renderBudget();
+  });
   el.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>openBudgetModal(state.budget.find(x=>x.id===b.dataset.edit)));
   el.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{
     if(confirm('삭제할까요?')){ state.budget=state.budget.filter(x=>x.id!==b.dataset.del); queueSave(); renderBudget(); renderHome(); }
@@ -2802,13 +2844,13 @@ function gamificationFlags(key){
   if(!state.gamification[key].weightGoalCelebrated) state.gamification[key].weightGoalCelebrated={target:false,finalTarget:false};
   return state.gamification[key];
 }
-function celebrate(title, message){
+function celebrate(title, message, achievedDate){
   const logKey=effectiveRole()||currentAuthorKey();
   const sub = logKey==='daughter' ? '우리딸💗 정말 잘하고 있어요! 💪' : '정말 잘하고 있어요! 💪';
   if(logKey){
     if(!state.achievementLog) state.achievementLog={};
     if(!state.achievementLog[logKey]) state.achievementLog[logKey]=[];
-    state.achievementLog[logKey].push({date:todayStr(), message, sub});
+    state.achievementLog[logKey].push({date:achievedDate||todayStr(), message, sub});
     if(state.achievementLog[logKey].length>20) state.achievementLog[logKey]=state.achievementLog[logKey].slice(-20);
     queueSave();
   }
@@ -2845,7 +2887,7 @@ function checkStudyHourMilestone(key, dateStr){
   if(hours>prevCelebrated){
     flags.studyHourMilestone[dateStr]=hours;
     queueSave();
-    celebrate('기록 달성! 🎉', `${dateStr===todayStr()?'오늘':dateStr} 학습·운동 ${hours}시간을 기록했어요!`);
+    celebrate('기록 달성! 🎉', `학습·운동 ${hours}시간을 기록했어요!`, dateStr);
   }
 }
 function checkWeightGoalReached(key, newWeight){
@@ -2943,10 +2985,10 @@ function achievementLogHtml(){
   return `
     <div class="card">
       <h3>🎉 최근 성취</h3>
-      ${log.slice(-5).reverse().map(e=>`
-        <div class="list-item">
-          <div><div class="content-text">${escapeHtml(e.message)}</div><div class="meta" style="margin-top:2px;">${escapeHtml(e.sub)}</div></div>
-        </div>`).join('')}
+      ${log.slice(-5).reverse().map(e=>{
+        const dateLabel = e.date ? `${Number(e.date.slice(5,7))}.${Number(e.date.slice(8,10))} ` : '';
+        return `<div class="list-item"><div class="content-text">${escapeHtml(dateLabel)}${escapeHtml(e.message)} ${escapeHtml(e.sub)}</div></div>`;
+      }).join('')}
     </div>
   `;
 }
@@ -3058,7 +3100,7 @@ function renderStudy(){
               const studyT=fmtStudyMin(w.study), exT=fmtStudyMin(w.exercise);
               const detailCell = isMobileViewport()
                 ? `<div>${range} 총 ${total}</div><div style="color:var(--muted);">(학습 ${studyT} / 운동 ${exT})</div>`
-                : `<b>${range} 총 ${total}</b> (<span style="color:${SB_COLORS.study};">학습 ${studyT}</span> / <span style="color:${SB_COLORS.exercise};">운동 ${exT}</span>)`;
+                : `<b>${range} 총 ${total}</b> (<span style="color:var(--warn);">학습 ${studyT}</span> / <span style="color:${SB_COLORS.exercise};">운동 ${exT}</span>)`;
               return `
               <tr>
                 <td style="width:18px;padding:4px 2px 4px 0;vertical-align:top;">${i===0?'📅':''}</td>
