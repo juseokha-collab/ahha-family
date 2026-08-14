@@ -1358,7 +1358,7 @@ function habitRingStripHtml(habits, type, anchorDate){
       const done=habits.filter(h=>habitLogFor(h.id)[k]).length;
       const isToday = k===todayKey;
       const label = type==='daily' ? fmtShortDateSlashDow(k) : fmtSlashMD(k.slice(5));
-      return `<div class="habit-ring-col" title="${done}/${total}">${isToday&&type==='daily'?`<span class="habit-today-badge">Today</span>`:''}${habitMiniRingSvg(done,total)}<div class="habit-ring-date">${label}</div></div>`;
+      return `<div class="habit-ring-col" title="${done}/${total}"><div class="habit-today-slot">${isToday&&type==='daily'?`<span class="habit-today-badge">Today</span>`:''}</div>${habitMiniRingSvg(done,total)}<div class="habit-ring-date">${label}</div></div>`;
     }).join('')}
   </div>`;
 }
@@ -1396,12 +1396,12 @@ function habitSectionHtml(type, title, icon){
       <button class="btn small primary" data-habit-add="${type}">+ 습관 추가</button>
     </div>
     ${habits.length?`
-    <div class="row" style="justify-content:space-between;align-items:center;margin-top:8px;">
-      <button class="iconbtn" data-habit-prev="${type}">‹</button>
-      <span class="meta">${type==='daily'?'':'최근 7주'}</span>
-      <button class="iconbtn" data-habit-next="${type}">›</button>
+    ${type==='weekly'?`<div class="row" style="justify-content:center;margin-top:8px;"><span class="meta">최근 7주</span></div>`:''}
+    <div class="row" style="align-items:flex-start;gap:4px;margin-top:${type==='weekly'?'2px':'8px'};">
+      <div class="habit-nav-col"><div class="habit-today-slot"></div><button class="iconbtn" data-habit-prev="${type}">‹</button></div>
+      <div style="flex:1;min-width:0;">${habitRingStripHtml(habits, type, anchorDate)}</div>
+      <div class="habit-nav-col"><div class="habit-today-slot"></div><button class="iconbtn" data-habit-next="${type}">›</button></div>
     </div>
-    ${habitRingStripHtml(habits, type, anchorDate)}
     ${habits.map(h=>habitRowHtml(h,type,anchorDate)).join('')}
     ` : `<div class="empty" style="margin-top:10px;">아직 등록된 습관이 없어요</div>`}
   </div>`;
