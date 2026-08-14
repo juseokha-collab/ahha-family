@@ -162,6 +162,19 @@ input.date-input{cursor:pointer;background:var(--panel2) url('data:image/svg+xml
 .sb-seg.sb-exercise{background:#7ee787;}
 .dt-evt:hover{filter:brightness(1.08);}
 .dt-evt[data-virtual]{background:var(--panel2);color:var(--text);border:1px solid var(--border);font-weight:400;}
+.habit-row{padding:10px 0;border-bottom:1px solid var(--border);}
+.habit-row:last-child{border-bottom:none;}
+.habit-row-head{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
+.habit-icon{font-size:20px;flex-shrink:0;}
+.habit-row-info{flex:1;min-width:0;}
+.habit-row-name{font-size:13.5px;font-weight:600;}
+.habit-cells{display:flex;gap:4px;justify-content:space-between;}
+.habit-cell{flex:1;min-width:0;height:28px;font-size:14px;background:var(--panel2);border:none;border-radius:8px;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center;}
+.habit-cell.habit-done{background:rgba(74,222,128,.18);}
+.habit-cell.habit-undone{background:rgba(248,113,113,.12);}
+span.habit-cell.habit-future{background:none;color:var(--muted);cursor:default;}
+.habit-icon-pick{width:32px;height:32px;font-size:17px;background:var(--panel2);border:1px solid var(--border);border-radius:8px;cursor:pointer;padding:0;}
+.habit-icon-pick.sel{border-color:var(--accent);background:var(--sel-bg);}
 .confetti-burst{position:absolute;inset:0;pointer-events:none;overflow:hidden;}
 .confetti-piece{position:absolute;top:-10px;left:calc(50% + (var(--i) - 12) * 14px);width:8px;height:14px;border-radius:2px;background:hsl(var(--hue) 80% 60%);opacity:0;animation:confetti-fall 1.4s ease-in forwards;animation-delay:calc(var(--i) * 0.02s);}
 @keyframes confetti-fall{
@@ -214,7 +227,7 @@ input.date-input{cursor:pointer;background:var(--panel2) url('data:image/svg+xml
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-<script src="firebase-config.js?v=20260814h"></script>
-<script src="app.js?v=20260814h"></script>
+<script src="firebase-config.js?v=20260814i"></script>
+<script src="app.js?v=20260814i"></script>
 </body>
 </html>

@@ -261,7 +261,9 @@ function defaultState(){
     studyBlocks:{},
     calendarDayColors:{},
     todoCategories:{},
-    deletedIds:[]
+    deletedIds:[],
+    habits:{daily:[], weekly:[]},
+    habitLog:{}
   };
 }
 function markDeleted(id){
@@ -520,6 +522,14 @@ function mergeVehicle(localV, cloudV, deletedSet){
   });
   return merged;
 }
+function mergeHabitLog(localLog, cloudLog){
+  const merged=JSON.parse(JSON.stringify(cloudLog||{}));
+  Object.keys(localLog||{}).forEach(id=>{
+    if(!merged[id]) merged[id]={};
+    Object.keys(localLog[id]).forEach(k=>{ if(merged[id][k]===undefined) merged[id][k]=localLog[id][k]; });
+  });
+  return merged;
+}
 function mergeStates(localState, cloudState){
   const merged=JSON.parse(JSON.stringify(cloudState));
   const deletedSet=new Set([...(localState.deletedIds||[]), ...(cloudState.deletedIds||[])]);
@@ -536,6 +546,11 @@ function mergeStates(localState, cloudState){
   merged.vehicle=mergeVehicle(localState.vehicle, cloudState.vehicle, deletedSet);
   merged.calendarDayColors=mergeKeyedColorMaps(localState.calendarDayColors, cloudState.calendarDayColors);
   merged.todoCategories=mergeTodoCategories(localState.todoCategories, cloudState.todoCategories);
+  merged.habits={
+    daily: mergeById(localState.habits&&localState.habits.daily, cloudState.habits&&cloudState.habits.daily, deletedSet),
+    weekly: mergeById(localState.habits&&localState.habits.weekly, cloudState.habits&&cloudState.habits.weekly, deletedSet)
+  };
+  merged.habitLog=mergeHabitLog(localState.habitLog, cloudState.habitLog);
   return merged;
 }
 function initAuth(){
@@ -1264,6 +1279,186 @@ function openTodoCategoryEditModal(idx){
     queueSave(); closeModal(); openTodoCategoryManageModal();
   };
 }
+/* ---------- HABITS (딸 전용) ---------- */
+const HABIT_ICONS=['💧','🍎','🧘','😴','📖','💪','🛏️','🧹','💰','📅','🚶','🦷','⏰','🌙','🧴','✍️'];
+let habitAnchor={daily:todayStr(), weekly:todayStr()};
+function weekStartOf(dateStr){
+  const d=parseDate(dateStr);
+  const dow=d.getDay();
+  const diff = dow===0 ? -6 : 1-dow;
+  return fmtDate(addDays(d, diff));
+}
+function myHabits(type){
+  if(!state.habits) state.habits={daily:[],weekly:[]};
+  if(!state.habits[type]) state.habits[type]=[];
+  return state.habits[type];
+}
+function habitLogFor(id){
+  if(!state.habitLog) state.habitLog={};
+  if(!state.habitLog[id]) state.habitLog[id]={};
+  return state.habitLog[id];
+}
+function habitPeriodKeys(type, anchorDate, count){
+  const keys=[];
+  if(type==='daily'){
+    for(let i=count-1;i>=0;i--) keys.push(fmtDate(addDays(parseDate(anchorDate), -i)));
+  } else {
+    const anchorWeek=weekStartOf(anchorDate);
+    for(let i=count-1;i>=0;i--) keys.push(fmtDate(addDays(parseDate(anchorWeek), -7*i)));
+  }
+  return keys;
+}
+function habitStreak(id, type){
+  const log=habitLogFor(id);
+  let streak=0;
+  let cursor = type==='daily' ? todayStr() : weekStartOf(todayStr());
+  const step = type==='daily' ? -1 : -7;
+  while(log[cursor]){
+    streak++;
+    cursor=fmtDate(addDays(parseDate(cursor), step));
+  }
+  return streak;
+}
+function habitBestStreak(id, type){
+  const log=habitLogFor(id);
+  const keys=Object.keys(log).filter(k=>log[k]).sort();
+  if(!keys.length) return 0;
+  const step=type==='daily'?1:7;
+  let best=1, cur=1;
+  for(let i=1;i<keys.length;i++){
+    const diffDays=Math.round((parseDate(keys[i])-parseDate(keys[i-1]))/86400000);
+    cur = diffDays===step ? cur+1 : 1;
+    if(cur>best) best=cur;
+  }
+  return best;
+}
+function habitRingSvg(done, total, gradId){
+  const size=64, r=(size-8)/2, c=size/2, circ=2*Math.PI*r;
+  const pct=total?done/total:0;
+  const dash=circ*pct;
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+    <defs><linearGradient id="${gradId}" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="var(--accent)"/><stop offset="100%" stop-color="var(--accent2)"/></linearGradient></defs>
+    <circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="var(--panel2)" stroke-width="7"/>
+    <circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="url(#${gradId})" stroke-width="7" stroke-linecap="round" stroke-dasharray="${dash} ${circ}" transform="rotate(-90 ${c} ${c})"/>
+    <text x="${c}" y="${c+5}" text-anchor="middle" font-size="15" font-weight="800" fill="var(--text)">${done}/${total}</text>
+  </svg>`;
+}
+function habitRowHtml(h, type, anchorDate){
+  const periods=habitPeriodKeys(type, anchorDate, 7);
+  const log=habitLogFor(h.id);
+  const streak=habitStreak(h.id,type);
+  const best=habitBestStreak(h.id,type);
+  const todayKey = type==='daily'?todayStr():weekStartOf(todayStr());
+  const unit = type==='daily'?'일':'주';
+  const cells=periods.map(k=>{
+    const isFuture = k>todayKey;
+    if(isFuture) return `<span class="habit-cell habit-future">○</span>`;
+    const done=!!log[k];
+    return `<button type="button" class="habit-cell ${done?'habit-done':'habit-undone'}" data-habit-toggle="${h.id}" data-habit-key="${k}" title="${k}">${done?'✅':'❌'}</button>`;
+  }).join('');
+  return `
+  <div class="habit-row">
+    <div class="habit-row-head">
+      <span class="habit-icon">${escapeHtml(h.icon||'⭐')}</span>
+      <div class="habit-row-info">
+        <div class="habit-row-name">${escapeHtml(h.name)}</div>
+        <div class="meta">⚡ ${streak}${unit} 연속 · 🔥 최고 ${best}${unit}</div>
+      </div>
+      <button class="icon-btn" data-habit-edit="${h.id}" data-habit-type="${type}" title="수정">✏️</button>
+    </div>
+    <div class="habit-cells">${cells}</div>
+  </div>`;
+}
+function habitSectionHtml(type, title, icon){
+  const habits=myHabits(type);
+  const anchorDate = habitAnchor[type] || todayStr();
+  const periodKeyToday = type==='daily'?todayStr():weekStartOf(todayStr());
+  const doneToday = habits.filter(h=>habitLogFor(h.id)[periodKeyToday]).length;
+  return `
+  <div class="card">
+    <div class="row" style="justify-content:space-between;align-items:center;">
+      <h3 style="margin:0;">${icon} ${title} <span class="meta">${habits.length}</span></h3>
+      <button class="btn small primary" data-habit-add="${type}">+ 습관 추가</button>
+    </div>
+    ${habits.length?`
+    <div class="row" style="justify-content:center;margin:12px 0;">${habitRingSvg(doneToday, habits.length, 'habitRing-'+type)}</div>
+    <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:6px;">
+      <button class="iconbtn" data-habit-prev="${type}">‹</button>
+      <span class="meta">${type==='daily'?'최근 7일':'최근 7주'}</span>
+      <button class="iconbtn" data-habit-next="${type}">›</button>
+    </div>
+    ${habits.map(h=>habitRowHtml(h,type,anchorDate)).join('')}
+    ` : `<div class="empty" style="margin-top:10px;">아직 등록된 습관이 없어요</div>`}
+  </div>`;
+}
+function openHabitEditModal(type, id){
+  const habits=myHabits(type);
+  const h = id ? habits.find(x=>x.id===id) : null;
+  let selectedIcon = h ? (h.icon||HABIT_ICONS[0]) : HABIT_ICONS[0];
+  openModal(`
+    <h3>${h?'습관 수정':'습관 추가'} (${type==='daily'?'Daily':'Weekly'})</h3>
+    <div class="field"><label>이름</label><input id="mHabitName" value="${h?escapeHtml(h.name):''}" placeholder="예: 일찍 자기"></div>
+    <div class="field" style="margin-top:10px;"><label>아이콘</label>
+      <div class="row" style="gap:6px;flex-wrap:wrap;">
+        ${HABIT_ICONS.map(ic=>`<button type="button" class="habit-icon-pick ${ic===selectedIcon?'sel':''}" data-icon="${ic}">${ic}</button>`).join('')}
+      </div>
+      <input id="mHabitIcon" value="${escapeHtml(selectedIcon)}" style="margin-top:6px;width:60px;text-align:center;font-size:18px;">
+    </div>
+    <div class="modal-actions">
+      ${h?`<button class="btn danger" id="mDelete">삭제</button>`:''}
+      <button class="btn" id="mCancel">취소</button>
+      <button class="btn primary" id="mSave">저장</button>
+    </div>
+  `);
+  document.getElementById('mCancel').onclick=closeModal;
+  document.querySelectorAll('.habit-icon-pick').forEach(btn=>{
+    btn.onclick=()=>{
+      selectedIcon=btn.dataset.icon;
+      document.getElementById('mHabitIcon').value=selectedIcon;
+      document.querySelectorAll('.habit-icon-pick').forEach(b=>b.classList.toggle('sel', b.dataset.icon===selectedIcon));
+    };
+  });
+  document.getElementById('mSave').onclick=()=>{
+    const name=document.getElementById('mHabitName').value.trim();
+    if(!name){ showToast('이름을 입력해주세요'); return; }
+    const icon=document.getElementById('mHabitIcon').value.trim()||'⭐';
+    if(h){ h.name=name; h.icon=icon; }
+    else { habits.push({id:uid(), name, icon, createdDate:todayStr()}); }
+    queueSave(); closeModal(); renderHome();
+  };
+  const delBtn=document.getElementById('mDelete');
+  if(delBtn) delBtn.onclick=()=>{
+    if(!confirm('이 습관을 삭제할까요? (기록도 함께 삭제돼요)')) return;
+    const idx=habits.findIndex(x=>x.id===id);
+    if(idx>=0) habits.splice(idx,1);
+    markDeleted(id);
+    if(state.habitLog) delete state.habitLog[id];
+    queueSave(); closeModal(); renderHome();
+  };
+}
+function bindHabitEvents(el){
+  el.querySelectorAll('[data-habit-add]').forEach(b=>b.onclick=()=>openHabitEditModal(b.dataset.habitAdd, null));
+  el.querySelectorAll('[data-habit-edit]').forEach(b=>b.onclick=()=>openHabitEditModal(b.dataset.habitType, b.dataset.habitEdit));
+  el.querySelectorAll('[data-habit-toggle]').forEach(b=>b.onclick=()=>{
+    const log=habitLogFor(b.dataset.habitToggle);
+    const k=b.dataset.habitKey;
+    if(log[k]) delete log[k]; else log[k]=true;
+    queueSave(); renderHome();
+  });
+  el.querySelectorAll('[data-habit-prev]').forEach(b=>b.onclick=()=>{
+    const type=b.dataset.habitPrev;
+    const n = type==='daily'?7:49;
+    habitAnchor[type]=fmtDate(addDays(parseDate(habitAnchor[type]||todayStr()), -n));
+    renderHome();
+  });
+  el.querySelectorAll('[data-habit-next]').forEach(b=>b.onclick=()=>{
+    const type=b.dataset.habitNext;
+    const n = type==='daily'?7:49;
+    const next=fmtDate(addDays(parseDate(habitAnchor[type]||todayStr()), n));
+    habitAnchor[type] = next>todayStr() ? todayStr() : next;
+    renderHome();
+  });
+}
 function renderHome(){
   if(effectiveRole()==='mom' && !momHomeDefaultsApplied){
     momHomeDefaultsApplied=true;
@@ -1361,6 +1556,8 @@ function renderHome(){
       </div>
     </div>
 
+    ${effectiveRole()==='daughter'?habitSectionHtml('daily','Daily Habits','🎯')+habitSectionHtml('weekly','Weekly Habits','📅'):''}
+
     ${achievementLogHtml()}
 
     ${effectiveRole()!=='daughter'?`
@@ -1456,6 +1653,7 @@ function renderHome(){
   }
   const newTodoSaveBtn=document.getElementById('newTodoSaveBtn');
   if(newTodoSaveBtn) newTodoSaveBtn.onclick=commitNewTodo;
+  if(effectiveRole()==='daughter') bindHabitEvents(el);
   bindDayTimelineEvents();
 }
 function diaryArchiveRowsHtml(){
