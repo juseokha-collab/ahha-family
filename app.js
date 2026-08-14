@@ -263,7 +263,8 @@ function defaultState(){
     todoCategories:{},
     deletedIds:[],
     habits:{daily:[], weekly:[]},
-    habitLog:{}
+    habitLog:{},
+    monthNotes:{}
   };
 }
 function markDeleted(id){
@@ -551,6 +552,7 @@ function mergeStates(localState, cloudState){
     weekly: mergeById(localState.habits&&localState.habits.weekly, cloudState.habits&&cloudState.habits.weekly, deletedSet)
   };
   merged.habitLog=mergeHabitLog(localState.habitLog, cloudState.habitLog);
+  merged.monthNotes=mergeKeyedColorMaps(localState.monthNotes, cloudState.monthNotes);
   return merged;
 }
 function initAuth(){
@@ -1389,7 +1391,8 @@ function habitRowHtml(h, type, anchorDate){
     const isFuture = k>todayKey;
     if(isFuture) return `<div class="habit-cell-col"><span class="habit-cell habit-future">○</span></div>`;
     const done=!!log[k];
-    return `<div class="habit-cell-col"><button type="button" class="habit-cell ${done?'habit-done':'habit-undone'} ${type==='weekly'?'habit-weekly':''}" data-habit-toggle="${h.id}" data-habit-key="${k}" title="${k}">${done?'✅':'❌'}</button></div>`;
+    const mark = done ? (type==='weekly' ? '<span style="color:var(--accent2);font-weight:800;font-size:15px;">✓</span>' : '✅') : '❌';
+    return `<div class="habit-cell-col"><button type="button" class="habit-cell ${done?'habit-done':'habit-undone'} ${type==='weekly'?'habit-weekly':''}" data-habit-toggle="${h.id}" data-habit-key="${k}" title="${k}">${mark}</button></div>`;
   }).join('');
   return `
   <div class="habit-row">
@@ -1796,6 +1799,46 @@ function renderProgressChart(y, m){
     </div>
   `;
 }
+function myMonthNotes(ym){
+  const key=currentAuthorKey();
+  if(!state.monthNotes) state.monthNotes={};
+  if(!state.monthNotes[key]) state.monthNotes[key]={};
+  if(!state.monthNotes[key][ym]) state.monthNotes[key][ym]=[];
+  return state.monthNotes[key][ym];
+}
+function monthNoteRowHtml(idx, value){
+  return `<div class="row" data-month-note-row="${idx}" style="gap:6px;align-items:center;margin-top:4px;flex-wrap:nowrap;">
+    <span style="width:20px;flex-shrink:0;text-align:right;color:var(--muted);font-size:12px;">${idx+1}.</span>
+    <input data-month-note-idx="${idx}" value="${escapeHtml(value)}" placeholder="일정 메모 입력" style="flex:1;min-width:0;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:13px;">
+  </div>`;
+}
+function monthNotesHtml(ym){
+  const notes=myMonthNotes(ym);
+  const lines=(notes.length && notes[notes.length-1].trim()!=='') ? notes.concat(['']) : (notes.length?notes:['']);
+  return `
+  <div class="field" id="monthNotesField" style="margin-top:14px;">
+    <label>📌 주요일정 메모</label>
+    <div id="monthNotesList">${lines.map((v,i)=>monthNoteRowHtml(i,v)).join('')}</div>
+  </div>`;
+}
+function bindMonthNoteInput(inp, ym){
+  inp.addEventListener('input', ()=>{
+    const idx=Number(inp.dataset.monthNoteIdx);
+    const notes=myMonthNotes(ym);
+    notes[idx]=inp.value;
+    queueSave();
+    const list=document.getElementById('monthNotesList');
+    if(!list) return;
+    const rowCount=list.querySelectorAll('[data-month-note-idx]').length;
+    if(idx===rowCount-1 && inp.value.trim()!==''){
+      list.insertAdjacentHTML('beforeend', monthNoteRowHtml(idx+1, ''));
+      bindMonthNoteInput(list.querySelector(`[data-month-note-idx="${idx+1}"]`), ym);
+    }
+  });
+}
+function bindMonthNotesEvents(el, ym){
+  el.querySelectorAll('[data-month-note-idx]').forEach(inp=>bindMonthNoteInput(inp, ym));
+}
 function renderSchedule(){
   const el=document.getElementById('tab-schedule');
   const y=scheduleMonth.getFullYear(), m=scheduleMonth.getMonth();
@@ -1853,6 +1896,7 @@ function renderSchedule(){
         </div>`:''}
       </div>
       <div class="cal-grid" style="margin-top:10px;">${['일','월','화','수','목','금','토'].map(d=>`<div class="cal-head">${d}</div>`).join('')}${grid}</div>
+      ${monthNotesHtml(`${y}-${pad2(m+1)}`)}
     </div>
     ${renderProgressChart(y, m)}
     <div class="card">
@@ -1870,6 +1914,7 @@ function renderSchedule(){
     </div>
   `;
   bindShowCommonToggle('showCommonToggleSchedule');
+  bindMonthNotesEvents(el, `${y}-${pad2(m+1)}`);
   document.getElementById('sPrev').onclick=()=>{ scheduleMonth=new Date(y,m-1,1); renderSchedule(); };
   document.getElementById('sNext').onclick=()=>{ scheduleMonth=new Date(y,m+1,1); renderSchedule(); };
   const schedFilterRow=document.getElementById('schedFilterRow');
