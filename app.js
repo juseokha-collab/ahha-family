@@ -3640,16 +3640,17 @@ function openMaintModal(existing){
 /* ---------- EVENTS (경조사) ---------- */
 function renderEvents(){
   const el=document.getElementById('tab-events');
-  const withD = state.events.map(ev=>({...ev, d: ddayFromDate(eventOccurrence(ev))}));
+  const withD = state.events.map(ev=>({...ev, d: ddayFromDate(eventOccurrence(ev)), occDate: fmtDate(eventOccurrence(ev))}));
   const upcoming = withD.filter(e=>e.d>=0).sort((a,b)=>a.d-b.d);
   const past = withD.filter(e=>e.d<0).sort((a,b)=>b.d-a.d);
   const row = ev => `
     <div class="list-item" style="align-items:center;">
       <div style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
         <span style="font-size:13px;font-weight:400;">${escapeHtml(ev.name)}</span>
-        <span class="meta">${ev.lunar?`음력 ${ev.lunarMonth}/${ev.lunarDay}${ev.lunarLeap?'(윤)':''}`:ev.date}${ev.recurring?' (매년)':''}${ev.isTax?' 💰':''}${ev.hiddenFromDaughter?' 🙈':''}${ev.memo?' · '+escapeHtml(ev.memo):''}</span>
+        <span class="meta">${ev.lunar?`음력 ${ev.lunarMonth}/${ev.lunarDay}${ev.lunarLeap?'(윤)':''}`:ev.date}${ev.recurring?' (매년)':''}${ev.isTax?` <span class="pill">세금</span>`:''}${ev.hiddenFromDaughter?` <span class="pill">비공개</span>`:''}${ev.memo?' · '+escapeHtml(ev.memo):''}</span>
       </div>
       <div class="row" style="flex-wrap:nowrap;flex-shrink:0;">
+        <span class="meta" style="width:76px;text-align:right;white-space:nowrap;">${ev.occDate}</span>
         <span class="pill ${ddayPillClass(ev.d)}">${ddayLabel(ev.d)}</span>
         <button class="btn small" style="font-size:11px;padding:3px 8px;" data-edit="${ev.id}" title="수정">✏️</button> <button class="btn small danger" style="font-size:11px;padding:3px 8px;" data-del="${ev.id}" title="삭제">✕</button>
       </div>
@@ -3674,7 +3675,7 @@ function openEventModal(existing){
     <div class="field"><label>이름</label><input id="mName" value="${escapeHtml(ev.name)}"></div>
     <div class="row" style="gap:6px;margin:6px 0;">
       <label class="pill" style="cursor:pointer;"><input type="checkbox" id="mLunar" ${ev.lunar?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">음력 날짜</label>
-      <label class="pill" style="cursor:pointer;"><input type="checkbox" id="mIsTax" ${ev.isTax?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">💰 세금</label>
+      <label class="pill" style="cursor:pointer;"><input type="checkbox" id="mIsTax" ${ev.isTax?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">세금</label>
     </div>
     <div class="field" id="solarDateWrap" style="${ev.lunar?'display:none':''}">
       <label>날짜</label><input type="text" readonly class="date-input" placeholder="YYYY-MM-DD" id="mDate" value="${ev.date}">
@@ -3689,8 +3690,8 @@ function openEventModal(existing){
         <div class="field"><label>&nbsp;</label><label class="pill" style="cursor:pointer;"><input type="checkbox" id="mLeap" ${ev.lunarLeap?'checked':''} style="margin-right:4px;">윤달</label></div>
       </div>
     </div>
-    <label class="pill" style="cursor:pointer;display:inline-block;margin:6px 0;"><input type="checkbox" id="mRecurring" ${ev.recurring?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">매년 반복 (생일/기념일)</label>
-    <label class="pill" style="cursor:pointer;display:inline-block;margin:6px 0 6px 6px;"><input type="checkbox" id="mHideDaughter" ${ev.hiddenFromDaughter?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">🙈 딸에게 비공개</label>
+    <label class="pill" style="cursor:pointer;display:inline-block;margin:6px 0;"><input type="checkbox" id="mRecurring" ${ev.recurring?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">매년 반복</label>
+    <label class="pill" style="cursor:pointer;display:inline-block;margin:6px 0 6px 6px;"><input type="checkbox" id="mHideDaughter" ${ev.hiddenFromDaughter?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">딸에게 비공개</label>
     <div class="field"><label>메모</label><input id="mMemo" value="${escapeHtml(ev.memo)}"></div>
     <div class="modal-actions"><button class="btn" id="mCancel">취소</button><button class="btn primary" id="mSave">저장</button></div>
   `);
