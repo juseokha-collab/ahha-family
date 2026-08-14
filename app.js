@@ -730,12 +730,12 @@ function getVisibleTabs(){
     ];
   }
   return [
-    {key:'home',label:'홈'},
-    {key:'schedule',label:'일정'},
-    {key:'health',label:'건강'},
-    {key:'budget',label:'가계부'},
-    {key:'vehicle',label:'차량'},
-    {key:'events',label:'경조사'}
+    {key:'home',label:'🏠',title:'Home'},
+    {key:'schedule',label:'📅',title:'Calendar'},
+    {key:'health',label:'🏃',title:'Health'},
+    {key:'budget',label:'💰',title:'Budget'},
+    {key:'vehicle',label:'🚗',title:'Vehicle'},
+    {key:'events',label:'⏳',title:'D-day'}
   ];
 }
 function renderTabs(){
@@ -1096,7 +1096,7 @@ function bindDayTimelineEvents(){
   el.querySelectorAll('.dt-evt[data-virtual]').forEach(chip=>{
     chip.addEventListener('click', e=>{
       e.stopPropagation();
-      showToast('경조사 탭에서 수정할 수 있어요');
+      showToast('D-day 탭에서 수정할 수 있어요');
     });
   });
   el.querySelectorAll('.dt-evt[data-memo]').forEach(chip=>{
@@ -1601,7 +1601,7 @@ function renderHome(){
     <div class="stat-grid">
       <div class="stat"><div class="v">${todaySchedule.length}</div><div class="l">오늘 일정</div></div>
       <div class="stat"><div class="v">${monthBudget.toLocaleString()}원</div><div class="l">이번달 지출</div></div>
-      <div class="stat"><div class="v">${upcomingEvent?ddayLabel(upcomingEvent.d):'-'}</div><div class="l">${upcomingEvent?escapeHtml(upcomingEvent.name):'다가오는 경조사'}</div></div>
+      <div class="stat"><div class="v">${upcomingEvent?ddayLabel(upcomingEvent.d):'-'}</div><div class="l">${upcomingEvent?escapeHtml(upcomingEvent.name):'다가오는 D-day'}</div></div>
       <div class="stat"><div class="v">${upcomingRenew?ddayLabel(upcomingRenew.d):'-'}</div><div class="l">${upcomingRenew?escapeHtml(upcomingRenew.name):'차량 갱신'}</div></div>
     </div>
 
@@ -1909,7 +1909,7 @@ function renderSchedule(){
         return `
         <div class="list-item sched-item"${s.bgColor?` style="background:${s.bgColor};"`:''}>
           <div><div style="font-size:14px;">${timeRangeLabel(s)?escapeHtml(timeRangeLabel(s))+' ':''}${badge}${escapeHtml(s.title)} ${showOwnerPill?`<span class="pill">${ownerLabel(s.owner)}</span>`:''}</div>${s.memo?`<div class="content-text" style="font-size:12.5px;">${escapeHtml(s.memo)}</div>`:''}</div>
-          <div class="row">${s.virtual? `<span class="meta">경조사 탭에서 수정</span>` : (canManage?`<button class="btn small" data-edit="${s.id}">수정</button><button class="btn small danger" data-del="${s.id}">삭제</button>`:`<span class="meta">작성자만 관리 가능</span>`)}</div>
+          <div class="row">${s.virtual? `<span class="meta">D-day 탭에서 수정</span>` : (canManage?`<button class="btn small" data-edit="${s.id}">수정</button><button class="btn small danger" data-del="${s.id}">삭제</button>`:`<span class="meta">작성자만 관리 가능</span>`)}</div>
         </div>`;
       }).join('') : `<div class="empty">일정이 없어요</div>`}
     </div>
@@ -3687,20 +3687,20 @@ function renderEvents(){
   const row = ev => `
     <div class="list-item" style="align-items:center;">
       <div style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
-        <b>${escapeHtml(ev.name)}</b>
+        <b style="font-size:15px;">${escapeHtml(ev.name)}</b>
         <span class="meta">${ev.lunar?`음력 ${ev.lunarMonth}/${ev.lunarDay}${ev.lunarLeap?'(윤)':''}`:ev.date}${ev.recurring?' (매년)':''}${ev.hiddenFromDaughter?' 🙈':''}${ev.memo?' · '+escapeHtml(ev.memo):''}</span>
       </div>
       <div class="row" style="flex-wrap:nowrap;flex-shrink:0;">
         <span class="pill ${ddayPillClass(ev.d)}">${ddayLabel(ev.d)}</span>
-        <button class="btn small" data-edit="${ev.id}">수정</button><button class="btn small danger" data-del="${ev.id}">삭제</button>
+        <button class="btn small" style="font-size:11px;padding:3px 8px;" data-edit="${ev.id}" title="수정">✏️</button> <button class="btn small danger" style="font-size:11px;padding:3px 8px;" data-del="${ev.id}" title="삭제">✕</button>
       </div>
     </div>`;
   el.innerHTML=`
     <div class="card">
-      <div class="row" style="justify-content:space-between;"><h3 style="margin:0;">🎉 다가오는 경조사</h3><button class="btn primary small" id="addEventBtn">+ 추가</button></div>
-      ${upcoming.length? upcoming.map(row).join('') : `<div class="empty">예정된 경조사가 없어요</div>`}
+      <div class="row" style="justify-content:space-between;"><h3 style="margin:0;">🎉 D-day List</h3><button class="btn primary small" id="addEventBtn">+ 추가</button></div>
+      ${upcoming.length? upcoming.map(row).join('') : `<div class="empty">예정된 D-day가 없어요</div>`}
     </div>
-    ${past.length?`<div class="card"><h3>지난 경조사</h3>${past.map(row).join('')}</div>`:''}
+    ${past.length?`<div class="card"><h3>지난 D-day</h3>${past.map(row).join('')}</div>`:''}
   `;
   document.getElementById('addEventBtn').onclick=()=>openEventModal();
   el.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>openEventModal(state.events.find(x=>x.id===b.dataset.edit)));
@@ -3711,7 +3711,7 @@ function renderEvents(){
 function openEventModal(existing){
   const ev=existing||{id:null,name:'',date:todayStr(),recurring:true,memo:'',lunar:false,lunarYear:new Date().getFullYear(),lunarMonth:'',lunarDay:'',lunarLeap:false,hiddenFromDaughter:false};
   openModal(`
-    <h3>${existing?'경조사 수정':'경조사 추가'}</h3>
+    <h3>${existing?'D-day 수정':'D-day 추가'}</h3>
     <div class="field"><label>이름</label><input id="mName" value="${escapeHtml(ev.name)}"></div>
     <label class="pill" style="cursor:pointer;display:inline-block;margin:6px 0;"><input type="checkbox" id="mLunar" ${ev.lunar?'checked':''} style="margin-right:4px;">음력 날짜</label>
     <div class="field" id="solarDateWrap" style="${ev.lunar?'display:none':''}">
