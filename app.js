@@ -1566,7 +1566,7 @@ function renderHome(){
           ${MOODS.map(m=>`<button data-m="${m}" class="${mine.mood===m?'sel':''}">${m}</button>`).join('')}
         </div>
       </div>
-      ${(user && EMAIL_ROLE[user.email]!=='daughter')?`
+      ${(user && effectiveRole()!=='daughter')?`
       <div class="field" style="margin-top:10px;">
         <label>👀 Lora's Activities</label>
         <div style="margin-top:4px;">
@@ -1586,7 +1586,7 @@ function renderHome(){
         <div class="row" style="justify-content:space-between;align-items:center;margin-top:8px;">
           <label id="diaryArchiveToggle" style="cursor:pointer;">${diaryArchiveOpen?'▲':'▼'} ${letterViewMode?'편지 모아보기':'Comment 모아보기'}</label>
           <div class="row" style="gap:6px;">
-            ${effectiveRole()==='daughter'?`<button class="btn small" id="lettersBtn">✉️ 편지${unreadLetterCount>0?`(${unreadLetterCount})`:''}</button>`:''}
+            ${effectiveRole()==='daughter'?`<button class="btn small" id="lettersBtn">📮 ${unreadLetterCount>0?'편지가 도착했어요':'우체통'}</button>`:''}
             ${diaryArchiveOpen && !letterViewMode?`<label class="pill" style="cursor:pointer;"><input type="checkbox" id="diaryArchiveFamilyToggle" ${diaryArchiveIncludeFamily?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">엄빠 메시지 보기</label>`:''}
           </div>
         </div>
@@ -3647,7 +3647,7 @@ function renderEvents(){
     <div class="list-item" style="align-items:center;">
       <div style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
         <span style="font-size:13px;font-weight:400;">${escapeHtml(ev.name)}</span>
-        <span class="meta">${ev.lunar?`음력 ${ev.lunarMonth}/${ev.lunarDay}${ev.lunarLeap?'(윤)':''}`:ev.date}${ev.recurring?' (매년)':''}${ev.hiddenFromDaughter?' 🙈':''}${ev.memo?' · '+escapeHtml(ev.memo):''}</span>
+        <span class="meta">${ev.lunar?`음력 ${ev.lunarMonth}/${ev.lunarDay}${ev.lunarLeap?'(윤)':''}`:ev.date}${ev.recurring?' (매년)':''}${ev.isTax?' 💰':''}${ev.hiddenFromDaughter?' 🙈':''}${ev.memo?' · '+escapeHtml(ev.memo):''}</span>
       </div>
       <div class="row" style="flex-wrap:nowrap;flex-shrink:0;">
         <span class="pill ${ddayPillClass(ev.d)}">${ddayLabel(ev.d)}</span>
@@ -3668,11 +3668,14 @@ function renderEvents(){
   });
 }
 function openEventModal(existing){
-  const ev=existing||{id:null,name:'',date:todayStr(),recurring:true,memo:'',lunar:false,lunarYear:new Date().getFullYear(),lunarMonth:'',lunarDay:'',lunarLeap:false,hiddenFromDaughter:false};
+  const ev=existing||{id:null,name:'',date:todayStr(),recurring:true,memo:'',lunar:false,lunarYear:new Date().getFullYear(),lunarMonth:'',lunarDay:'',lunarLeap:false,hiddenFromDaughter:false,isTax:false};
   openModal(`
     <h3>${existing?'D-day 수정':'D-day 추가'}</h3>
     <div class="field"><label>이름</label><input id="mName" value="${escapeHtml(ev.name)}"></div>
-    <label class="pill" style="cursor:pointer;display:inline-block;margin:6px 0;"><input type="checkbox" id="mLunar" ${ev.lunar?'checked':''} style="margin-right:4px;">음력 날짜</label>
+    <div class="row" style="gap:6px;margin:6px 0;">
+      <label class="pill" style="cursor:pointer;"><input type="checkbox" id="mLunar" ${ev.lunar?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">음력 날짜</label>
+      <label class="pill" style="cursor:pointer;"><input type="checkbox" id="mIsTax" ${ev.isTax?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">💰 세금</label>
+    </div>
     <div class="field" id="solarDateWrap" style="${ev.lunar?'display:none':''}">
       <label>날짜</label><input type="text" readonly class="date-input" placeholder="YYYY-MM-DD" id="mDate" value="${ev.date}">
     </div>
@@ -3686,8 +3689,8 @@ function openEventModal(existing){
         <div class="field"><label>&nbsp;</label><label class="pill" style="cursor:pointer;"><input type="checkbox" id="mLeap" ${ev.lunarLeap?'checked':''} style="margin-right:4px;">윤달</label></div>
       </div>
     </div>
-    <label class="pill" style="cursor:pointer;display:inline-block;margin:6px 0;"><input type="checkbox" id="mRecurring" ${ev.recurring?'checked':''} style="margin-right:4px;">매년 반복 (생일/기념일)</label>
-    <label class="pill" style="cursor:pointer;display:inline-block;margin:6px 0 6px 6px;"><input type="checkbox" id="mHideDaughter" ${ev.hiddenFromDaughter?'checked':''} style="margin-right:4px;">🙈 딸에게 비공개</label>
+    <label class="pill" style="cursor:pointer;display:inline-block;margin:6px 0;"><input type="checkbox" id="mRecurring" ${ev.recurring?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">매년 반복 (생일/기념일)</label>
+    <label class="pill" style="cursor:pointer;display:inline-block;margin:6px 0 6px 6px;"><input type="checkbox" id="mHideDaughter" ${ev.hiddenFromDaughter?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">🙈 딸에게 비공개</label>
     <div class="field"><label>메모</label><input id="mMemo" value="${escapeHtml(ev.memo)}"></div>
     <div class="modal-actions"><button class="btn" id="mCancel">취소</button><button class="btn primary" id="mSave">저장</button></div>
   `);
@@ -3714,7 +3717,7 @@ function openEventModal(existing){
       date=document.getElementById('mDate').value;
       if(!name||!date){ showToast('이름과 날짜를 입력해주세요'); return; }
     }
-    const rec={id:ev.id||uid(),name,date,lunar:isLunar,lunarYear,lunarMonth,lunarDay,lunarLeap,recurring:document.getElementById('mRecurring').checked,hiddenFromDaughter:document.getElementById('mHideDaughter').checked,memo:document.getElementById('mMemo').value};
+    const rec={id:ev.id||uid(),name,date,lunar:isLunar,lunarYear,lunarMonth,lunarDay,lunarLeap,recurring:document.getElementById('mRecurring').checked,hiddenFromDaughter:document.getElementById('mHideDaughter').checked,isTax:document.getElementById('mIsTax').checked,memo:document.getElementById('mMemo').value};
     if(ev.id){ const idx=state.events.findIndex(x=>x.id===ev.id); state.events[idx]=rec; }
     else state.events.push(rec);
     queueSave(); closeModal(); renderEvents(); renderHome(); renderSchedule();
