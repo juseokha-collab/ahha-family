@@ -1338,16 +1338,29 @@ function habitBestStreak(id, type){
   }
   return best;
 }
-function habitMiniRingSvg(done, total){
+function habitMiniRingSvg(done, total, type){
   const size=42, r=(size-8)/2, c=size/2, circ=2*Math.PI*r;
   const pct=total?done/total:0;
   const dash=circ*pct;
   const full = total>0 && done>=total;
-  const color = full ? 'var(--good)' : 'var(--accent)';
+  const color = full ? 'var(--good)' : (type==='weekly' ? 'var(--accent2)' : 'var(--accent)');
   return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
     <circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="var(--panel2)" stroke-width="6"/>
     <circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="${color}" stroke-width="6" stroke-linecap="round" stroke-dasharray="${dash} ${circ}" transform="rotate(-90 ${c} ${c})"/>
   </svg>`;
+}
+function achievementRingSvg(size){
+  const s=size||12, r=(s-3)/2, c=s/2;
+  return `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}" style="flex-shrink:0;" title="Daily/Weekly Habit 전부 완료"><circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="var(--good)" stroke-width="2.2"/></svg>`;
+}
+function dayHabitsFullyDone(dateStr){
+  const daily=myHabits('daily');
+  const weekly=myHabits('weekly');
+  if(!daily.length || !weekly.length) return false;
+  const dailyDone = daily.every(h=>!!habitLogFor(h.id)[dateStr]);
+  const wk=weekStartOf(dateStr);
+  const weeklyDone = weekly.every(h=>!!habitLogFor(h.id)[wk]);
+  return dailyDone && weeklyDone;
 }
 function habitRingStripHtml(habits, type, anchorDate){
   const periods=habitPeriodKeys(type, anchorDate, 7);
@@ -1361,7 +1374,7 @@ function habitRingStripHtml(habits, type, anchorDate){
       const label = type==='daily' ? fmtShortDateSlashDow(labelDate) : fmtSlashMD(labelDate.slice(5));
       const wc=weekdayColor(labelDate);
       const badgeText = type==='daily' ? 'Today' : 'This Week';
-      return `<div class="habit-ring-col" title="${done}/${total}"><div class="habit-today-slot">${isCurrent?`<span class="habit-today-badge">${badgeText}</span>`:''}</div>${habitMiniRingSvg(done,total)}<div class="habit-ring-date" style="${wc?'color:'+wc+';':''}">${label}</div></div>`;
+      return `<div class="habit-ring-col" title="${done}/${total}"><div class="habit-today-slot">${isCurrent?`<span class="habit-today-badge">${badgeText}</span>`:''}</div>${habitMiniRingSvg(done,total,type)}<div class="habit-ring-date" style="${wc?'color:'+wc+';':''}">${label}</div></div>`;
     }).join('')}
   </div>`;
 }
@@ -1531,13 +1544,12 @@ function renderHome(){
         <textarea id="diaryInput" placeholder="오늘 하루는 어땠나요?" style="overflow:hidden;">${escapeHtml(mine.diary)}</textarea>
         <div class="row" style="justify-content:space-between;align-items:center;margin-top:8px;">
           <label id="diaryArchiveToggle" style="cursor:pointer;">${diaryArchiveOpen?'▲':'▼'} Comment 모아보기</label>
-          ${diaryArchiveOpen?`<label class="pill" style="cursor:pointer;"><input type="checkbox" id="diaryArchiveFamilyToggle" ${diaryArchiveIncludeFamily?'checked':''} style="margin-right:4px;">엄빠 메시지 보기</label>`:''}
+          ${diaryArchiveOpen?`<label class="pill" style="cursor:pointer;"><input type="checkbox" id="diaryArchiveFamilyToggle" ${diaryArchiveIncludeFamily?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">엄빠 메시지 보기</label>`:''}
         </div>
         ${diaryArchiveOpen?`<div id="diaryArchiveBox" style="margin-top:6px;">${diaryArchiveRowsHtml()}</div>`:''}
       </div>
 
-      ${todoPct!=null?`<div class="bar-row" style="margin-top:14px;"><span class="meta" style="flex-shrink:0;">Today's things to do 진행율 ${todoPct}%</span><div class="bar-track"><div class="bar-fill" style="width:${todoPct}%"></div></div></div>`:''}
-      <div class="row" style="justify-content:flex-end;align-items:center;gap:6px;margin:6px 0;">
+      <div class="row" style="justify-content:flex-end;align-items:center;gap:6px;margin-top:14px;">
         <span class="meta">정렬</span>
         <select id="todoSortSelect" style="font-size:12px;padding:2px 6px;border-radius:6px;background:var(--panel2);border:1px solid var(--border);color:var(--text);">
           <option value="dueDate" ${todoSortBy==='dueDate'?'selected':''}>D-day순</option>
@@ -1545,6 +1557,7 @@ function renderHome(){
           <option value="category" ${todoSortBy==='category'?'selected':''}>카테고리순</option>
         </select>
       </div>
+      ${todoPct!=null?`<div class="bar-row" style="margin:6px 0;"><span class="meta" style="flex-shrink:0;">Today's things to do 진행율 ${todoPct}%</span><div class="bar-track"><div class="bar-fill" style="width:${todoPct}%"></div></div></div>`:''}
       ${todayTodos.map(t=>{
         const d=dday(t.dueDate);
         const cat=myTodoCategories().find(c=>c.name===t.category);
@@ -1822,7 +1835,7 @@ function renderSchedule(){
     const dayColor=myDayColors[dateStr]||defaultDayBg;
     const colorAttr=dayColor?` style="background:${dayColor};"`:'';
     grid += `<div class="cal-cell ${inMonth?'':'other'} ${dateStr===todayS?'today':''} ${dateStr===scheduleSel?'sel':''} ${holidayName?'holiday':''}" data-date="${dateStr}"${colorAttr}>
-      <div class="day-row"><span class="day-num">${dateObj.getDate()}</span>${holidayName?`<span class="cal-holiday">${escapeHtml(holidayName)}</span>`:''}</div>${commentHtml}${shown}${more}
+      <div class="day-row"><span class="day-num">${dateObj.getDate()}</span>${(effectiveRole()==='daughter'&&dayHabitsFullyDone(dateStr))?achievementRingSvg(12):''}${holidayName?`<span class="cal-holiday">${escapeHtml(holidayName)}</span>`:''}</div>${commentHtml}${shown}${more}
     </div>`;
   }
   const dayItems = filtered.filter(s=>scheduleItemOccursOn(s,scheduleSel)).sort((a,b)=>(a.time||'').localeCompare(b.time||'')).map(s=>({...s, ...resolveItemColors(s,scheduleSel)}));
