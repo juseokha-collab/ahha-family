@@ -3646,8 +3646,8 @@ function renderEvents(){
   const row = ev => `
     <div class="list-item" style="align-items:center;">
       <div style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
-        <span style="font-size:13px;font-weight:400;">${escapeHtml(ev.name)}</span>
-        <span class="meta">${ev.lunar?`음력 ${ev.lunarMonth}/${ev.lunarDay}${ev.lunarLeap?'(윤)':''}`:ev.date}${ev.recurring?' (매년)':''}${ev.isTax?` <span class="pill" style="background:rgba(255,105,150,0.14);">세금</span>`:''}${ev.hiddenFromDaughter?` <span class="pill">비공개</span>`:''}${ev.memo?' · '+escapeHtml(ev.memo):''}</span>
+        ${ev.isTax?`<span class="pill" style="background:rgba(255,105,150,0.14);margin-right:4px;">세금</span>`:''}<span style="font-size:13px;font-weight:400;">${escapeHtml(ev.name)}</span>
+        <span class="meta">${ev.lunar?`음력 ${ev.lunarMonth}/${ev.lunarDay}${ev.lunarLeap?'(윤)':''}`:ev.date}${ev.recurring?' (매년)':''}${ev.hiddenFromDaughter?` <span class="pill">비공개</span>`:''}${ev.memo?' · '+escapeHtml(ev.memo):''}</span>
       </div>
       <div class="row" style="flex-wrap:nowrap;flex-shrink:0;">
         <span class="meta" style="width:76px;text-align:right;white-space:nowrap;">${ev.occDate}</span>
