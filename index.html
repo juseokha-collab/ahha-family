@@ -66,15 +66,15 @@ nav.tabs button.active{background:var(--panel2);color:var(--text);border-color:v
 .pill.d-soon{color:var(--warn);border-color:var(--warn);}
 .pill.d-far{color:var(--good);border-color:var(--good);}
 .empty{color:var(--muted);font-size:13px;text-align:center;padding:24px 0;}
-.mood-row{display:flex;gap:8px;flex-wrap:nowrap;}
-.mood-row button{flex:1;min-width:0;font-size:22px;background:var(--panel2);border:1px solid var(--border);border-radius:10px;width:44px;height:44px;padding:0;}
-.mood-row button.sel{border-color:var(--accent);background:var(--sel-bg);}
+.mood-row{display:flex;gap:2px;flex-wrap:nowrap;}
+.mood-row button{flex:1;min-width:0;font-size:20px;background:none;border:none;border-radius:8px;width:28px;height:28px;padding:0;}
+.mood-row button.sel{background:var(--sel-bg);}
 @media(max-width:420px){
-  .mood-row{gap:4px;}
-  .mood-row button{height:36px;font-size:16px;border-radius:8px;}
+  .mood-row{gap:1px;}
+  .mood-row button{height:24px;width:24px;font-size:16px;border-radius:6px;}
 }
 .datebar{display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:10px;flex-wrap:wrap;}
-.datebar .d{font-size:16px;font-weight:700;white-space:nowrap;}
+.datebar .d{font-size:14px;font-weight:700;white-space:nowrap;}
 button.iconbtn{background:transparent;border:none;color:var(--text);border-radius:8px;width:32px;height:32px;flex-shrink:0;padding:0;font-size:18px;}
 button.iconbtn:hover{color:var(--accent);}
 .datebar .btn.small{white-space:nowrap;flex-shrink:0;}
@@ -214,7 +214,7 @@ input.date-input{cursor:pointer;background:var(--panel2) url('data:image/svg+xml
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-<script src="firebase-config.js?v=20260814f"></script>
-<script src="app.js?v=20260814f"></script>
+<script src="firebase-config.js?v=20260814g"></script>
+<script src="app.js?v=20260814g"></script>
 </body>
 </html>

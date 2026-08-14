@@ -1472,7 +1472,7 @@ function diaryArchiveRowsHtml(){
   if(!rows.length) return `<div class="empty">아직 작성된 Comment가 없어요</div>`;
   return rows.map(r=>`
     <div class="list-item" data-jump="${r.date}" style="cursor:pointer;">
-      <div class="content-text" style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${r.date} ${r.mood||''} <span class="pill">${escapeHtml(authorLabel(r,r.key))}</span>${r.diary?' '+escapeHtml(r.diary):''}</div>
+      <div class="content-text" style="flex:1;min-width:0;white-space:normal;word-break:break-word;">${r.date} ${r.mood||''} <span class="pill">${escapeHtml(authorLabel(r,r.key))}</span>${r.diary?' '+escapeHtml(r.diary):''}</div>
       ${r.key===myKey?`<button class="icon-btn" data-edit-diary="${escapeHtml(r.date)}|${escapeHtml(r.key)}" title="수정">✏️</button>`:''}
     </div>`).join('');
 }
