@@ -264,7 +264,9 @@ function defaultState(){
     deletedIds:[],
     habits:{daily:[], weekly:[]},
     habitLog:{},
-    monthNotes:{}
+    monthNotes:{},
+    letters:[],
+    daughterActivity:[]
   };
 }
 function markDeleted(id){
@@ -408,9 +410,23 @@ function loadLocal(){
 }
 let state=loadLocal();
 let saveTimer=null;
+let daughterSessionLogged=false;
+const TAB_LOG_NAMES={home:'홈',schedule:'일정',health:'건강',budget:'가계부',study:'Learning'};
+function logDaughterActivityOnce(){
+  if(daughterSessionLogged) return;
+  if(!(user && EMAIL_ROLE[user.email]==='daughter')) return;
+  daughterSessionLogged=true;
+  const now=new Date();
+  const ts=`${pad2(now.getMonth()+1)}-${pad2(now.getDate())} ${pad2(now.getHours())}:${pad2(now.getMinutes())}`;
+  const tabName=TAB_LOG_NAMES[activeTab]||activeTab;
+  if(!state.daughterActivity) state.daughterActivity=[];
+  state.daughterActivity.unshift({id:uid(), ts, text:`${tabName}탭 수정`});
+  state.daughterActivity=state.daughterActivity.slice(0,50);
+}
 function saveLocal(){ try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }catch(e){} }
 function familyDocRef(){ return db.collection('shared').doc('family-state'); }
 function queueSave(){
+  logDaughterActivityOnce();
   saveLocal();
   clearTimeout(saveTimer);
   saveTimer=setTimeout(()=>{
@@ -553,6 +569,8 @@ function mergeStates(localState, cloudState){
   };
   merged.habitLog=mergeHabitLog(localState.habitLog, cloudState.habitLog);
   merged.monthNotes=mergeKeyedColorMaps(localState.monthNotes, cloudState.monthNotes);
+  merged.letters=mergeById(localState.letters, cloudState.letters, deletedSet);
+  merged.daughterActivity=mergeById(localState.daughterActivity, cloudState.daughterActivity, deletedSet);
   return merged;
 }
 function initAuth(){
@@ -789,6 +807,15 @@ let homeDate = todayStr();
 const MOODS=['😊','🥰','🙂','😐','😫','😢','😠','🤒','😴','🥳'];
 let diaryArchiveOpen=false;
 let diaryArchiveIncludeFamily=false;
+let letterViewMode=false;
+function lettersRowsHtml(){
+  const letters=(state.letters||[]).slice().reverse();
+  if(!letters.length) return `<div class="empty">아직 받은 편지가 없어요</div>`;
+  return letters.map(l=>`
+    <div class="list-item">
+      <div class="content-text" style="flex:1;min-width:0;white-space:normal;word-break:break-word;">${escapeHtml(l.date)} <span class="pill">${escapeHtml(l.fromLabel||'')}</span> ${escapeHtml(l.text)}</div>
+    </div>`).join('');
+}
 function myVisibleScheduleItems(dateStr){
   const allowed=getAllowedScheduleFilters();
   const virtualEventItems=state.events
@@ -982,7 +1009,7 @@ function renderDayTimelines(){
           ${!days.includes(todayStr())?todayPillBtn('dtTodayBtn'):''}
         </div>
         <div class="row" style="gap:10px;">
-          ${role && role!=='daughter' ? `<label class="pill" style="cursor:pointer;"><input type="checkbox" id="showDaughterToggleHome" ${showDaughterOnHome?'checked':''} style="margin-right:4px;">딸</label>` : ''}
+          ${role && role!=='daughter' ? `<label class="pill" style="cursor:pointer;"><input type="checkbox" id="showDaughterToggleHome" ${showDaughterOnHome?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">딸</label>` : ''}
           <label class="pill" style="cursor:pointer;"><input type="checkbox" id="showCommonToggleHome" ${showCommonOnHome?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">가족공통</label>
         </div>
       </div>
@@ -1513,6 +1540,7 @@ function renderHome(){
   const entries = day.entries || {};
   const myKey = currentAuthorKey();
   const mine = entries[myKey] || {};
+  const unreadLetterCount = (state.letters||[]).filter(l=>!l.read).length;
   const el=document.getElementById('tab-home');
   const dLabel = fmtShortDateDow(homeDate);
   const dLabelColor = weekdayColor(homeDate);
@@ -1538,20 +1566,31 @@ function renderHome(){
           ${MOODS.map(m=>`<button data-m="${m}" class="${mine.mood===m?'sel':''}">${m}</button>`).join('')}
         </div>
       </div>
+      ${(user && EMAIL_ROLE[user.email]!=='daughter')?`
+      <div class="field" style="margin-top:10px;">
+        <label>👀 Lora's Activities</label>
+        <div style="margin-top:4px;">
+          ${(state.daughterActivity||[]).slice(0,6).length ? (state.daughterActivity||[]).slice(0,6).map(e=>`<div class="meta" style="margin-top:2px;">${escapeHtml(e.ts)} ${escapeHtml(e.text)}</div>`).join('') : `<div class="meta">아직 접속 기록이 없어요</div>`}
+        </div>
+      </div>`:''}
       <div class="field" style="margin-top:10px;">
         <div class="row" style="justify-content:space-between;align-items:center;">
           <label style="margin:0;">Comment</label>
           <div class="row" style="gap:8px;">
             <span class="meta" id="diarySaveStatus">${mine.diary?'✓ 저장됨':''}</span>
+            ${effectiveRole()!=='daughter'?`<button class="btn small" id="sendLetterBtn" title="쓴 내용을 딸에게 편지로 보내기">✉️ 딸에게</button>`:''}
             <button class="btn small primary" id="diarySaveBtn">저장</button>
           </div>
         </div>
         <textarea id="diaryInput" placeholder="오늘 하루는 어땠나요?" style="overflow:hidden;">${escapeHtml(mine.diary)}</textarea>
         <div class="row" style="justify-content:space-between;align-items:center;margin-top:8px;">
-          <label id="diaryArchiveToggle" style="cursor:pointer;">${diaryArchiveOpen?'▲':'▼'} Comment 모아보기</label>
-          ${diaryArchiveOpen?`<label class="pill" style="cursor:pointer;"><input type="checkbox" id="diaryArchiveFamilyToggle" ${diaryArchiveIncludeFamily?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">엄빠 메시지 보기</label>`:''}
+          <label id="diaryArchiveToggle" style="cursor:pointer;">${diaryArchiveOpen?'▲':'▼'} ${letterViewMode?'편지 모아보기':'Comment 모아보기'}</label>
+          <div class="row" style="gap:6px;">
+            ${effectiveRole()==='daughter'?`<button class="btn small" id="lettersBtn">✉️ 편지${unreadLetterCount>0?`(${unreadLetterCount})`:''}</button>`:''}
+            ${diaryArchiveOpen && !letterViewMode?`<label class="pill" style="cursor:pointer;"><input type="checkbox" id="diaryArchiveFamilyToggle" ${diaryArchiveIncludeFamily?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">엄빠 메시지 보기</label>`:''}
+          </div>
         </div>
-        ${diaryArchiveOpen?`<div id="diaryArchiveBox" style="margin-top:6px;">${diaryArchiveRowsHtml()}</div>`:''}
+        ${diaryArchiveOpen?`<div id="diaryArchiveBox" style="margin-top:6px;">${letterViewMode?lettersRowsHtml():diaryArchiveRowsHtml()}</div>`:''}
       </div>
 
       <div class="row" style="justify-content:flex-end;align-items:center;gap:6px;margin-top:14px;">
@@ -1647,10 +1686,37 @@ function renderHome(){
   };
   document.getElementById('diaryArchiveToggle').onclick=()=>{
     diaryArchiveOpen=!diaryArchiveOpen;
+    letterViewMode=false;
     renderHome();
   };
-  if(diaryArchiveOpen){
-    document.getElementById('diaryArchiveFamilyToggle').addEventListener('change', e=>{
+  const sendLetterBtn=document.getElementById('sendLetterBtn');
+  if(sendLetterBtn) sendLetterBtn.onclick=()=>{
+    const text=document.getElementById('diaryInput').value.trim();
+    if(!text){ showToast('내용을 입력해주세요'); return; }
+    ensureDay(homeDate);
+    const cur=state.daily[homeDate].entries[myKey]||{};
+    cur.diary=text;
+    cur.name = user ? (user.displayName||user.email) : '나';
+    cur.updatedAt=Date.now();
+    state.daily[homeDate].entries[myKey]=cur;
+    if(!state.letters) state.letters=[];
+    const now=new Date();
+    state.letters.push({id:uid(), fromKey:myKey, fromLabel:cur.name, text, date:`${pad2(now.getMonth()+1)}-${pad2(now.getDate())} ${pad2(now.getHours())}:${pad2(now.getMinutes())}`, read:false});
+    queueSave();
+    showToast('딸에게 편지를 보냈어요 💌');
+    renderHome();
+  };
+  const lettersBtn=document.getElementById('lettersBtn');
+  if(lettersBtn) lettersBtn.onclick=()=>{
+    diaryArchiveOpen=true;
+    letterViewMode=true;
+    (state.letters||[]).forEach(l=>{ l.read=true; });
+    queueSave();
+    renderHome();
+  };
+  if(diaryArchiveOpen && !letterViewMode){
+    const familyToggleEl=document.getElementById('diaryArchiveFamilyToggle');
+    if(familyToggleEl) familyToggleEl.addEventListener('change', e=>{
       diaryArchiveIncludeFamily=e.target.checked;
       renderHome();
     });
