@@ -1356,9 +1356,12 @@ function habitRingStripHtml(habits, type, anchorDate){
   return `<div class="habit-ring-strip">
     ${periods.map(k=>{
       const done=habits.filter(h=>habitLogFor(h.id)[k]).length;
-      const isToday = k===todayKey;
-      const label = type==='daily' ? fmtShortDateSlashDow(k) : fmtSlashMD(k.slice(5));
-      return `<div class="habit-ring-col" title="${done}/${total}"><div class="habit-today-slot">${isToday&&type==='daily'?`<span class="habit-today-badge">Today</span>`:''}</div>${habitMiniRingSvg(done,total)}<div class="habit-ring-date">${label}</div></div>`;
+      const isCurrent = k===todayKey;
+      const labelDate = type==='daily' ? k : fmtDate(addDays(parseDate(k),6));
+      const label = type==='daily' ? fmtShortDateSlashDow(labelDate) : fmtSlashMD(labelDate.slice(5));
+      const wc=weekdayColor(labelDate);
+      const badgeText = type==='daily' ? 'Today' : 'This Week';
+      return `<div class="habit-ring-col" title="${done}/${total}"><div class="habit-today-slot">${isCurrent?`<span class="habit-today-badge">${badgeText}</span>`:''}</div>${habitMiniRingSvg(done,total)}<div class="habit-ring-date" style="${wc?'color:'+wc+';':''}">${label}</div></div>`;
     }).join('')}
   </div>`;
 }
@@ -1396,11 +1399,10 @@ function habitSectionHtml(type, title, icon){
       <button class="btn small primary" data-habit-add="${type}">+ 습관 추가</button>
     </div>
     ${habits.length?`
-    ${type==='weekly'?`<div class="row" style="justify-content:center;margin-top:8px;"><span class="meta">최근 7주</span></div>`:''}
-    <div class="row" style="align-items:flex-start;gap:4px;margin-top:${type==='weekly'?'2px':'8px'};">
-      <div class="habit-nav-col"><div class="habit-today-slot"></div><button class="iconbtn" data-habit-prev="${type}">‹</button></div>
+    <div class="row" style="align-items:center;gap:4px;margin-top:8px;">
+      <button class="iconbtn habit-nav-btn" data-habit-prev="${type}">◀</button>
       <div style="flex:1;min-width:0;">${habitRingStripHtml(habits, type, anchorDate)}</div>
-      <div class="habit-nav-col"><div class="habit-today-slot"></div><button class="iconbtn" data-habit-next="${type}">›</button></div>
+      <button class="iconbtn habit-nav-btn" data-habit-next="${type}">▶</button>
     </div>
     ${habits.map(h=>habitRowHtml(h,type,anchorDate)).join('')}
     ` : `<div class="empty" style="margin-top:10px;">아직 등록된 습관이 없어요</div>`}
@@ -3764,7 +3766,7 @@ function bindShowCommonToggle(id){
     renderSchedule();
   });
 }
-const FLAG_KR_SVG=`<svg width="14" height="14" viewBox="0 0 100 100" style="vertical-align:-2px;"><path d="M50,0 A50,50 0 0,1 50,100 A25,25 0 0,1 50,50 A25,25 0 0,0 50,0 Z" fill="#c60c30"/><path d="M50,0 A50,50 0 0,0 50,100 A25,25 0 0,0 50,50 A25,25 0 0,1 50,0 Z" fill="#003478"/></svg>`;
+const FLAG_KR_SVG=`<svg width="14" height="14" viewBox="0 0 100 100" style="vertical-align:-2px;"><circle cx="50" cy="50" r="50" fill="#c60c30"/><path d="M50,0 A50,50 0 0,0 50,100 A25,25 0 0,0 50,50 A25,25 0 0,1 50,0 Z" fill="#003478" stroke="#003478" stroke-width="1.5"/></svg>`;
 const FLAG_GB_SVG=`<svg width="18" height="13" viewBox="0 0 16 11" style="vertical-align:-2px;"><rect width="16" height="11" fill="#00247d"/><path d="M0,0 L16,11 M16,0 L0,11" stroke="#fff" stroke-width="2.2"/><path d="M0,0 L16,11 M16,0 L0,11" stroke="#cf142b" stroke-width="1.1"/><path d="M8,0 V11 M0,5.5 H16" stroke="#fff" stroke-width="3.6"/><path d="M8,0 V11 M0,5.5 H16" stroke="#cf142b" stroke-width="2.2"/></svg>`;
 function updateWorldClock(){
   const el=document.getElementById('worldClock');
