@@ -769,7 +769,7 @@ function headerDateHtml(dateStr){
 }
 /* ---------- HOME ---------- */
 let homeDate = todayStr();
-const MOODS=['😊','🥰','🙂','😐','😫','😢','😠','🤒'];
+const MOODS=['😊','🥰','🙂','😐','😫','😢','😠','🤒','😴','🥳'];
 let diaryArchiveOpen=false;
 let diaryArchiveIncludeFamily=false;
 function myVisibleScheduleItems(dateStr){
