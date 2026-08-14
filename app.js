@@ -997,9 +997,10 @@ function renderDayTimelines(){
   const ddayRole=effectiveRole();
   const ddayCells=days.map((d,i)=>{
     const gap = i>0 ? '<td class="dt-gap"></td>' : '';
-    const evs=state.events.filter(ev=>!(ev.hiddenFromDaughter && ddayRole==='daughter') && fmtDate(eventOccurrence(ev))===d);
-    const text=evs.map(e=>e.name).join(', ');
-    return gap+`<td class="dt-cell" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:0;">${escapeHtml(text)}</td>`;
+    const evs=state.events.filter(ev=>!(ev.hiddenFromDaughter && ddayRole==='daughter') && fmtDate(eventOccurrence(ev))===d)
+      .map(ev=>({id:'evt-dday-'+ev.id, title:ev.name, memo:ev.memo}));
+    if(!evs.length) return gap+`<td class="dt-cell"></td>`;
+    return gap+`<td class="dt-cell filled">${evs.map(dtChip).join('')}</td>`;
   }).join('');
   rows += `<tr class="dt-edge-row"><td class="dt-time-col">D-day</td>${ddayCells}</tr>`;
   const headCells = days.map((d,i)=>{
