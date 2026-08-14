@@ -254,7 +254,7 @@ function defaultState(){
     budget:[],
     vehicle:{plate:'',model:'',regDate:'',tireSize:'',fuel:[],maint:[],renewals:[],maintCycle:{}},
     events:[],
-    healthSchedule:{dad:[],mom:[],daughter:[]},
+    healthSchedule:{dad:[],mom:[],daughter:[],couple:[]},
     budgetCategories:{},
     study:[],
     todos:{},
@@ -1187,6 +1187,21 @@ function commitNewTodo(){
   queueSave(); renderHome();
   showToast('할 일이 추가되었어요');
 }
+const TODO_REPEAT_LABELS={none:'반복 안함',daily:'매일',weekly:'매주',monthly:'매월',yearly:'매년'};
+function nextTodoRepeatDate(dateStr, repeat){
+  const d=parseDate(dateStr);
+  if(repeat==='daily') return fmtDate(addDays(d,1));
+  if(repeat==='weekly') return fmtDate(addDays(d,7));
+  if(repeat==='monthly'){ const nd=new Date(d); nd.setMonth(nd.getMonth()+1); return fmtDate(nd); }
+  if(repeat==='yearly'){ const nd=new Date(d); nd.setFullYear(nd.getFullYear()+1); return fmtDate(nd); }
+  return null;
+}
+function spawnNextTodoOccurrence(t){
+  if(!t.repeat || t.repeat==='none') return;
+  const nextDate=nextTodoRepeatDate(t.dueDate, t.repeat);
+  if(!nextDate) return;
+  myTodos().push({id:uid(), task:t.task, dueDate:nextDate, dueTime:t.dueTime||'', category:t.category, done:false, doneDate:'', createdDate:todayStr(), repeat:t.repeat});
+}
 function openTodoEditModal(id){
   const list=myTodos();
   const t=list.find(x=>x.id===id);
@@ -1217,7 +1232,16 @@ function openTodoEditModal(id){
         ${catOptions.map(c=>`<label class="pill" style="cursor:pointer;background:${t.category===c.name?c.color:'var(--panel2)'};border-color:${c.color};"><input type="radio" name="mCat" value="${escapeHtml(c.name)}" ${t.category===c.name?'checked':''} style="margin-right:4px;">${escapeHtml(c.name)}</label>`).join('')}
       </div>
     </div>
-    <label class="pill" style="cursor:pointer;display:inline-block;margin:6px 0;"><input type="checkbox" id="mDone" ${t.done?'checked':''} style="margin-right:4px;">완료</label>
+    <label class="pill" style="cursor:pointer;display:inline-block;margin:6px 0;"><input type="checkbox" id="mDone" ${t.done?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">완료</label>
+    <div class="row" style="justify-content:space-between;align-items:center;margin-top:6px;">
+      <button type="button" class="btn small" id="repeatToggleBtn">🔁 ${TODO_REPEAT_LABELS[t.repeat||'none']}</button>
+    </div>
+    <div id="repeatOptions" style="display:${(t.repeat&&t.repeat!=='none')?'':'none'};margin-top:8px;">
+      <div class="row" style="gap:6px;flex-wrap:wrap;">
+        ${Object.keys(TODO_REPEAT_LABELS).map(r=>`<label class="pill" style="cursor:pointer;"><input type="radio" name="mTodoRepeat" value="${r}" ${((t.repeat||'none')===r)?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">${TODO_REPEAT_LABELS[r]}</label>`).join('')}
+      </div>
+      <div class="meta" style="margin-top:4px;">완료 체크할 때마다 다음 일정으로 새 할 일이 자동 생성돼요</div>
+    </div>
     <div class="modal-actions">
       <button class="btn danger" id="mDelete">삭제</button>
       <button class="btn" id="mCancel">취소</button>
@@ -1227,14 +1251,19 @@ function openTodoEditModal(id){
   attachDatePicker('mDue');
   document.getElementById('mCancel').onclick=closeModal;
   document.getElementById('manageTodoCatBtn').onclick=()=>openTodoCategoryManageModal();
+  document.getElementById('repeatToggleBtn').onclick=()=>{
+    const el=document.getElementById('repeatOptions');
+    el.style.display = el.style.display==='none' ? '' : 'none';
+  };
   document.getElementById('mSave').onclick=()=>{
     t.task=document.getElementById('mTask').value.trim()||t.task;
     t.dueDate=document.getElementById('mDue').value||t.dueDate;
     const h=document.getElementById('mDueHour').value, mi=document.getElementById('mDueMin').value;
     t.dueTime=(h&&mi)?`${h}:${mi}`:'';
     t.category=(document.querySelector('input[name="mCat"]:checked')||{}).value||t.category;
+    t.repeat=(document.querySelector('input[name="mTodoRepeat"]:checked')||{}).value||'none';
     const doneNow=document.getElementById('mDone').checked;
-    if(doneNow && !t.done) t.doneDate=todayStr();
+    if(doneNow && !t.done){ t.doneDate=todayStr(); spawnNextTodoOccurrence(t); }
     if(!doneNow) t.doneDate='';
     t.done=doneNow;
     queueSave(); closeModal(); renderHome();
@@ -1732,6 +1761,7 @@ function renderHome(){
   el.querySelectorAll('[data-todo-id]').forEach(cb=>cb.addEventListener('change', e=>{
     const t=myTodos().find(x=>x.id===cb.dataset.todoId);
     if(!t) return;
+    if(cb.checked && !t.done) spawnNextTodoOccurrence(t);
     t.done=cb.checked;
     t.doneDate = cb.checked ? todayStr() : '';
     queueSave(); renderHome();
@@ -1953,7 +1983,7 @@ function renderSchedule(){
         return `
         <div class="list-item sched-item"${s.bgColor?` style="background:${s.bgColor};"`:''}>
           <div><div style="font-size:14px;">${timeRangeLabel(s)?escapeHtml(timeRangeLabel(s))+' ':''}${badge}${escapeHtml(s.title)} ${showOwnerPill?`<span class="pill">${ownerLabel(s.owner)}</span>`:''}</div>${s.memo?`<div class="content-text" style="font-size:12.5px;">${escapeHtml(s.memo)}</div>`:''}</div>
-          <div class="row">${s.virtual? `<span class="meta">D-day 탭에서 수정</span>` : (canManage?`<button class="btn small" data-edit="${s.id}">수정</button><button class="btn small danger" data-del="${s.id}">삭제</button>`:`<span class="meta">작성자만 관리 가능</span>`)}</div>
+          <div class="row">${s.virtual? `<span class="meta">D-day 탭에서 수정</span>` : (canManage?`<button class="btn small" style="font-size:11px;padding:3px 8px;" data-edit="${s.id}" title="수정">✏️</button> <button class="btn small danger" style="font-size:11px;padding:3px 8px;" data-del="${s.id}" title="삭제">✕</button>`:`<span class="meta">작성자만 관리 가능</span>`)}</div>
         </div>`;
       }).join('') : `<div class="empty">일정이 없어요</div>`}
     </div>
@@ -2037,7 +2067,10 @@ function addOneHour(timeStr){
   return pad2(Math.floor(total/60))+':'+pad2(total%60);
 }
 function canManageSchedule(item){
-  return !item || item.owner!=='common' || !item.createdBy || item.createdBy===currentAuthorKey();
+  if(!item || item.owner!=='common' || !item.createdBy || item.createdBy===currentAuthorKey()) return true;
+  const knownAuthorKeys=[...Object.keys(EMAIL_ROLE), 'daughter'];
+  if(!knownAuthorKeys.includes(item.createdBy)) return true;
+  return false;
 }
 const REPEAT_LABELS={none:'안함',weekday:'매일(평일)',daily:'매일(휴일포함)',weekly:'매주',yearly:'매년'};
 function scheduleItemOccursOn(item, dateStr){
@@ -2063,6 +2096,7 @@ function openScheduleModal(existing, prefill, occurDate){
   const myOwners=getAllowedOwners();
   const role=effectiveRole();
   const defaultOwner = (prefill&&prefill.owner) ? prefill.owner
+    : role==='mom' ? 'common'
     : (role && role!=='dad' && myOwners.some(o=>o.key===role)) ? role
     : ((scheduleFilter!=='all' && myOwners.some(o=>o.key===scheduleFilter)) ? scheduleFilter : (myOwners[0]?myOwners[0].key:'common'));
   const s=existing||{id:null,date:(prefill&&prefill.date)||scheduleSel,time:(prefill&&prefill.time)||'',endTime:(prefill&&prefill.endTime)||'',title:'',contacts:'',memo:'',owner:defaultOwner,repeat:'none',repeatUntil:''};
@@ -2257,6 +2291,24 @@ function projectedAchievementDate(currentWeight, targetWeight, weeklyLossGrams){
   const daysNeeded = Math.ceil((diffGrams/Number(weeklyLossGrams))*7);
   return fmtDate(addDays(parseDate(todayStr()), daysNeeded));
 }
+function coupleHealthSchedKeys(){
+  if(!state.healthSchedule) state.healthSchedule={dad:[],mom:[],daughter:[]};
+  if(!state.healthSchedule.couple) state.healthSchedule.couple=[];
+  return ['dad','mom','couple'];
+}
+function myHealthSchedList(){
+  if(healthPerson==='daughter') return state.healthSchedule.daughter||[];
+  return coupleHealthSchedKeys().flatMap(k=>(state.healthSchedule[k]||[]));
+}
+function findHealthSchedItem(id){
+  const keys = healthPerson==='daughter' ? ['daughter'] : coupleHealthSchedKeys();
+  for(const k of keys){
+    const arr=state.healthSchedule[k]||[];
+    const idx=arr.findIndex(x=>x.id===id);
+    if(idx>=0) return {key:k, idx, item:arr[idx]};
+  }
+  return null;
+}
 function renderHealth(){
   healthPerson = effectiveRole() || 'mom';
   if(effectiveRole()==='mom' && !momWeightDefaultsApplied){
@@ -2273,7 +2325,7 @@ function renderHealth(){
   const el=document.getElementById('tab-health');
   const dLabel = parseDate(healthDate).toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'});
   const dLabelColor = weekdayColor(healthDate);
-  const schedList = ((state.healthSchedule&&state.healthSchedule[healthPerson])||[]).map(it=>({...it,d:dday(it.date)})).sort((a,b)=>a.d-b.d);
+  const schedList = myHealthSchedList().map(it=>({...it,d:dday(it.date)})).sort((a,b)=>a.d-b.d);
   const otherMembers=FAMILY_MEMBERS.filter(m=>m.key!==healthPerson);
   const goals = weightGoalsFor(healthPerson);
   const curWeight = latestWeightFor(healthPerson);
@@ -2391,7 +2443,7 @@ function renderHealth(){
     </div>
     ${healthPerson!=='daughter'?`
     <div class="card">
-      <div class="row" style="justify-content:space-between;"><h3 style="margin:0;">🩺 ${memberLabel(healthPerson)} 주요 검진 일정</h3><button class="btn primary small" id="addHealthSchedBtn">+ 추가</button></div>
+      <div class="row" style="justify-content:space-between;"><h3 style="margin:0;">🩺 주요 검진 일정</h3><button class="btn primary small" id="addHealthSchedBtn">+ 추가</button></div>
       ${schedList.length? schedList.map(it=>`
         <div class="list-item">
           <div><div>${escapeHtml(it.name)}</div><div class="meta">${it.date}${it.memo?' · '+escapeHtml(it.memo):''}</div></div>
@@ -2500,14 +2552,19 @@ function renderHealth(){
   });
   const addHealthSchedBtn=document.getElementById('addHealthSchedBtn');
   if(addHealthSchedBtn) addHealthSchedBtn.onclick=()=>openHealthSchedModal();
-  el.querySelectorAll('[data-edit-hsched]').forEach(b=>b.onclick=()=>openHealthSchedModal((state.healthSchedule[healthPerson]||[]).find(x=>x.id===b.dataset.editHsched)));
+  el.querySelectorAll('[data-edit-hsched]').forEach(b=>b.onclick=()=>{
+    const found=findHealthSchedItem(b.dataset.editHsched);
+    if(found) openHealthSchedModal(found.item);
+  });
   el.querySelectorAll('[data-del-hsched]').forEach(b=>b.onclick=()=>{
-    if(confirm('삭제할까요?')){ state.healthSchedule[healthPerson]=(state.healthSchedule[healthPerson]||[]).filter(x=>x.id!==b.dataset.delHsched); markDeleted(b.dataset.delHsched); queueSave(); renderHealth(); }
+    if(!confirm('삭제할까요?')) return;
+    const found=findHealthSchedItem(b.dataset.delHsched);
+    if(found){ state.healthSchedule[found.key].splice(found.idx,1); markDeleted(b.dataset.delHsched); queueSave(); renderHealth(); }
   });
 }
 function openHealthSchedModal(existing){
   const it=existing||{id:null,date:todayStr(),name:'',memo:''};
-  const others=FAMILY_MEMBERS.filter(m=>m.key!==healthPerson);
+  const others=healthPerson==='daughter' ? FAMILY_MEMBERS.filter(m=>m.key!=='daughter') : FAMILY_MEMBERS.filter(m=>m.key==='daughter');
   openModal(`
     <h3>${existing?'검진 일정 수정':'검진 일정 추가'}</h3>
     <div class="field"><label>검진명 (예: 건강검진, 치과 정기검진)</label><input id="mName" value="${escapeHtml(it.name)}"></div>
@@ -2531,12 +2588,13 @@ function openHealthSchedModal(existing){
     const memo=document.getElementById('mMemo').value;
     const rec={id:it.id||uid(),name,date,memo};
     if(!state.healthSchedule) state.healthSchedule={dad:[],mom:[],daughter:[]};
-    if(!state.healthSchedule[healthPerson]) state.healthSchedule[healthPerson]=[];
     if(it.id){
-      const idx=state.healthSchedule[healthPerson].findIndex(x=>x.id===it.id);
-      state.healthSchedule[healthPerson][idx]=rec;
+      const found=findHealthSchedItem(it.id);
+      if(found) state.healthSchedule[found.key][found.idx]=rec;
     } else {
-      state.healthSchedule[healthPerson].push(rec);
+      const writeKey = healthPerson==='daughter' ? 'daughter' : (coupleHealthSchedKeys(), 'couple');
+      if(!state.healthSchedule[writeKey]) state.healthSchedule[writeKey]=[];
+      state.healthSchedule[writeKey].push(rec);
       const also=Array.from(document.querySelectorAll('.mAlsoMember:checked')).map(cb=>cb.value);
       also.forEach(k=>{
         if(!state.healthSchedule[k]) state.healthSchedule[k]=[];
