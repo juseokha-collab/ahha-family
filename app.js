@@ -970,7 +970,7 @@ function myHomeVisibleScheduleItems(dateStr){
 }
 function renderDayTimelines(){
   const days=Array.from({length:multiDayCount()},(_,n)=>fmtDate(addDays(parseDate(homeDate), n)));
-  const layouts=days.map(d=>computeDayLayoutFromItems(myHomeVisibleScheduleItems(d)));
+  const layouts=days.map(d=>computeDayLayoutFromItems(myHomeVisibleScheduleItems(d).filter(it=>!String(it.id).startsWith('evt-'))));
   const indices=[-1].concat(Array.from({length:DT_ROWS},(_,i)=>i)).concat([DT_ROWS]);
   const nowInfo=nowInfoForRole(effectiveRole());
   const showNowMarker=days.includes(nowInfo.dateStr);
@@ -1002,7 +1002,7 @@ function renderDayTimelines(){
     if(!evs.length) return gap+`<td class="dt-cell"></td>`;
     return gap+`<td class="dt-cell filled">${evs.map(dtChip).join('')}</td>`;
   }).join('');
-  rows += `<tr class="dt-edge-row"><td class="dt-time-col">D-day</td>${ddayCells}</tr>`;
+  rows += `<tr class="dt-edge-row"><td class="dt-time-col" style="font-weight:700;">D-day</td>${ddayCells}</tr>`;
   const headCells = days.map((d,i)=>{
     const gap = i>0 ? '<th class="dt-gap"></th>' : '';
     const isFirst = i===0;
