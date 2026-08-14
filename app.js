@@ -994,6 +994,14 @@ function renderDayTimelines(){
     const nowMarker=(showNowMarker && idx===nowIdx) ? `<span style="color:#e5383b;">▶</span> ` : '';
     rows += `<tr class="${meta.isEdge?'dt-edge-row':''}"><td class="dt-time-col">${nowMarker}${meta.label}</td>${cells}</tr>`;
   });
+  const ddayRole=effectiveRole();
+  const ddayCells=days.map((d,i)=>{
+    const gap = i>0 ? '<td class="dt-gap"></td>' : '';
+    const evs=state.events.filter(ev=>!(ev.hiddenFromDaughter && ddayRole==='daughter') && fmtDate(eventOccurrence(ev))===d);
+    const text=evs.map(e=>e.name).join(', ');
+    return gap+`<td class="dt-cell" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:0;">${escapeHtml(text)}</td>`;
+  }).join('');
+  rows += `<tr class="dt-edge-row"><td class="dt-time-col">D-day</td>${ddayCells}</tr>`;
   const headCells = days.map((d,i)=>{
     const gap = i>0 ? '<th class="dt-gap"></th>' : '';
     const isFirst = i===0;
@@ -1578,10 +1586,6 @@ function renderHome(){
   const dLabel = fmtShortDateDow(homeDate);
   const dLabelColor = weekdayColor(homeDate);
   const todaySchedule = myHomeVisibleScheduleItems(homeDate);
-  const ym=homeDate.slice(0,7);
-  const monthBudget = state.budget.filter(b=>b.date.startsWith(ym) && b.type!=='income' && (b.owner===undefined || b.owner===myKey)).reduce((s,b)=>s+Number(b.amount||0),0);
-  const upcomingEvent = state.events.filter(ev=>!(ev.hiddenFromDaughter && effectiveRole()==='daughter')).map(ev=>({...ev,d:ddayFromDate(eventOccurrence(ev))})).filter(e=>e.d>=0).sort((a,b)=>a.d-b.d)[0];
-  const upcomingRenew = state.vehicle.renewals.map(r=>({...r,d:dday(r.date)})).filter(r=>r.d>=0).sort((a,b)=>a.d-b.d)[0];
   const todayTodos = todosForToday();
   const todoPct = todoProgressPct(todayTodos);
 
@@ -1671,13 +1675,6 @@ function renderHome(){
     ${achievementLogHtml()}
 
     ${effectiveRole()!=='daughter'?`
-    <div class="stat-grid">
-      <div class="stat"><div class="v">${todaySchedule.length}</div><div class="l">오늘 일정</div></div>
-      <div class="stat"><div class="v">${monthBudget.toLocaleString()}원</div><div class="l">이번달 지출</div></div>
-      <div class="stat"><div class="v">${upcomingEvent?ddayLabel(upcomingEvent.d):'-'}</div><div class="l">${upcomingEvent?escapeHtml(upcomingEvent.name):'다가오는 D-day'}</div></div>
-      <div class="stat"><div class="v">${upcomingRenew?ddayLabel(upcomingRenew.d):'-'}</div><div class="l">${upcomingRenew?escapeHtml(upcomingRenew.name):'차량 갱신'}</div></div>
-    </div>
-
     <div class="card">
       <h3>📅 ${Number(homeDate.slice(5,7))}.${Number(homeDate.slice(8,10))}${homeDate===todayStr()?'(오늘)':''} 일정</h3>
       ${todaySchedule.length? todaySchedule.map(s=>{
@@ -2071,10 +2068,9 @@ function addOneHour(timeStr){
   return pad2(Math.floor(total/60))+':'+pad2(total%60);
 }
 function canManageSchedule(item){
-  if(!item || item.owner!=='common' || !item.createdBy || item.createdBy===currentAuthorKey()) return true;
-  const role=effectiveRole();
-  if(role==='dad' || role==='mom') return true;
-  return false;
+  if(!item) return true;
+  if(user && EMAIL_ROLE[user.email]==='dad') return true;
+  return item.owner!=='common' || !item.createdBy || item.createdBy===currentAuthorKey();
 }
 const REPEAT_LABELS={none:'안함',weekday:'매일(평일)',daily:'매일(휴일포함)',weekly:'매주',yearly:'매년'};
 function scheduleItemOccursOn(item, dateStr){
