@@ -1391,7 +1391,8 @@ function habitRowHtml(h, type, anchorDate){
     const isFuture = k>todayKey;
     if(isFuture) return `<div class="habit-cell-col"><span class="habit-cell habit-future">○</span></div>`;
     const done=!!log[k];
-    const mark = done ? (type==='weekly' ? '<span style="color:var(--accent2);font-weight:800;font-size:15px;">✓</span>' : '✅') : '❌';
+    const checkColor = type==='weekly' ? 'var(--accent2)' : 'var(--good)';
+    const mark = done ? `<span style="color:${checkColor};font-weight:800;font-size:15px;">✓</span>` : '❌';
     return `<div class="habit-cell-col"><button type="button" class="habit-cell ${done?'habit-done':'habit-undone'} ${type==='weekly'?'habit-weekly':''}" data-habit-toggle="${h.id}" data-habit-key="${k}" title="${k}">${mark}</button></div>`;
   }).join('');
   return `
