@@ -1301,12 +1301,18 @@ function habitLogFor(id){
 function habitPeriodKeys(type, anchorDate, count){
   const keys=[];
   if(type==='daily'){
-    for(let i=0;i<count;i++) keys.push(fmtDate(addDays(parseDate(anchorDate), -i)));
+    const monday=weekStartOf(anchorDate);
+    for(let i=0;i<count;i++) keys.push(fmtDate(addDays(parseDate(monday), i)));
   } else {
     const anchorWeek=weekStartOf(anchorDate);
     for(let i=0;i<count;i++) keys.push(fmtDate(addDays(parseDate(anchorWeek), -7*i)));
   }
   return keys;
+}
+function fmtShortDateSlashDow(dateStr){
+  const d=parseDate(dateStr);
+  const dow=['일','월','화','수','목','금','토'][d.getDay()];
+  return `${d.getMonth()+1}/${d.getDate()}(${dow})`;
 }
 function habitStreak(id, type){
   const log=habitLogFor(id);
@@ -1346,11 +1352,13 @@ function habitMiniRingSvg(done, total){
 function habitRingStripHtml(habits, type, anchorDate){
   const periods=habitPeriodKeys(type, anchorDate, 7);
   const total=habits.length;
+  const todayKey = type==='daily' ? todayStr() : weekStartOf(todayStr());
   return `<div class="habit-ring-strip">
     ${periods.map(k=>{
       const done=habits.filter(h=>habitLogFor(h.id)[k]).length;
-      const label=fmtSlashMD(k.slice(5));
-      return `<div class="habit-ring-col" title="${done}/${total}">${habitMiniRingSvg(done,total)}<div class="habit-ring-date">${label}</div></div>`;
+      const isToday = k===todayKey;
+      const label = type==='daily' ? fmtShortDateSlashDow(k) : fmtSlashMD(k.slice(5));
+      return `<div class="habit-ring-col" title="${done}/${total}">${isToday&&type==='daily'?`<span class="habit-today-badge">Today</span>`:''}${habitMiniRingSvg(done,total)}<div class="habit-ring-date">${label}</div></div>`;
     }).join('')}
   </div>`;
 }
@@ -1390,7 +1398,7 @@ function habitSectionHtml(type, title, icon){
     ${habits.length?`
     <div class="row" style="justify-content:space-between;align-items:center;margin-top:8px;">
       <button class="iconbtn" data-habit-prev="${type}">‹</button>
-      <span class="meta">${type==='daily'?'최근 7일':'최근 7주'}</span>
+      <span class="meta">${type==='daily'?'':'최근 7주'}</span>
       <button class="iconbtn" data-habit-next="${type}">›</button>
     </div>
     ${habitRingStripHtml(habits, type, anchorDate)}
@@ -1463,7 +1471,11 @@ function bindHabitEvents(el){
     const type=b.dataset.habitNext;
     const n = type==='daily'?7:49;
     const next=fmtDate(addDays(parseDate(habitAnchor[type]||todayStr()), n));
-    habitAnchor[type] = next>todayStr() ? todayStr() : next;
+    if(type==='daily'){
+      habitAnchor[type] = weekStartOf(next)>weekStartOf(todayStr()) ? todayStr() : next;
+    } else {
+      habitAnchor[type] = next>todayStr() ? todayStr() : next;
+    }
     renderHome();
   });
 }
