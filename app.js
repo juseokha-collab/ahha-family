@@ -1649,7 +1649,7 @@ function renderHome(){
       <h3>📅 ${Number(homeDate.slice(5,7))}.${Number(homeDate.slice(8,10))}${homeDate===todayStr()?'(오늘)':''} 일정</h3>
       ${todaySchedule.length? todaySchedule.map(s=>{
         const badge = authorBadge(s.createdBy);
-        return `<div class="list-item"><div><div>${timeRangeLabel(s)?`<b>${timeRangeLabel(s)}</b> `:''}${badge}${escapeHtml(s.title)}</div>${s.memo?`<div class="content-text">${escapeHtml(s.memo)}</div>`:''}</div></div>`;
+        return `<div class="list-item"><div><div style="font-size:14px;">${timeRangeLabel(s)?`<b>${timeRangeLabel(s)}</b> `:''}${badge}${escapeHtml(s.title)}</div>${s.memo?`<div class="content-text" style="font-size:12px;">${escapeHtml(s.memo)}</div>`:''}</div></div>`;
       }).join('') : `<div class="empty">등록된 일정이 없어요</div>`}
     </div>`:''}
   `;
