@@ -1383,8 +1383,8 @@ function habitRowHtml(h, type, anchorDate){
     <div class="habit-row-head">
       <span class="habit-icon">${escapeHtml(h.icon||'⭐')}</span>
       <span class="habit-row-name">${escapeHtml(h.name)}</span>
-      <span class="meta habit-row-streak">⚡ ${streak}${unit} 연속 · 🔥 최고 ${best}${unit}</span>
       <button class="icon-btn" data-habit-edit="${h.id}" data-habit-type="${type}" title="수정">✏️</button>
+      <span class="meta habit-row-streak">(⚡ ${streak}${unit} 연속 · 🔥 최고 ${best}${unit})</span>
     </div>
     <div class="habit-cells">${cells}</div>
   </div>`;
@@ -1532,7 +1532,7 @@ function renderHome(){
         ${diaryArchiveOpen?`<div id="diaryArchiveBox" style="margin-top:6px;">${diaryArchiveRowsHtml()}</div>`:''}
       </div>
 
-      ${todoPct!=null?`<div class="bar-row" style="margin-top:14px;"><span class="meta" style="flex-shrink:0;">오늘 진행률 ${todoPct}%</span><div class="bar-track"><div class="bar-fill" style="width:${todoPct}%"></div></div></div>`:''}
+      ${todoPct!=null?`<div class="bar-row" style="margin-top:14px;"><span class="meta" style="flex-shrink:0;">Today's things to do 진행율 ${todoPct}%</span><div class="bar-track"><div class="bar-fill" style="width:${todoPct}%"></div></div></div>`:''}
       <div class="row" style="justify-content:flex-end;align-items:center;gap:6px;margin:6px 0;">
         <span class="meta">정렬</span>
         <select id="todoSortSelect" style="font-size:12px;padding:2px 6px;border-radius:6px;background:var(--panel2);border:1px solid var(--border);color:var(--text);">
