@@ -1301,10 +1301,10 @@ function habitLogFor(id){
 function habitPeriodKeys(type, anchorDate, count){
   const keys=[];
   if(type==='daily'){
-    for(let i=count-1;i>=0;i--) keys.push(fmtDate(addDays(parseDate(anchorDate), -i)));
+    for(let i=0;i<count;i++) keys.push(fmtDate(addDays(parseDate(anchorDate), -i)));
   } else {
     const anchorWeek=weekStartOf(anchorDate);
-    for(let i=count-1;i>=0;i--) keys.push(fmtDate(addDays(parseDate(anchorWeek), -7*i)));
+    for(let i=0;i<count;i++) keys.push(fmtDate(addDays(parseDate(anchorWeek), -7*i)));
   }
   return keys;
 }
@@ -1332,16 +1332,27 @@ function habitBestStreak(id, type){
   }
   return best;
 }
-function habitRingSvg(done, total, gradId){
-  const size=64, r=(size-8)/2, c=size/2, circ=2*Math.PI*r;
+function habitMiniRingSvg(done, total){
+  const size=28, r=(size-6)/2, c=size/2, circ=2*Math.PI*r;
   const pct=total?done/total:0;
   const dash=circ*pct;
+  const full = total>0 && done>=total;
+  const color = full ? 'var(--good)' : 'var(--accent)';
   return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
-    <defs><linearGradient id="${gradId}" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="var(--accent)"/><stop offset="100%" stop-color="var(--accent2)"/></linearGradient></defs>
-    <circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="var(--panel2)" stroke-width="7"/>
-    <circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="url(#${gradId})" stroke-width="7" stroke-linecap="round" stroke-dasharray="${dash} ${circ}" transform="rotate(-90 ${c} ${c})"/>
-    <text x="${c}" y="${c+5}" text-anchor="middle" font-size="15" font-weight="800" fill="var(--text)">${done}/${total}</text>
+    <circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="var(--panel2)" stroke-width="4"/>
+    <circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="${color}" stroke-width="4" stroke-linecap="round" stroke-dasharray="${dash} ${circ}" transform="rotate(-90 ${c} ${c})"/>
   </svg>`;
+}
+function habitRingStripHtml(habits, type, anchorDate){
+  const periods=habitPeriodKeys(type, anchorDate, 7);
+  const total=habits.length;
+  return `<div class="habit-ring-strip">
+    ${periods.map(k=>{
+      const done=habits.filter(h=>habitLogFor(h.id)[k]).length;
+      const label=fmtSlashMD(k.slice(5));
+      return `<div class="habit-ring-col" title="${done}/${total}">${habitMiniRingSvg(done,total)}<div class="habit-ring-date">${label}</div></div>`;
+    }).join('')}
+  </div>`;
 }
 function habitRowHtml(h, type, anchorDate){
   const periods=habitPeriodKeys(type, anchorDate, 7);
@@ -1372,8 +1383,6 @@ function habitRowHtml(h, type, anchorDate){
 function habitSectionHtml(type, title, icon){
   const habits=myHabits(type);
   const anchorDate = habitAnchor[type] || todayStr();
-  const periodKeyToday = type==='daily'?todayStr():weekStartOf(todayStr());
-  const doneToday = habits.filter(h=>habitLogFor(h.id)[periodKeyToday]).length;
   return `
   <div class="card">
     <div class="row" style="justify-content:space-between;align-items:center;">
@@ -1381,12 +1390,12 @@ function habitSectionHtml(type, title, icon){
       <button class="btn small primary" data-habit-add="${type}">+ 습관 추가</button>
     </div>
     ${habits.length?`
-    <div class="row" style="justify-content:center;margin:12px 0;">${habitRingSvg(doneToday, habits.length, 'habitRing-'+type)}</div>
-    <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:6px;">
+    <div class="row" style="justify-content:space-between;align-items:center;margin-top:8px;">
       <button class="iconbtn" data-habit-prev="${type}">‹</button>
       <span class="meta">${type==='daily'?'최근 7일':'최근 7주'}</span>
       <button class="iconbtn" data-habit-next="${type}">›</button>
     </div>
+    ${habitRingStripHtml(habits, type, anchorDate)}
     ${habits.map(h=>habitRowHtml(h,type,anchorDate)).join('')}
     ` : `<div class="empty" style="margin-top:10px;">아직 등록된 습관이 없어요</div>`}
   </div>`;
@@ -1402,7 +1411,8 @@ function openHabitEditModal(type, id){
       <div class="row" style="gap:6px;flex-wrap:wrap;">
         ${HABIT_ICONS.map(ic=>`<button type="button" class="habit-icon-pick ${ic===selectedIcon?'sel':''}" data-icon="${ic}">${ic}</button>`).join('')}
       </div>
-      <input id="mHabitIcon" value="${escapeHtml(selectedIcon)}" style="margin-top:6px;width:60px;text-align:center;font-size:18px;">
+      <div class="meta" style="margin-top:8px;">원하는 이모지가 없으면 아래에 직접 입력하거나 붙여넣으세요</div>
+      <input id="mHabitIcon" value="${escapeHtml(selectedIcon)}" placeholder="이모지 직접 입력" style="margin-top:4px;width:60px;text-align:center;font-size:18px;">
     </div>
     <div class="modal-actions">
       ${h?`<button class="btn danger" id="mDelete">삭제</button>`:''}
@@ -2865,7 +2875,7 @@ function renderBudget(){
         <div class="datebar" style="margin-bottom:0;"><button class="iconbtn" id="bPrev">‹</button><div class="d">${y}년 ${Number(m)}월</div><button class="iconbtn" id="bNext">›</button></div>
         <button class="btn small" id="exchangeCurBtn">💱 환전</button>
       </div>
-      <div class="stat-grid">
+      <div class="stat-grid" style="margin-top:16px;">
         <div class="stat"><div class="v">${fmtCurrencyColored(expenseByCur.KRW,'KRW')}${expenseByCur.GBP?' / '+fmtCurrencyColored(expenseByCur.GBP,'GBP'):''}</div><div class="l">이번달 총 지출</div></div>
         <div class="stat"><div class="v">${fmtCurrencyColored(incomeByCur.KRW,'KRW')}${incomeByCur.GBP?' / '+fmtCurrencyColored(incomeByCur.GBP,'GBP'):''}</div><div class="l">이번달 총 수입</div></div>
         <div class="stat"><div class="v">${fmtCurrencyColored(monthBalanceKRW,'KRW')}${monthBalanceGBP?' / '+fmtCurrencyColored(monthBalanceGBP,'GBP'):''}</div><div class="l">이번달 잔액</div></div>
