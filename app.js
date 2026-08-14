@@ -912,6 +912,7 @@ function unifiedRowMeta(idx){
 let showCommonOnHome=false;
 let showDaughterOnHome=false;
 let momHomeDefaultsApplied=false;
+let momWeightDefaultsApplied=false;
 let studyAnchor=todayStr();
 function resolveItemColors(s, dateStr){
   const ov=s.colorOverrides && s.colorOverrides[dateStr];
@@ -1778,28 +1779,6 @@ function scheduleFilterLabel(key){
   if(key==='all') return '전체';
   return ownerLabel(key);
 }
-function renderProgressChart(y, m){
-  const key=currentAuthorKey();
-  const daysInMonth=new Date(y,m+1,0).getDate();
-  const todayS=todayStr();
-  const pcts=[];
-  let bars='';
-  for(let d=1; d<=daysInMonth; d++){
-    const dateStr=`${y}-${pad2(m+1)}-${pad2(d)}`;
-    let pct=null;
-    if(dateStr<=todayS) pct=computeDailyProgress(dateStr, key);
-    if(pct!=null) pcts.push(pct);
-    const h = pct==null ? 3 : Math.max(3, Math.round(pct*0.6));
-    bars += `<div title="${dateStr}: ${pct==null?'기록 없음':pct+'%'}" style="flex:1;min-width:3px;height:${h}px;border-radius:2px;background:${pct==null?'var(--border)':'linear-gradient(180deg,var(--accent),var(--accent2))'};"></div>`;
-  }
-  const avg = pcts.length ? Math.round(pcts.reduce((a,b)=>a+b,0)/pcts.length) : null;
-  return `
-    <div class="card">
-      <div class="row" style="justify-content:space-between;"><h3 style="margin:0;">📊 월별 To do 진행률</h3>${avg!=null?`<span class="meta">월 평균 ${avg}%</span>`:''}</div>
-      <div style="display:flex;align-items:flex-end;gap:2px;height:64px;">${bars}</div>
-    </div>
-  `;
-}
 function myMonthNotes(ym){
   const key=currentAuthorKey();
   if(!state.monthNotes) state.monthNotes={};
@@ -1899,7 +1878,6 @@ function renderSchedule(){
       <div class="cal-grid" style="margin-top:10px;">${['일','월','화','수','목','금','토'].map(d=>`<div class="cal-head">${d}</div>`).join('')}${grid}</div>
       ${monthNotesHtml(`${y}-${pad2(m+1)}`)}
     </div>
-    ${renderProgressChart(y, m)}
     <div class="card">
       <div class="row" style="justify-content:space-between;margin-bottom:14px;"><h3 style="margin:0;">${weekdayColor(scheduleSel)?`<span style="color:${weekdayColor(scheduleSel)};">${scheduleSel}</span>`:scheduleSel} 일정${holidays[scheduleSel]?` <span class="pill">${escapeHtml(holidays[scheduleSel])}</span>`:''}</h3><button class="btn primary small" id="addSchedBtn">+ 일정 추가</button></div>
       ${dayItems.length? dayItems.map(s=>{
@@ -2215,6 +2193,10 @@ function projectedAchievementDate(currentWeight, targetWeight, weeklyLossGrams){
 }
 function renderHealth(){
   healthPerson = effectiveRole() || 'mom';
+  if(effectiveRole()==='mom' && !momWeightDefaultsApplied){
+    momWeightDefaultsApplied=true;
+    weightChartOthers=['dad','daughter'];
+  }
   const day=state.daily[healthDate]||{};
   const rec=(day.health&&day.health[healthPerson])||{};
   const mealWindowDates=Array.from({length:7},(_,i)=>fmtDate(addDays(parseDate(healthDate), -(6-i))));
@@ -3571,7 +3553,7 @@ function renderVehicle(){
         <div class="list-item">
           <div><div>${escapeHtml(r.name)}</div><div class="meta">${r.date}${r.memo?' · '+escapeHtml(r.memo):''}</div></div>
           <div class="row"><span class="pill ${ddayPillClass(r.d)}">${ddayLabel(r.d)}</span>
-            <button class="btn small" data-edit-renew="${r.id}">수정</button><button class="btn small danger" data-del-renew="${r.id}">삭제</button></div>
+            <button class="btn small" style="font-size:11px;padding:3px 8px;" data-edit-renew="${r.id}" title="수정">✏️</button> <button class="btn small danger" style="font-size:11px;padding:3px 8px;" data-del-renew="${r.id}" title="삭제">✕</button></div>
         </div>`).join('') : `<div class="empty">보험/자동차세/정기검사 만기일을 등록해보세요</div>`}
     </div>
     <div class="card">
@@ -3596,8 +3578,8 @@ function renderVehicle(){
       ${maintSorted.length?`<button class="link-btn" id="toggleMaintHistory" style="margin-top:10px;">${maintHistoryOpen?'전체 이력 접기':`전체 이력 보기 (${maintSorted.length}건)`}</button>`:''}
       ${maintHistoryOpen? maintSorted.map(mt=>`
         <div class="list-item">
-          <div><div>${escapeHtml(mt.item)}${mt.cost?' · '+Number(mt.cost).toLocaleString()+'원':''}</div><div class="meta">${mt.date}${mt.odo?' · '+Number(mt.odo).toLocaleString()+'km':''}${mt.place?' · '+escapeHtml(mt.place):''}${mt.memo?' · '+escapeHtml(mt.memo):''}</div></div>
-          <div class="row"><button class="btn small" data-edit-maint="${mt.id}">수정</button><button class="btn small danger" data-del-maint="${mt.id}">삭제</button></div>
+          <div><div style="font-size:13px;">${escapeHtml(mt.item)}${mt.cost?' · '+Number(mt.cost).toLocaleString()+'원':''}</div><div class="meta">${mt.date}${mt.odo?' · '+Number(mt.odo).toLocaleString()+'km':''}${mt.place?' · '+escapeHtml(mt.place):''}${mt.memo?' · '+escapeHtml(mt.memo):''}</div></div>
+          <div class="row"><button class="btn small" style="font-size:11px;padding:3px 8px;" data-edit-maint="${mt.id}" title="수정">✏️</button> <button class="btn small danger" style="font-size:11px;padding:3px 8px;" data-del-maint="${mt.id}" title="삭제">✕</button></div>
         </div>`).join('') : ''}
     </div>
   `;
@@ -3687,7 +3669,7 @@ function renderEvents(){
   const row = ev => `
     <div class="list-item" style="align-items:center;">
       <div style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
-        <b style="font-size:15px;">${escapeHtml(ev.name)}</b>
+        <span style="font-size:13px;font-weight:400;">${escapeHtml(ev.name)}</span>
         <span class="meta">${ev.lunar?`음력 ${ev.lunarMonth}/${ev.lunarDay}${ev.lunarLeap?'(윤)':''}`:ev.date}${ev.recurring?' (매년)':''}${ev.hiddenFromDaughter?' 🙈':''}${ev.memo?' · '+escapeHtml(ev.memo):''}</span>
       </div>
       <div class="row" style="flex-wrap:nowrap;flex-shrink:0;">
