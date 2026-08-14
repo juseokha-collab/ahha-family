@@ -1374,9 +1374,9 @@ function habitRowHtml(h, type, anchorDate){
   const unit = type==='daily'?'일':'주';
   const cells=periods.map(k=>{
     const isFuture = k>todayKey;
-    if(isFuture) return `<span class="habit-cell habit-future">○</span>`;
+    if(isFuture) return `<div class="habit-cell-col"><span class="habit-cell habit-future">○</span></div>`;
     const done=!!log[k];
-    return `<button type="button" class="habit-cell ${done?'habit-done':'habit-undone'}" data-habit-toggle="${h.id}" data-habit-key="${k}" title="${k}">${done?'✅':'❌'}</button>`;
+    return `<div class="habit-cell-col"><button type="button" class="habit-cell ${done?'habit-done':'habit-undone'}" data-habit-toggle="${h.id}" data-habit-key="${k}" title="${k}">${done?'✅':'❌'}</button></div>`;
   }).join('');
   return `
   <div class="habit-row">

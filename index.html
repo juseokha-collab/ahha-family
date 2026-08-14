@@ -164,13 +164,14 @@ input.date-input{cursor:pointer;background:var(--panel2) url('data:image/svg+xml
 .dt-evt[data-virtual]{background:var(--panel2);color:var(--text);border:1px solid var(--border);font-weight:400;}
 .habit-row{padding:5px 0;border-bottom:1px solid var(--border);}
 .habit-row:last-child{border-bottom:none;}
-.habit-row-head{display:flex;align-items:center;gap:6px;margin-bottom:3px;overflow-x:auto;overflow-y:visible;white-space:nowrap;}
+.habit-row-head{display:flex;align-items:center;gap:6px;margin-bottom:3px;overflow-x:auto;overflow-y:hidden;white-space:nowrap;}
 .habit-icon{font-size:15px;flex-shrink:0;}
 .habit-row-name{font-size:12.5px;font-weight:600;flex-shrink:0;}
 .habit-row-streak{flex-shrink:0;white-space:nowrap;}
 .habit-row-head .icon-btn{flex-shrink:0;}
-.habit-cells{display:flex;gap:4px;justify-content:space-between;}
-.habit-cell{flex:1;min-width:0;height:26px;font-size:13px;background:var(--panel2);border:none;border-radius:7px;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center;}
+.habit-cells{display:flex;gap:4px;}
+.habit-cell-col{flex:1;min-width:0;display:flex;justify-content:center;}
+.habit-cell{width:28px;flex-shrink:0;height:26px;font-size:13px;background:var(--panel2);border:none;border-radius:7px;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center;}
 .habit-cell.habit-done{background:rgba(74,222,128,.18);}
 .habit-cell.habit-undone{background:rgba(248,113,113,.12);}
 span.habit-cell.habit-future{background:none;color:var(--muted);cursor:default;}
@@ -234,7 +235,7 @@ button.iconbtn.habit-nav-btn{color:var(--good);}
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-<script src="firebase-config.js?v=20260814p"></script>
-<script src="app.js?v=20260814p"></script>
+<script src="firebase-config.js?v=20260814q"></script>
+<script src="app.js?v=20260814q"></script>
 </body>
 </html>
