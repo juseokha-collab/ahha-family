@@ -1371,10 +1371,8 @@ function habitRowHtml(h, type, anchorDate){
   <div class="habit-row">
     <div class="habit-row-head">
       <span class="habit-icon">${escapeHtml(h.icon||'⭐')}</span>
-      <div class="habit-row-info">
-        <div class="habit-row-name">${escapeHtml(h.name)}</div>
-        <div class="meta">⚡ ${streak}${unit} 연속 · 🔥 최고 ${best}${unit}</div>
-      </div>
+      <span class="habit-row-name">${escapeHtml(h.name)}</span>
+      <span class="meta habit-row-streak">⚡ ${streak}${unit} 연속 · 🔥 최고 ${best}${unit}</span>
       <button class="icon-btn" data-habit-edit="${h.id}" data-habit-type="${type}" title="수정">✏️</button>
     </div>
     <div class="habit-cells">${cells}</div>
@@ -1480,7 +1478,7 @@ function renderHome(){
   const myKey = currentAuthorKey();
   const mine = entries[myKey] || {};
   const el=document.getElementById('tab-home');
-  const dLabel = parseDate(homeDate).toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'});
+  const dLabel = fmtShortDateDow(homeDate);
   const dLabelColor = weekdayColor(homeDate);
   const todaySchedule = myHomeVisibleScheduleItems(homeDate);
   const ym=homeDate.slice(0,7);
@@ -1495,10 +1493,10 @@ function renderHome(){
     <div class="card">
       <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:nowrap;gap:8px;">
         <div class="row" style="gap:4px;flex-shrink:0;">
-          <button class="iconbtn" id="homePrev">‹</button>
-          <div class="d" style="white-space:nowrap;${dLabelColor?'color:'+dLabelColor+';':''}">${dLabel}</div>
-          <button class="iconbtn" id="homeNext">›</button>
-          ${homeDate!==todayStr()?`<button class="btn small" id="homeToday">오늘</button>`:''}
+          <button class="iconbtn" id="homePrev">◀</button>
+          <div class="d" style="white-space:nowrap;font-size:15px;font-weight:700;${dLabelColor?'color:'+dLabelColor+';':''}">${dLabel}</div>
+          <button class="iconbtn" id="homeNext">▶</button>
+          ${homeDate!==todayStr()?todayPillBtn('homeToday'):''}
         </div>
         <div class="mood-row" id="moodRow" style="flex:1;justify-content:flex-end;min-width:0;overflow-x:auto;">
           ${MOODS.map(m=>`<button data-m="${m}" class="${mine.mood===m?'sel':''}">${m}</button>`).join('')}
