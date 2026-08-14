@@ -1531,14 +1531,8 @@ function renderHome(){
         </div>
         ${diaryArchiveOpen?`<div id="diaryArchiveBox" style="margin-top:6px;">${diaryArchiveRowsHtml()}</div>`:''}
       </div>
-    </div>
 
-    <div class="card">
-      <div class="row" style="justify-content:space-between;align-items:center;">
-        <h3 style="margin:0;">✅ ${Number(homeDate.slice(5,7))}.${Number(homeDate.slice(8,10))} To do list</h3>
-        ${todoPct!=null?`<span class="meta">오늘 진행률 ${todoPct}%</span>`:''}
-      </div>
-      ${todoPct!=null?`<div class="bar-track" style="margin:8px 0;"><div class="bar-fill" style="width:${todoPct}%"></div></div>`:''}
+      ${todoPct!=null?`<div class="bar-row" style="margin-top:14px;"><span class="meta" style="flex-shrink:0;">오늘 진행률 ${todoPct}%</span><div class="bar-track"><div class="bar-fill" style="width:${todoPct}%"></div></div></div>`:''}
       <div class="row" style="justify-content:flex-end;align-items:center;gap:6px;margin:6px 0;">
         <span class="meta">정렬</span>
         <select id="todoSortSelect" style="font-size:12px;padding:2px 6px;border-radius:6px;background:var(--panel2);border:1px solid var(--border);color:var(--text);">
