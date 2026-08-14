@@ -175,6 +175,7 @@ input.date-input{cursor:pointer;background:var(--panel2) url('data:image/svg+xml
 .habit-cell{width:28px;flex-shrink:0;height:26px;font-size:13px;background:var(--panel2);border:none;border-radius:7px;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center;}
 .habit-cell.habit-done{background:rgba(74,222,128,.18);}
 .habit-cell.habit-undone{background:rgba(248,113,113,.12);}
+.habit-cell.habit-done.habit-weekly{background:rgba(139,124,246,.22);}
 span.habit-cell.habit-future{background:none;color:var(--muted);cursor:default;}
 .habit-icon-pick{width:32px;height:32px;font-size:17px;background:var(--panel2);border:1px solid var(--border);border-radius:8px;cursor:pointer;padding:0;}
 .habit-icon-pick.sel{border-color:var(--accent);background:var(--sel-bg);}
@@ -184,6 +185,7 @@ span.habit-cell.habit-future{background:none;color:var(--muted);cursor:default;}
 .habit-today-badge{display:inline-block;background:#000;color:#fff;border-radius:999px;padding:1px 6px;font-size:8px;font-weight:700;white-space:nowrap;}
 .habit-today-slot{height:14px;display:flex;align-items:center;justify-content:center;}
 button.iconbtn.habit-nav-btn{color:var(--good);}
+button.iconbtn.habit-nav-btn.habit-nav-btn-weekly{color:var(--accent2);}
 .confetti-burst{position:absolute;inset:0;pointer-events:none;overflow:hidden;}
 .confetti-piece{position:absolute;top:-10px;left:calc(50% + (var(--i) - 12) * 14px);width:8px;height:14px;border-radius:2px;background:hsl(var(--hue) 80% 60%);opacity:0;animation:confetti-fall 1.4s ease-in forwards;animation-delay:calc(var(--i) * 0.02s);}
 @keyframes confetti-fall{
@@ -236,7 +238,7 @@ button.iconbtn.habit-nav-btn{color:var(--good);}
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-<script src="firebase-config.js?v=20260814t"></script>
-<script src="app.js?v=20260814t"></script>
+<script src="firebase-config.js?v=20260814u"></script>
+<script src="app.js?v=20260814u"></script>
 </body>
 </html>
