@@ -1339,14 +1339,14 @@ function habitBestStreak(id, type){
   return best;
 }
 function habitMiniRingSvg(done, total){
-  const size=28, r=(size-6)/2, c=size/2, circ=2*Math.PI*r;
+  const size=42, r=(size-8)/2, c=size/2, circ=2*Math.PI*r;
   const pct=total?done/total:0;
   const dash=circ*pct;
   const full = total>0 && done>=total;
   const color = full ? 'var(--good)' : 'var(--accent)';
   return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
-    <circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="var(--panel2)" stroke-width="4"/>
-    <circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="${color}" stroke-width="4" stroke-linecap="round" stroke-dasharray="${dash} ${circ}" transform="rotate(-90 ${c} ${c})"/>
+    <circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="var(--panel2)" stroke-width="6"/>
+    <circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="${color}" stroke-width="6" stroke-linecap="round" stroke-dasharray="${dash} ${circ}" transform="rotate(-90 ${c} ${c})"/>
   </svg>`;
 }
 function habitRingStripHtml(habits, type, anchorDate){
@@ -1386,7 +1386,11 @@ function habitRowHtml(h, type, anchorDate){
       <button class="icon-btn" data-habit-edit="${h.id}" data-habit-type="${type}" title="수정">✏️</button>
       <span class="meta habit-row-streak">(⚡ ${streak}${unit} 연속 · 🔥 최고 ${best}${unit})</span>
     </div>
-    <div class="habit-cells">${cells}</div>
+    <div class="row" style="align-items:center;gap:4px;">
+      <span class="habit-cells-spacer"></span>
+      <div class="habit-cells" style="flex:1;min-width:0;">${cells}</div>
+      <span class="habit-cells-spacer"></span>
+    </div>
   </div>`;
 }
 function habitSectionHtml(type, title, icon){
@@ -1527,7 +1531,7 @@ function renderHome(){
         <textarea id="diaryInput" placeholder="오늘 하루는 어땠나요?" style="overflow:hidden;">${escapeHtml(mine.diary)}</textarea>
         <div class="row" style="justify-content:space-between;align-items:center;margin-top:8px;">
           <label id="diaryArchiveToggle" style="cursor:pointer;">${diaryArchiveOpen?'▲':'▼'} Comment 모아보기</label>
-          ${diaryArchiveOpen?`<label class="pill" style="cursor:pointer;"><input type="checkbox" id="diaryArchiveFamilyToggle" ${diaryArchiveIncludeFamily?'checked':''} style="margin-right:4px;">가족 Comment 포함</label>`:''}
+          ${diaryArchiveOpen?`<label class="pill" style="cursor:pointer;"><input type="checkbox" id="diaryArchiveFamilyToggle" ${diaryArchiveIncludeFamily?'checked':''} style="margin-right:4px;">엄빠 메시지 보기</label>`:''}
         </div>
         ${diaryArchiveOpen?`<div id="diaryArchiveBox" style="margin-top:6px;">${diaryArchiveRowsHtml()}</div>`:''}
       </div>
@@ -1679,7 +1683,7 @@ function diaryArchiveRowsHtml(){
     const entries=(state.daily[d]||{}).entries||{};
     Object.keys(entries).forEach(k=>{
       const e=entries[k];
-      if(!diaryArchiveIncludeFamily && k!==myKey) return;
+      if(diaryArchiveIncludeFamily ? k===myKey : k!==myKey) return;
       if(e && (e.mood || e.diary)) rows.push({date:d, key:k, ...e});
     });
   });
