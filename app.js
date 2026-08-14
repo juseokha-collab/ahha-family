@@ -972,6 +972,9 @@ function renderDayTimelines(){
   const days=Array.from({length:multiDayCount()},(_,n)=>fmtDate(addDays(parseDate(homeDate), n)));
   const layouts=days.map(d=>computeDayLayoutFromItems(myHomeVisibleScheduleItems(d)));
   const indices=[-1].concat(Array.from({length:DT_ROWS},(_,i)=>i)).concat([DT_ROWS]);
+  const nowInfo=nowInfoForRole(effectiveRole());
+  const showNowMarker=days.includes(nowInfo.dateStr);
+  const nowIdx = nowInfo.hour>=19 ? DT_ROWS : (nowInfo.hour>=8 ? nowInfo.hour-8 : -1);
   let rows='';
   indices.forEach(idx=>{
     const meta=unifiedRowMeta(idx);
@@ -988,7 +991,8 @@ function renderDayTimelines(){
       }
       return gap+`<td class="dt-cell${edgeClass}" data-add-date="${d}" data-add-time="${meta.addTime}"></td>`;
     }).join('');
-    rows += `<tr class="${meta.isEdge?'dt-edge-row':''}"><td class="dt-time-col">${meta.label}</td>${cells}</tr>`;
+    const nowMarker=(showNowMarker && idx===nowIdx) ? `<span style="color:#e5383b;">▶</span> ` : '';
+    rows += `<tr class="${meta.isEdge?'dt-edge-row':''}"><td class="dt-time-col">${nowMarker}${meta.label}</td>${cells}</tr>`;
   });
   const headCells = days.map((d,i)=>{
     const gap = i>0 ? '<th class="dt-gap"></th>' : '';
@@ -2068,8 +2072,8 @@ function addOneHour(timeStr){
 }
 function canManageSchedule(item){
   if(!item || item.owner!=='common' || !item.createdBy || item.createdBy===currentAuthorKey()) return true;
-  const knownAuthorKeys=[...Object.keys(EMAIL_ROLE), 'daughter'];
-  if(!knownAuthorKeys.includes(item.createdBy)) return true;
+  const role=effectiveRole();
+  if(role==='dad' || role==='mom') return true;
   return false;
 }
 const REPEAT_LABELS={none:'안함',weekday:'매일(평일)',daily:'매일(휴일포함)',weekly:'매주',yearly:'매년'};
