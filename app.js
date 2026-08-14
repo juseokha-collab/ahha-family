@@ -980,7 +980,7 @@ function renderDayTimelines(){
         </div>
         <div class="row" style="gap:10px;">
           ${role && role!=='daughter' ? `<label class="pill" style="cursor:pointer;"><input type="checkbox" id="showDaughterToggleHome" ${showDaughterOnHome?'checked':''} style="margin-right:4px;">딸</label>` : ''}
-          <label class="pill" style="cursor:pointer;"><input type="checkbox" id="showCommonToggleHome" ${showCommonOnHome?'checked':''} style="margin-right:4px;">가족공통</label>
+          <label class="pill" style="cursor:pointer;"><input type="checkbox" id="showCommonToggleHome" ${showCommonOnHome?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">가족공통</label>
         </div>
       </div>
       ${scheduleColorPick?`<div class="meta" style="margin-bottom:6px;">🎨 색상을 적용할 일정을 클릭하세요</div>`:''}
@@ -1343,7 +1343,7 @@ function habitMiniRingSvg(done, total, type){
   const pct=total?done/total:0;
   const dash=circ*pct;
   const full = total>0 && done>=total;
-  const color = full ? 'var(--good)' : (type==='weekly' ? 'var(--accent2)' : 'var(--accent)');
+  const color = type==='weekly' ? 'var(--accent2)' : (full ? 'var(--good)' : 'var(--accent)');
   return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
     <circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="var(--panel2)" stroke-width="6"/>
     <circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="${color}" stroke-width="6" stroke-linecap="round" stroke-dasharray="${dash} ${circ}" transform="rotate(-90 ${c} ${c})"/>
@@ -1843,7 +1843,7 @@ function renderSchedule(){
     <div class="card">
       <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:4px;gap:10px;">
         ${renderColorSwatches(calendarColorPick, 'cal-paint')}
-        <label class="pill" style="cursor:pointer;"><input type="checkbox" id="showCommonToggleSchedule" ${showCommonOnHome?'checked':''} style="margin-right:4px;">가족공통</label>
+        <label class="pill" style="cursor:pointer;"><input type="checkbox" id="showCommonToggleSchedule" ${showCommonOnHome?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">가족공통</label>
       </div>
       ${calendarColorPick?`<div class="meta" style="margin-bottom:6px;">🎨 색상을 적용할 날짜를 클릭하세요</div>`:''}
       <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
@@ -2925,7 +2925,7 @@ function renderBudget(){
           <tbody>
             ${sortedIncomeItems.map(b=>`
               <tr>
-                <td style="text-align:left;padding:5px 3px 5px 0;font-size:12px;white-space:nowrap;">${b.date}</td>
+                <td style="text-align:left;padding:5px 3px 5px 0;font-size:12px;white-space:nowrap;">${b.date.slice(5)}</td>
                 <td style="text-align:left;padding:5px 3px;font-size:12px;"><span class="pill">${escapeHtml(b.category)}</span></td>
                 <td style="text-align:right;padding:5px 6px 5px 4px;font-size:12px;white-space:nowrap;">${fmtCurrency(b.amount,b.currency||'KRW')}</td>
                 <td style="text-align:left;padding:5px 4px 5px 27px;font-size:12px;">${escapeHtml(b.memo)}</td>
@@ -2975,7 +2975,7 @@ function renderBudget(){
           <tbody>
             ${sortedExpenseItems.map(b=>`
               <tr>
-                <td style="text-align:left;padding:5px 3px 5px 0;font-size:12px;white-space:nowrap;">${b.date}</td>
+                <td style="text-align:left;padding:5px 3px 5px 0;font-size:12px;white-space:nowrap;">${b.date.slice(5)}</td>
                 <td style="text-align:left;padding:5px 3px;font-size:12px;"><span class="pill">${escapeHtml(b.category)}</span></td>
                 <td style="text-align:right;padding:5px 6px 5px 4px;font-size:12px;white-space:nowrap;">${fmtCurrency(b.amount,b.currency||'KRW')}</td>
                 <td style="text-align:left;padding:5px 4px 5px 27px;font-size:12px;">${escapeHtml(b.memo)}</td>
