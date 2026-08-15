@@ -1470,22 +1470,19 @@ function habitRowHtml(h, type, anchorDate, idx, total){
   }).join('');
   return `
   <div class="habit-row">
-    <div class="row" style="align-items:center;gap:4px;">
-      <div class="habit-row-head" style="flex:1;min-width:0;">
-        <span class="habit-icon">${escapeHtml(h.icon||'⭐')}</span>
-        <span class="habit-row-name">${escapeHtml(h.name)}</span>
-        <button class="icon-btn" data-habit-edit="${h.id}" data-habit-type="${type}" title="수정">✏️</button>
-        <span class="meta habit-row-streak">(⚡ ${streak}${unit} 연속 · 🔥 최고 ${best}${unit})</span>
-      </div>
-      <div class="habit-move-btns">
-        <button type="button" class="icon-btn" data-habit-move-up="${h.id}" data-habit-type="${type}" title="위로" ${idx===0?'disabled':''}>▲</button>
-        <button type="button" class="icon-btn" data-habit-move-down="${h.id}" data-habit-type="${type}" title="아래로" ${idx===total-1?'disabled':''}>▼</button>
-      </div>
+    <div class="habit-row-head">
+      <span class="habit-icon">${escapeHtml(h.icon||'⭐')}</span>
+      <span class="habit-row-name">${escapeHtml(h.name)}</span>
+      <button class="icon-btn" data-habit-edit="${h.id}" data-habit-type="${type}" title="수정">✏️</button>
+      <span class="meta habit-row-streak">(⚡ ${streak}${unit} 연속 · 🔥 최고 ${best}${unit})</span>
     </div>
     <div class="row" style="align-items:center;gap:4px;">
       <span class="habit-cells-spacer"></span>
       <div class="habit-cells" style="flex:1;min-width:0;">${cells}</div>
-      <span class="habit-cells-spacer"></span>
+      <div class="habit-move-btns">
+        <button type="button" class="icon-btn" data-habit-move-up="${h.id}" data-habit-type="${type}" title="위로" ${idx===0?'disabled':''}>▲</button>
+        <button type="button" class="icon-btn" data-habit-move-down="${h.id}" data-habit-type="${type}" title="아래로" ${idx===total-1?'disabled':''}>▼</button>
+      </div>
     </div>
   </div>`;
 }
