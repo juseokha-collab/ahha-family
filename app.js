@@ -1345,7 +1345,7 @@ function openTodoCategoryManageModal(){
     <div class="meta" style="margin-bottom:10px;">여기서 관리하는 카테고리는 지금 로그인한 계정에만 적용돼요.</div>
     ${cats.map((c,i)=>{
       const cnt=myTodos().filter(t=>t.category===c.name).length;
-      return `<div class="list-item"><div class="row" style="gap:8px;align-items:center;"><span style="width:14px;height:14px;border-radius:50%;background:${c.color};display:inline-block;flex-shrink:0;"></span>${escapeHtml(c.name)}${cnt?` <span class="meta">(${cnt}건 사용중)</span>`:''}</div><div class="row"><button class="btn small" data-edit-todocat="${i}">수정</button><button class="btn small danger" data-del-todocat="${i}">삭제</button></div></div>`;
+      return `<div class="list-item"><div class="row" style="gap:8px;align-items:center;"><span style="width:14px;height:14px;border-radius:50%;background:${c.color};display:inline-block;flex-shrink:0;"></span>${escapeHtml(c.name)}${cnt?` <span class="meta">(${cnt}건 사용중)</span>`:''}</div><div class="row" style="gap:4px;"><button class="btn small" style="font-size:11px;padding:3px 8px;" data-edit-todocat="${i}" title="수정">✏️</button><button class="btn small danger" style="font-size:11px;padding:3px 8px;" data-del-todocat="${i}" title="삭제">✕</button></div></div>`;
     }).join('')}
     <div class="modal-actions" style="justify-content:flex-start;">
       <button class="btn primary small" id="addTodoCatBtn">+ 새 카테고리</button>
@@ -3344,7 +3344,7 @@ function openCategoryManageModal(){
     <div class="meta" style="margin-bottom:10px;">여기서 관리하는 카테고리는 지금 로그인한 계정에만 적용돼요.</div>
     ${cats.map(c=>{
       const cnt=state.budget.filter(x=>x.category===c && x.type!=='income').length;
-      return `<div class="list-item"><div>${escapeHtml(c)}${cnt?` <span class="meta">(${cnt}건 사용중)</span>`:''}</div><button class="btn small danger" data-del-cat="${escapeHtml(c)}">삭제</button></div>`;
+      return `<div class="list-item"><div>${escapeHtml(c)}${cnt?` <span class="meta">(${cnt}건 사용중)</span>`:''}</div><div class="row" style="gap:4px;"><button class="btn small" style="font-size:11px;padding:3px 8px;" data-edit-cat="${escapeHtml(c)}" title="수정">✏️</button><button class="btn small danger" style="font-size:11px;padding:3px 8px;" data-del-cat="${escapeHtml(c)}" title="삭제">✕</button></div></div>`;
     }).join('')}
     <div class="row" style="margin-top:12px;">
       <div class="field" style="margin:0;"><input id="newCatInput" placeholder="새 카테고리 이름"></div>
@@ -3361,6 +3361,7 @@ function openCategoryManageModal(){
     list.push(v);
     queueSave(); openCategoryManageModal();
   };
+  document.querySelectorAll('[data-edit-cat]').forEach(b=>b.onclick=()=>openCategoryEditModal(b.dataset.editCat));
   document.querySelectorAll('[data-del-cat]').forEach(b=>b.onclick=()=>{
     const cat=b.dataset.delCat;
     const cnt=state.budget.filter(x=>x.category===cat && x.type!=='income').length;
@@ -3371,6 +3372,24 @@ function openCategoryManageModal(){
     if(idx>=0) list.splice(idx,1);
     queueSave(); openCategoryManageModal();
   });
+}
+function openCategoryEditModal(oldName){
+  openModal(`
+    <h3>카테고리 수정</h3>
+    <div class="field"><label>이름</label><input id="mCatName" value="${escapeHtml(oldName)}"></div>
+    <div class="modal-actions"><button class="btn" id="mCancel">취소</button><button class="btn primary" id="mSave">저장</button></div>
+  `);
+  document.getElementById('mCancel').onclick=closeModal;
+  document.getElementById('mSave').onclick=()=>{
+    const name=document.getElementById('mCatName').value.trim();
+    if(!name){ showToast('이름을 입력해주세요'); return; }
+    const list=myBudgetCategories();
+    if(name!==oldName && list.includes(name)){ showToast('이미 있는 카테고리예요'); return; }
+    const idx=list.indexOf(oldName);
+    if(idx>=0) list[idx]=name;
+    if(name!==oldName){ state.budget.forEach(b=>{ if(b.type!=='income' && b.category===oldName) b.category=name; }); }
+    queueSave(); closeModal(); openCategoryManageModal();
+  };
 }
 function shiftMonth(ym, delta){
   let [y,m]=ym.split('-').map(Number);
@@ -3467,7 +3486,7 @@ function openIncomeCategoryManageModal(){
     <div class="meta" style="margin-bottom:10px;">여기서 관리하는 카테고리는 지금 로그인한 계정에만 적용돼요.</div>
     ${cats.map(c=>{
       const cnt=state.budget.filter(x=>x.type==='income' && x.category===c).length;
-      return `<div class="list-item"><div>${escapeHtml(c)}${cnt?` <span class="meta">(${cnt}건 사용중)</span>`:''}</div><button class="btn small danger" data-del-inccat="${escapeHtml(c)}">삭제</button></div>`;
+      return `<div class="list-item"><div>${escapeHtml(c)}${cnt?` <span class="meta">(${cnt}건 사용중)</span>`:''}</div><div class="row" style="gap:4px;"><button class="btn small" style="font-size:11px;padding:3px 8px;" data-edit-inccat="${escapeHtml(c)}" title="수정">✏️</button><button class="btn small danger" style="font-size:11px;padding:3px 8px;" data-del-inccat="${escapeHtml(c)}" title="삭제">✕</button></div></div>`;
     }).join('')}
     <div class="row" style="margin-top:12px;">
       <div class="field" style="margin:0;"><input id="newIncCatInput" placeholder="새 카테고리 이름"></div>
@@ -3484,6 +3503,7 @@ function openIncomeCategoryManageModal(){
     list.push(v);
     queueSave(); openIncomeCategoryManageModal();
   };
+  document.querySelectorAll('[data-edit-inccat]').forEach(b=>b.onclick=()=>openIncomeCategoryEditModal(b.dataset.editInccat));
   document.querySelectorAll('[data-del-inccat]').forEach(b=>b.onclick=()=>{
     const cat=b.dataset.delInccat;
     const cnt=state.budget.filter(x=>x.type==='income' && x.category===cat).length;
@@ -3494,6 +3514,24 @@ function openIncomeCategoryManageModal(){
     if(idx>=0) list.splice(idx,1);
     queueSave(); openIncomeCategoryManageModal();
   });
+}
+function openIncomeCategoryEditModal(oldName){
+  openModal(`
+    <h3>카테고리 수정</h3>
+    <div class="field"><label>이름</label><input id="mIncCatName" value="${escapeHtml(oldName)}"></div>
+    <div class="modal-actions"><button class="btn" id="mCancel">취소</button><button class="btn primary" id="mSave">저장</button></div>
+  `);
+  document.getElementById('mCancel').onclick=closeModal;
+  document.getElementById('mSave').onclick=()=>{
+    const name=document.getElementById('mIncCatName').value.trim();
+    if(!name){ showToast('이름을 입력해주세요'); return; }
+    const list=myIncomeCategories();
+    if(name!==oldName && list.includes(name)){ showToast('이미 있는 카테고리예요'); return; }
+    const idx=list.indexOf(oldName);
+    if(idx>=0) list[idx]=name;
+    if(name!==oldName){ state.budget.forEach(b=>{ if(b.type==='income' && b.category===oldName) b.category=name; }); }
+    queueSave(); closeModal(); openIncomeCategoryManageModal();
+  };
 }
 
 /* ---------- GAMIFICATION ---------- */
