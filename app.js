@@ -3,6 +3,12 @@ function isMobileViewport(){ return window.innerWidth <= 600; }
 function multiDayCount(){ return isMobileViewport() ? 2 : 3; }
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
 function pad2(n){ return String(n).padStart(2,'0'); }
+function nowTimeStr10(){
+  const d=new Date();
+  let h=d.getHours(), m=Math.round(d.getMinutes()/10)*10;
+  if(m===60){ m=0; h=(h+1)%24; }
+  return pad2(h)+':'+pad2(m);
+}
 function fmtDate(d){ return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`; }
 function fmtSlashMD(mmdd){ const [mm,dd]=mmdd.split('-').map(Number); return `${mm}/${dd}`; }
 function shortDate(s){ const [y,m,d]=s.split('-'); return y.slice(2)+'.'+m+'.'+d; }
@@ -2495,18 +2501,24 @@ function renderHealth(){
       </div>
       <div class="grid2" style="margin-top:10px;">
         <div class="field">
-          <label>수면 시간 (취침 → 기상)</label>
+          <div class="row" style="justify-content:space-between;align-items:center;">
+            <label>수면 시간 (취침 → 기상)</label>
+            <button type="button" class="btn small" id="hSleepNowBtn">기록하기</button>
+          </div>
           <div class="row" style="gap:4px;flex-wrap:nowrap;">
-            <input type="time" id="hSleepStart" value="${rec.sleepStart||'22:00'}" style="flex:1;min-width:0;">
-            <input type="time" id="hSleepEnd" value="${rec.sleepEnd||'07:00'}" style="flex:1;min-width:0;">
+            <input type="time" step="600" id="hSleepStart" value="${rec.sleepStart||'22:00'}" style="flex:1;min-width:0;">
+            <input type="time" step="600" id="hSleepEnd" value="${rec.sleepEnd||'07:00'}" style="flex:1;min-width:0;">
           </div>
           <div class="meta" id="sleepCalcResult" style="margin-top:2px;">${rec.sleep?rec.sleep+'시간':''}</div>
         </div>
         <div class="field">
-          <label>공복시간 (Last Meal → First Meal)</label>
+          <div class="row" style="justify-content:space-between;align-items:center;">
+            <label>공복시간 (Last Meal → First Meal)</label>
+            <button type="button" class="btn small" id="hFastingNowBtn">기록하기</button>
+          </div>
           <div class="row" style="gap:4px;flex-wrap:nowrap;">
-            <input type="time" id="hLastMeal" value="${rec.lastMeal||'18:30'}" style="flex:1;min-width:0;">
-            <input type="time" id="hFirstMeal" value="${rec.firstMeal||'07:30'}" style="flex:1;min-width:0;">
+            <input type="time" step="600" id="hLastMeal" value="${rec.lastMeal||'18:30'}" style="flex:1;min-width:0;">
+            <input type="time" step="600" id="hFirstMeal" value="${rec.firstMeal||'07:30'}" style="flex:1;min-width:0;">
           </div>
           <div class="meta" id="fastingCalcResult" style="margin-top:2px;">${rec.fasting?rec.fasting+'시간':''}</div>
         </div>
@@ -2619,6 +2631,16 @@ function renderHealth(){
   document.getElementById('hSleepEnd').addEventListener('change', recalcSleep);
   document.getElementById('hLastMeal').addEventListener('change', recalcFasting);
   document.getElementById('hFirstMeal').addEventListener('change', recalcFasting);
+  document.getElementById('hSleepNowBtn').onclick=()=>{
+    document.getElementById('hSleepEnd').value=nowTimeStr10();
+    recalcSleep();
+    document.getElementById('healthSaveStatus').textContent='✓ 저장됨';
+  };
+  document.getElementById('hFastingNowBtn').onclick=()=>{
+    document.getElementById('hFirstMeal').value=nowTimeStr10();
+    recalcFasting();
+    document.getElementById('healthSaveStatus').textContent='✓ 저장됨';
+  };
   const hSymptomEl=document.getElementById('hSymptom');
   const autoResize=()=>{ hSymptomEl.style.height='auto'; hSymptomEl.style.height=hSymptomEl.scrollHeight+'px'; };
   autoResize();
