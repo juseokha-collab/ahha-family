@@ -9,6 +9,33 @@ function nowTimeStr10(){
   if(m===60){ m=0; h=(h+1)%24; }
   return pad2(h)+':'+pad2(m);
 }
+const TIME10_MINUTES=['00','10','20','30','40','50'];
+function timeSelect10Html(id, value){
+  const [hRaw,mRaw]=(value||'00:00').split(':');
+  const h=pad2(Number(hRaw)||0);
+  let mSnap=Math.round((Number(mRaw)||0)/10)*10; if(mSnap>=60) mSnap=0;
+  const m=pad2(mSnap);
+  const hourOpts=Array.from({length:24},(_,i)=>pad2(i)).map(hh=>`<option value="${hh}" ${hh===h?'selected':''}>${hh}</option>`).join('');
+  const minOpts=TIME10_MINUTES.map(mm=>`<option value="${mm}" ${mm===m?'selected':''}>${mm}</option>`).join('');
+  return `<span class="row time10-pair" style="gap:2px;flex:1;min-width:0;flex-wrap:nowrap;">
+    <select id="${id}_h" class="time10-select">${hourOpts}</select><span>:</span><select id="${id}_m" class="time10-select">${minOpts}</select>
+  </span>`;
+}
+function getTimeSelect10Value(id){
+  const h=document.getElementById(id+'_h'), m=document.getElementById(id+'_m');
+  return (h && m) ? h.value+':'+m.value : '';
+}
+function setTimeSelect10Value(id, value){
+  const [hRaw,mRaw]=(value||'00:00').split(':');
+  const hEl=document.getElementById(id+'_h'), mEl=document.getElementById(id+'_m');
+  if(hEl) hEl.value=pad2(Number(hRaw)||0);
+  if(mEl){ let mSnap=Math.round((Number(mRaw)||0)/10)*10; if(mSnap>=60) mSnap=0; mEl.value=pad2(mSnap); }
+}
+function bindTimeSelect10(id, onChange){
+  const hEl=document.getElementById(id+'_h'), mEl=document.getElementById(id+'_m');
+  if(hEl) hEl.addEventListener('change', onChange);
+  if(mEl) mEl.addEventListener('change', onChange);
+}
 function fmtDate(d){ return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`; }
 function fmtSlashMD(mmdd){ const [mm,dd]=mmdd.split('-').map(Number); return `${mm}/${dd}`; }
 function shortDate(s){ const [y,m,d]=s.split('-'); return y.slice(2)+'.'+m+'.'+d; }
@@ -2555,8 +2582,8 @@ function renderHealth(){
             <button type="button" class="btn small" id="hSleepNowBtn">기록하기</button>
           </div>
           <div class="row" style="gap:4px;flex-wrap:nowrap;">
-            <input type="time" step="600" id="hSleepStart" value="${rec.sleepStart||'22:00'}" style="flex:1;min-width:0;">
-            <input type="time" step="600" id="hSleepEnd" value="${rec.sleepEnd||'07:00'}" style="flex:1;min-width:0;">
+            ${timeSelect10Html('hSleepStart', rec.sleepStart||'22:00')}
+            ${timeSelect10Html('hSleepEnd', rec.sleepEnd||'07:00')}
           </div>
           <div class="meta" id="sleepCalcResult" style="margin-top:2px;">${rec.sleep?rec.sleep+'시간':''}</div>
         </div>
@@ -2566,8 +2593,8 @@ function renderHealth(){
             <button type="button" class="btn small" id="hFastingNowBtn">기록하기</button>
           </div>
           <div class="row" style="gap:4px;flex-wrap:nowrap;">
-            <input type="time" step="600" id="hLastMeal" value="${rec.lastMeal||'18:30'}" style="flex:1;min-width:0;">
-            <input type="time" step="600" id="hFirstMeal" value="${rec.firstMeal||'07:30'}" style="flex:1;min-width:0;">
+            ${timeSelect10Html('hLastMeal', rec.lastMeal||'18:30')}
+            ${timeSelect10Html('hFirstMeal', rec.firstMeal||'07:30')}
           </div>
           <div class="meta" id="fastingCalcResult" style="margin-top:2px;">${rec.fasting?rec.fasting+'시간':''}</div>
         </div>
@@ -2663,30 +2690,30 @@ function renderHealth(){
   document.getElementById('hSymptom').addEventListener('change',e=>save('symptom', e.target.value));
   document.getElementById('hNetwork').addEventListener('change',e=>save('network', e.target.value));
   const recalcSleep=()=>{
-    const s=document.getElementById('hSleepStart').value, en=document.getElementById('hSleepEnd').value;
+    const s=getTimeSelect10Value('hSleepStart'), en=getTimeSelect10Value('hSleepEnd');
     save('sleepStart', s); save('sleepEnd', en);
     const hrs=calcHourDiff(s, en);
     save('sleep', hrs==null?'':hrs);
     document.getElementById('sleepCalcResult').textContent = hrs!=null ? hrs+'시간' : '';
   };
   const recalcFasting=()=>{
-    const lm=document.getElementById('hLastMeal').value, fm=document.getElementById('hFirstMeal').value;
+    const lm=getTimeSelect10Value('hLastMeal'), fm=getTimeSelect10Value('hFirstMeal');
     save('lastMeal', lm); save('firstMeal', fm);
     const hrs=calcHourDiff(lm, fm);
     save('fasting', hrs==null?'':hrs);
     document.getElementById('fastingCalcResult').textContent = hrs!=null ? hrs+'시간' : '';
   };
-  document.getElementById('hSleepStart').addEventListener('change', recalcSleep);
-  document.getElementById('hSleepEnd').addEventListener('change', recalcSleep);
-  document.getElementById('hLastMeal').addEventListener('change', recalcFasting);
-  document.getElementById('hFirstMeal').addEventListener('change', recalcFasting);
+  bindTimeSelect10('hSleepStart', recalcSleep);
+  bindTimeSelect10('hSleepEnd', recalcSleep);
+  bindTimeSelect10('hLastMeal', recalcFasting);
+  bindTimeSelect10('hFirstMeal', recalcFasting);
   document.getElementById('hSleepNowBtn').onclick=()=>{
-    document.getElementById('hSleepEnd').value=nowTimeStr10();
+    setTimeSelect10Value('hSleepEnd', nowTimeStr10());
     recalcSleep();
     document.getElementById('healthSaveStatus').textContent='✓ 저장됨';
   };
   document.getElementById('hFastingNowBtn').onclick=()=>{
-    document.getElementById('hFirstMeal').value=nowTimeStr10();
+    setTimeSelect10Value('hFirstMeal', nowTimeStr10());
     recalcFasting();
     document.getElementById('healthSaveStatus').textContent='✓ 저장됨';
   };
@@ -2694,10 +2721,13 @@ function renderHealth(){
   const autoResize=()=>{ hSymptomEl.style.height='auto'; hSymptomEl.style.height=hSymptomEl.scrollHeight+'px'; };
   autoResize();
   hSymptomEl.addEventListener('input', autoResize);
-  ['hWeight','hSleepStart','hSleepEnd','hLastMeal','hFirstMeal','hCalories','hSymptom','hNetwork'].forEach(id=>{
+  ['hWeight','hCalories','hSymptom','hNetwork'].forEach(id=>{
     document.getElementById(id).addEventListener('input', ()=>{
       document.getElementById('healthSaveStatus').textContent='';
     });
+  });
+  ['hSleepStart','hSleepEnd','hLastMeal','hFirstMeal'].forEach(id=>{
+    bindTimeSelect10(id, ()=>{ document.getElementById('healthSaveStatus').textContent=''; });
   });
   document.getElementById('toggleActivityTrendBtn').onclick=()=>{
     showActivityTrend=!showActivityTrend;
