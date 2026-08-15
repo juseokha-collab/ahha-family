@@ -2190,9 +2190,11 @@ function openScheduleModal(existing, prefill, occurDate){
 const FAMILY_MEMBERS=[{key:'dad',label:'아빠'},{key:'mom',label:'엄마'},{key:'daughter',label:'딸'}];
 const MEMBER_EMOJI={dad:'👨',mom:'👩',daughter:'👧'};
 const MEAL_TYPES=['아침','점심','저녁','간식'];
-const MEAL_AMOUNTS=['쫌쫌따리','알잘딱','쫌만이','레전드'];
+const MEAL_AMOUNTS=['쫌쫌따리','알잘딱','쫌많이','레전드'];
 const MEAL_ICONS={아침:'🌅',점심:'☀️',저녁:'🌙',간식:'🍰'};
 const MEAL_FAST_TEXT={아침:'단식했어요',점심:'단식했어요',저녁:'단식했어요',간식:'참았어요'};
+const MEAL_AMOUNT_POINTS={'쫌쫌따리':20,'알잘딱':10,'쫌많이':-10,'레전드':-30};
+const MEAL_FAST_POINTS=10;
 function openMealEditModal(dateStr, id){
   const meals=(state.daily[dateStr] && state.daily[dateStr].health && state.daily[dateStr].health[healthPerson] && state.daily[dateStr].health[healthPerson].meals) || [];
   const m=meals.find(x=>x.id===id);
@@ -2230,7 +2232,7 @@ function findOrCreateMealSlot(mealType){
   let entry=meals.find(m=>m.mealType===mealType);
   if(!entry){
     const now=new Date();
-    entry={id:uid(), time:pad2(now.getHours())+':'+pad2(now.getMinutes()), mealType, content:'', amount:''};
+    entry={id:uid(), time:pad2(now.getHours())+':'+pad2(now.getMinutes()), mealType, content:'', amount:'', fasted:false};
     meals.push(entry);
   }
   return entry;
@@ -2272,6 +2274,7 @@ function openMealSlotModal(mealType){
     const entry=findOrCreateMealSlot(mealType);
     entry.content=content;
     entry.amount=amount;
+    entry.fasted=false;
     queueSave(); closeModal(); renderHealth();
   };
   const delBtn=document.getElementById('mDelete');
@@ -2495,14 +2498,24 @@ function renderHealth(){
         <div class="meal-card-grid">
           ${MEAL_TYPES.map(t=>{
             const m=todaysMealsByType[t];
-            const statusText = m ? (m.amount||'기록됨') : MEAL_FAST_TEXT[t];
+            const hasContent = !!(m && m.content);
+            const fasted = !!(m && m.fasted);
+            const confirmed = hasContent || fasted;
+            const statusText = hasContent ? m.amount : MEAL_FAST_TEXT[t];
+            const points = hasContent ? MEAL_AMOUNT_POINTS[m.amount] : (fasted ? MEAL_FAST_POINTS : null);
+            const pointsHtml = points!=null ? `<span style="color:${points<0?'var(--bad)':'var(--good)'};font-weight:700;">${points>0?'+':''}${points}점</span>` : '';
             return `<div class="meal-card">
-              <div class="row" style="justify-content:space-between;align-items:flex-start;">
+              <div class="row" style="justify-content:space-between;align-items:flex-start;gap:4px;flex-wrap:nowrap;">
                 <span class="meal-card-icon">${MEAL_ICONS[t]}</span>
-                <button type="button" class="meal-card-add" data-meal-add="${t}" title="${t} 기록">+</button>
+                ${hasContent?`<span class="meal-card-preview" title="${escapeHtml(m.content)}">${escapeHtml(m.content)}</span>`:'<span></span>'}
+                <button type="button" class="meal-card-add" data-meal-add="${t}" title="${t} 기록">${hasContent?'✏️':'+'}</button>
               </div>
               <div class="meal-card-label">${t}</div>
-              <div class="meal-card-status">✅ ${escapeHtml(statusText)}</div>
+              <div class="meal-card-status">
+                <button type="button" class="meal-card-check" data-meal-check="${t}" ${hasContent?'disabled':''}>${confirmed?'✅':'⚪'}</button>
+                <span class="${confirmed?'meal-status-bold':'meal-status-muted'}">${escapeHtml(statusText)}</span>
+                ${pointsHtml}
+              </div>
             </div>`;
           }).join('')}
         </div>
@@ -2603,6 +2616,11 @@ function renderHealth(){
     document.getElementById('healthSaveStatus').textContent = `✓ 저장됨 (${now.getHours()}:${pad2(now.getMinutes())})`;
   };
   el.querySelectorAll('[data-meal-add]').forEach(b=>b.onclick=()=>openMealSlotModal(b.dataset.mealAdd));
+  el.querySelectorAll('[data-meal-check]').forEach(b=>b.onclick=()=>{
+    const entry=findOrCreateMealSlot(b.dataset.mealCheck);
+    entry.fasted=!entry.fasted;
+    queueSave(); renderHealth();
+  });
   el.querySelectorAll('[data-edit-meal]').forEach(b=>b.onclick=()=>openMealEditModal(b.dataset.mealDate, b.dataset.editMeal));
   el.querySelectorAll('[data-del-meal]').forEach(b=>b.onclick=()=>{
     if(!confirm('삭제할까요?')) return;
