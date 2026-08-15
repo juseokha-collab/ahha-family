@@ -2941,7 +2941,7 @@ function myIncomeCategories(){
   if(!state.incomeCategories[key]) state.incomeCategories[key]=[...(key==='daughter'?DAUGHTER_INCOME_CATS:INCOME_CATS)];
   return state.incomeCategories[key];
 }
-function fmtCurrency(v,cur){ return cur==='GBP' ? '£'+Number(v).toLocaleString() : Number(v).toLocaleString()+'원'; }
+function fmtCurrency(v,cur){ return cur==='GBP' ? '£'+Number(v).toLocaleString('en-GB',{minimumFractionDigits:2,maximumFractionDigits:2}) : Number(v).toLocaleString()+'원'; }
 function fmtCurrencyColored(v,cur){
   const text=fmtCurrency(v,cur);
   return Number(v)<0 ? `<span style="color:var(--bad);">${text}</span>` : text;
@@ -3152,7 +3152,7 @@ function renderBudget(){
           <button class="btn small" id="exchangeCurBtn">💱 환전</button>
         </div>
       </div>
-      <div class="stat-grid" style="margin-top:16px;">
+      <div class="stat-grid budget-stat-grid" style="margin-top:16px;">
         <div class="stat" id="carryoverStat" style="text-align:left;cursor:pointer;" title="클릭해서 전월 이월 금액 입력">
           <div class="l">전월 이월금액</div>
           <div class="v">${fmtCurrencyColored(carryover.KRW,'KRW')}${carryover.GBP?' / '+fmtCurrencyColored(carryover.GBP,'GBP'):''}</div>
@@ -3163,9 +3163,10 @@ function renderBudget(){
           <div class="l">합계 금액</div>
           <div class="v">${fmtCurrencyColored(totalSumKRW,'KRW')}${totalSumGBP?' / '+fmtCurrencyColored(totalSumGBP,'GBP'):''}</div>
           ${exchangeRecords.length?`<div style="margin-top:8px;">${exchangeRecords.map(r=>`
-            <div style="margin-top:4px;">
-              <div class="meta" style="font-size:10px;line-height:1.3;">${r.date.slice(5)} ${(r.krw||0).toLocaleString()}원 환전 (+£${r.gbp||0})</div>
-              <div class="row" style="gap:4px;margin-top:1px;"><button type="button" class="btn small" style="font-size:10px;padding:1px 4px;" data-edit-exchange="${r.id}" title="수정">✏️</button><button type="button" class="btn small danger" style="font-size:10px;padding:1px 4px;" data-del-exchange="${r.id}" title="삭제">✕</button></div>
+            <div class="row" style="align-items:center;gap:4px;flex-wrap:nowrap;margin-top:4px;">
+              <span class="l" style="white-space:nowrap;">${r.date.slice(5)} ${(r.krw||0).toLocaleString()}원 환전 (+£${Number(r.gbp||0).toFixed(2)})</span>
+              <button type="button" class="btn small" style="font-size:10px;padding:1px 4px;flex-shrink:0;" data-edit-exchange="${r.id}" title="수정">✏️</button>
+              <button type="button" class="btn small danger" style="font-size:10px;padding:1px 4px;flex-shrink:0;" data-del-exchange="${r.id}" title="삭제">✕</button>
             </div>`).join('')}</div>` : ''}
         </div>
         <div class="stat" style="text-align:left;">
