@@ -2442,13 +2442,18 @@ function renderHealth(){
     const coloredNote=`<span style="color:${noteColor};">(${note})</span>`;
     return `<div class="meta" style="margin-top:2px;">${icon} ${mainText} ${coloredNote}</div>`;
   };
+  const otherGoalLines = otherMembers.filter(m=>weightChartOthers.includes(m.key) && weightGoalsFor(m.key).weeklyLoss)
+    .map(m=>`<div class="meta">${m.label}는 주당 ${weightGoalsFor(m.key).weeklyLoss}g 감량이 목표입니다</div>`).join('');
   el.innerHTML=`
     <div class="card">
-      <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
-        <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap;">
-          <h3 style="margin:0;">📈 체중 추이</h3>
-          <span class="meta">${weightGoalSummaryText(goals)}</span>
-          <button class="icon-btn" id="editWeightGoalBtn" title="목표 수정" style="padding:0 2px;font-size:13px;">✏️</button>
+      <div class="row" style="justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;">
+        <div style="display:flex;flex-direction:column;gap:2px;">
+          <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap;">
+            <h3 style="margin:0;">📈 체중 추이</h3>
+            <span class="meta">${weightGoalSummaryText(goals)}</span>
+            <button class="icon-btn" id="editWeightGoalBtn" title="목표 수정" style="padding:0 2px;font-size:13px;">✏️</button>
+          </div>
+          ${otherGoalLines}
         </div>
         <div class="row" style="gap:10px;">
           ${otherMembers.map(m=>`<label class="pill" style="cursor:pointer;"><input type="checkbox" class="weightExtraToggle" value="${m.key}" ${weightChartOthers.includes(m.key)?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">${MEMBER_EMOJI[m.key]||''} ${m.label}</label>`).join('')}
