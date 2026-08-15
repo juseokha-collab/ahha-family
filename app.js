@@ -10,31 +10,37 @@ function nowTimeStr10(){
   return pad2(h)+':'+pad2(m);
 }
 const TIME10_MINUTES=['00','10','20','30','40','50'];
+function snapMin10(m){ let s=Math.round((Number(m)||0)/10)*10; if(s>=60) s=0; return s; }
+function to12Hour(h24){ let h12=h24%12; if(h12===0) h12=12; return {ampm: h24<12?'오전':'오후', h12}; }
+function to24Hour(ampm, h12){ let h24=Number(h12)%12; if(ampm==='오후') h24+=12; return h24; }
 function timeSelect10Html(id, value){
   const [hRaw,mRaw]=(value||'00:00').split(':');
-  const h=pad2(Number(hRaw)||0);
-  let mSnap=Math.round((Number(mRaw)||0)/10)*10; if(mSnap>=60) mSnap=0;
-  const m=pad2(mSnap);
-  const hourOpts=Array.from({length:24},(_,i)=>pad2(i)).map(hh=>`<option value="${hh}" ${hh===h?'selected':''}>${hh}</option>`).join('');
+  const {ampm,h12}=to12Hour(Number(hRaw)||0);
+  const m=pad2(snapMin10(mRaw));
+  const ampmOpts=['오전','오후'].map(a=>`<option value="${a}" ${a===ampm?'selected':''}>${a}</option>`).join('');
+  const hourOpts=Array.from({length:12},(_,i)=>i+1).map(hh=>`<option value="${hh}" ${hh===h12?'selected':''}>${hh}</option>`).join('');
   const minOpts=TIME10_MINUTES.map(mm=>`<option value="${mm}" ${mm===m?'selected':''}>${mm}</option>`).join('');
   return `<span class="row time10-pair" style="gap:2px;flex:1;min-width:0;flex-wrap:nowrap;">
-    <select id="${id}_h" class="time10-select">${hourOpts}</select><span>:</span><select id="${id}_m" class="time10-select">${minOpts}</select>
+    <select id="${id}_ap" class="time10-select">${ampmOpts}</select><select id="${id}_h" class="time10-select">${hourOpts}</select><span>:</span><select id="${id}_m" class="time10-select">${minOpts}</select>
   </span>`;
 }
 function getTimeSelect10Value(id){
-  const h=document.getElementById(id+'_h'), m=document.getElementById(id+'_m');
-  return (h && m) ? h.value+':'+m.value : '';
+  const ap=document.getElementById(id+'_ap'), h=document.getElementById(id+'_h'), m=document.getElementById(id+'_m');
+  return (ap && h && m) ? pad2(to24Hour(ap.value, h.value))+':'+m.value : '';
 }
 function setTimeSelect10Value(id, value){
   const [hRaw,mRaw]=(value||'00:00').split(':');
-  const hEl=document.getElementById(id+'_h'), mEl=document.getElementById(id+'_m');
-  if(hEl) hEl.value=pad2(Number(hRaw)||0);
-  if(mEl){ let mSnap=Math.round((Number(mRaw)||0)/10)*10; if(mSnap>=60) mSnap=0; mEl.value=pad2(mSnap); }
+  const {ampm,h12}=to12Hour(Number(hRaw)||0);
+  const apEl=document.getElementById(id+'_ap'), hEl=document.getElementById(id+'_h'), mEl=document.getElementById(id+'_m');
+  if(apEl) apEl.value=ampm;
+  if(hEl) hEl.value=String(h12);
+  if(mEl) mEl.value=pad2(snapMin10(mRaw));
 }
 function bindTimeSelect10(id, onChange){
-  const hEl=document.getElementById(id+'_h'), mEl=document.getElementById(id+'_m');
-  if(hEl) hEl.addEventListener('change', onChange);
-  if(mEl) mEl.addEventListener('change', onChange);
+  ['_ap','_h','_m'].forEach(suf=>{
+    const el=document.getElementById(id+suf);
+    if(el) el.addEventListener('change', onChange);
+  });
 }
 function fmtDate(d){ return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`; }
 function fmtSlashMD(mmdd){ const [mm,dd]=mmdd.split('-').map(Number); return `${mm}/${dd}`; }
@@ -2292,6 +2298,33 @@ const MEAL_ICONS={아침:'☀️',점심:'🌤️',저녁:'🌙',간식:'🍰'};
 const MEAL_FAST_TEXT={아침:'단식했어요',점심:'단식했어요',저녁:'단식했어요',간식:'참았어요'};
 const MEAL_AMOUNT_POINTS={'쫌쫌따리':20,'알잘딱':10,'쫌많이':-10,'레전드':-30};
 const MEAL_FAST_POINTS=10;
+function mealEntryLineHtml(m){
+  const hasContent = !!m.content;
+  const points = hasContent ? MEAL_AMOUNT_POINTS[m.amount] : (m.fasted ? MEAL_FAST_POINTS : null);
+  const pointsHtml = points!=null ? ` <span style="color:${points<0?'var(--bad)':'var(--good)'};font-weight:700;">${points>0?'+':''}${points}점</span>` : '';
+  const statusText = hasContent ? m.amount : (m.fasted ? MEAL_FAST_TEXT[m.mealType] : '');
+  return `${escapeHtml(m.mealType)} · ${escapeHtml(statusText)}${hasContent?' · '+escapeHtml(m.content):''}${pointsHtml}`;
+}
+function openMealDayModal(dateStr){
+  const meals=(state.daily[dateStr] && state.daily[dateStr].health && state.daily[dateStr].health[healthPerson] && state.daily[dateStr].health[healthPerson].meals) || [];
+  const dLabel=`${dateStr.slice(5)}(${parseDate(dateStr).toLocaleDateString('ko-KR',{weekday:'short'})})`;
+  openModal(`
+    <h3>식단 기록 (${dLabel})</h3>
+    ${meals.length? meals.map(m=>`
+      <div class="list-item">
+        <div class="content-text">${mealEntryLineHtml(m)}</div>
+        <div class="row" style="flex-shrink:0;"><button class="btn small" style="font-size:11px;padding:3px 8px;" data-day-edit-meal="${m.id}" title="수정">✏️</button> <button class="btn small danger" style="font-size:11px;padding:3px 8px;" data-day-del-meal="${m.id}" title="삭제">✕</button></div>
+      </div>`).join('') : `<div class="empty">기록된 식단이 없어요</div>`}
+    <div class="modal-actions"><button class="btn" id="mCancel">닫기</button></div>
+  `);
+  document.getElementById('mCancel').onclick=closeModal;
+  document.querySelectorAll('[data-day-edit-meal]').forEach(b=>b.onclick=()=>openMealEditModal(dateStr, b.dataset.dayEditMeal));
+  document.querySelectorAll('[data-day-del-meal]').forEach(b=>b.onclick=()=>{
+    if(!confirm('삭제할까요?')) return;
+    state.daily[dateStr].health[healthPerson].meals=meals.filter(x=>x.id!==b.dataset.dayDelMeal);
+    queueSave(); closeModal(); renderHealth();
+  });
+}
 function openMealEditModal(dateStr, id){
   const meals=(state.daily[dateStr] && state.daily[dateStr].health && state.daily[dateStr].health[healthPerson] && state.daily[dateStr].health[healthPerson].meals) || [];
   const m=meals.find(x=>x.id===id);
@@ -2510,6 +2543,12 @@ function renderHealth(){
     const dayRec=(state.daily[d] && state.daily[d].health && state.daily[d].health[healthPerson]) || {};
     return (dayRec.meals||[]).map(m=>({...m, date:d}));
   }).sort((a,b)=> b.date.localeCompare(a.date) || b.time.localeCompare(a.time));
+  const mealGroups=[];
+  mealList.forEach(m=>{
+    let g=mealGroups.find(x=>x.date===m.date);
+    if(!g){ g={date:m.date, entries:[]}; mealGroups.push(g); }
+    g.entries.push(m);
+  });
   const el=document.getElementById('tab-health');
   const dLabel = parseDate(healthDate).toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'});
   const dLabelColor = weekdayColor(healthDate);
@@ -2601,7 +2640,7 @@ function renderHealth(){
             <button type="button" class="btn small" id="hFastingNowBtn">기록하기</button>
           </div>
           <div class="row" style="gap:4px;flex-wrap:nowrap;">
-            ${timeSelect10Html('hLastMeal', rec.lastMeal||'18:30')}
+            ${timeSelect10Html('hLastMeal', rec.lastMeal||'19:30')}
             ${timeSelect10Html('hFirstMeal', rec.firstMeal||'07:30')}
           </div>
         </div>
@@ -2616,7 +2655,7 @@ function renderHealth(){
         <input id="hNetwork" placeholder="쉼표로 구분 (예: 홍길동, 김철수)" value="${escapeHtml(rec.network||'')}">
       </div>
       <div class="field" style="margin-top:8px;">
-        <label>${hasAnyMealRecord ? `오늘의 식단은 ${mealScore}점 입니다` : `오늘의 식단 <span class="meta" style="font-weight:400;">(오늘 식단을 입력해 볼까 ^^)</span>`}</label>
+        <label>${hasAnyMealRecord ? `오늘의 식단은 <span style="color:var(--accent);font-weight:800;">${mealScore}점</span> 입니다` : `오늘의 식단 <span class="meta" style="font-weight:400;">(오늘 식단을 입력해 볼까 ^^)</span>`}</label>
         <div class="meal-card-grid">
           ${MEAL_TYPES.map(t=>{
             const m=todaysMealsByType[t];
@@ -2625,8 +2664,8 @@ function renderHealth(){
             const confirmed = hasContent || fasted;
             const statusText = hasContent ? m.amount : MEAL_FAST_TEXT[t];
             const points = hasContent ? MEAL_AMOUNT_POINTS[m.amount] : (fasted ? MEAL_FAST_POINTS : null);
-            const pointsHtml = points!=null ? `<span style="color:${points<0?'var(--bad)':'var(--good)'};font-weight:700;">${points>0?'+':''}${points}점</span>` : '';
-            return `<div class="meal-card">
+            const pointsHtml = points!=null ? `<span style="color:${points<0?'#ff8080':'#4ade80'};font-weight:700;">${points>0?'+':''}${points}점</span>` : '';
+            return `<div class="meal-card${confirmed?' meal-card-done':''}">
               <div class="meal-card-top">
                 <span class="meal-card-icon">${MEAL_ICONS[t]}</span>
                 <div class="meal-card-preview${hasContent?'':' empty'}" title="${hasContent?escapeHtml(m.content):''}">${hasContent?escapeHtml(m.content):''}</div>
@@ -2642,10 +2681,13 @@ function renderHealth(){
           }).join('')}
         </div>
         <div style="margin-top:8px;">
-          ${mealList.length? mealList.map(mEntry=>`
-            <div class="list-item">
-              <div class="content-text">${mEntry.date.slice(5)} ${mEntry.time} ${mEntry.mealType} · ${escapeHtml(mEntry.content)} · ${mEntry.amount}</div>
-              <div class="row" style="flex-shrink:0;"><button class="btn small" style="font-size:11px;padding:3px 8px;" data-edit-meal="${mEntry.id}" data-meal-date="${mEntry.date}" title="수정">✏️</button> <button class="btn small danger" style="font-size:11px;padding:3px 8px;" data-del-meal="${mEntry.id}" data-meal-date="${mEntry.date}" title="삭제">✕</button></div>
+          ${mealGroups.length? mealGroups.map(g=>`
+            <div class="list-item" style="align-items:flex-start;">
+              <div>
+                <div style="font-weight:700;font-size:12.5px;">${g.date.slice(5)}(${parseDate(g.date).toLocaleDateString('ko-KR',{weekday:'short'})})</div>
+                ${g.entries.map(m=>`<div class="content-text" style="margin-top:2px;">${mealEntryLineHtml(m)}</div>`).join('')}
+              </div>
+              <div class="row" style="flex-shrink:0;"><button class="btn small" style="font-size:11px;padding:3px 8px;" data-edit-meal-day="${g.date}" title="수정">✏️</button> <button class="btn small danger" style="font-size:11px;padding:3px 8px;" data-del-meal-day="${g.date}" title="삭제">✕</button></div>
             </div>`).join('') : `<div class="empty">아직 기록된 식단이 없어요</div>`}
         </div>
       </div>
@@ -2756,12 +2798,11 @@ function renderHealth(){
     entry.fasted=!entry.fasted;
     queueSave(); renderHealth();
   });
-  el.querySelectorAll('[data-edit-meal]').forEach(b=>b.onclick=()=>openMealEditModal(b.dataset.mealDate, b.dataset.editMeal));
-  el.querySelectorAll('[data-del-meal]').forEach(b=>b.onclick=()=>{
-    if(!confirm('삭제할까요?')) return;
-    const date=b.dataset.mealDate, id=b.dataset.delMeal;
-    const meals=(state.daily[date] && state.daily[date].health && state.daily[date].health[healthPerson] && state.daily[date].health[healthPerson].meals) || [];
-    state.daily[date].health[healthPerson].meals = meals.filter(x=>x.id!==id);
+  el.querySelectorAll('[data-edit-meal-day]').forEach(b=>b.onclick=()=>openMealDayModal(b.dataset.editMealDay));
+  el.querySelectorAll('[data-del-meal-day]').forEach(b=>b.onclick=()=>{
+    if(!confirm('이 날짜의 식단 기록을 모두 삭제할까요?')) return;
+    const date=b.dataset.delMealDay;
+    if(state.daily[date] && state.daily[date].health && state.daily[date].health[healthPerson]) state.daily[date].health[healthPerson].meals=[];
     queueSave(); renderHealth();
   });
   const addHealthSchedBtn=document.getElementById('addHealthSchedBtn');

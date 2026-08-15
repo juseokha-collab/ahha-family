@@ -57,6 +57,11 @@ nav.tabs button.active{background:var(--panel2);color:var(--text);border-color:v
 .meal-card-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
 @media(min-width:601px){.meal-card-grid{grid-template-columns:repeat(4,1fr);}}
 .meal-card{background:var(--panel2);border:1px solid var(--border);border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:6px;height:150px;overflow:hidden;box-sizing:border-box;}
+.meal-card-done{background:#1c1c22;border-color:#1c1c22;}
+.meal-card-done .meal-card-preview{color:#f0f0f3;}
+.meal-card-done .meal-card-label{color:#f0f0f3;}
+.meal-card-done .meal-status-bold{color:#f0f0f3;}
+.meal-card-done .meal-card-edit{color:#a9a9b2;}
 .meal-card-top{display:flex;align-items:flex-start;gap:4px;flex:1;min-height:0;}
 .meal-card-icon{font-size:22px;line-height:1;flex-shrink:0;}
 .meal-card-edit{background:none;border:none;color:var(--muted);font-size:13px;cursor:pointer;padding:2px;flex-shrink:0;align-self:flex-end;line-height:1;}
@@ -261,7 +266,7 @@ button.iconbtn.habit-nav-btn.habit-nav-btn-weekly{color:var(--accent2);}
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-<script src="firebase-config.js?v=20260815u"></script>
-<script src="app.js?v=20260815u"></script>
+<script src="firebase-config.js?v=20260816a"></script>
+<script src="app.js?v=20260816a"></script>
 </body>
 </html>
