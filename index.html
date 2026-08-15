@@ -52,8 +52,14 @@ nav.tabs button.active{background:var(--panel2);color:var(--text);border-color:v
 .field textarea{resize:vertical;min-height:44px;}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
 @media(max-width:600px){.grid2{grid-template-columns:1fr;}}
-.meal-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:6px;}
-@media(max-width:600px){.meal-grid{grid-template-columns:1fr;}}
+.meal-card-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px;}
+@media(min-width:601px){.meal-card-grid{grid-template-columns:repeat(4,1fr);}}
+.meal-card{background:var(--panel2);border:1px solid var(--border);border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:6px;min-height:100px;}
+.meal-card-icon{font-size:28px;line-height:1;}
+.meal-card-add{background:none;border:none;color:var(--text);font-size:20px;font-weight:700;cursor:pointer;width:28px;height:28px;border-radius:50%;flex-shrink:0;padding:0;}
+.meal-card-add:hover{background:var(--sel-bg);}
+.meal-card-label{font-weight:700;font-size:14px;margin-top:auto;}
+.meal-card-status{font-size:11px;color:var(--muted);}
 .list-item{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);}
 .list-item:last-child{border-bottom:none;}
 .meta{font-size:11px;color:var(--muted);}
@@ -240,7 +246,7 @@ button.iconbtn.habit-nav-btn.habit-nav-btn-weekly{color:var(--accent2);}
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-<script src="firebase-config.js?v=20260814am"></script>
-<script src="app.js?v=20260814am"></script>
+<script src="firebase-config.js?v=20260814an"></script>
+<script src="app.js?v=20260814an"></script>
 </body>
 </html>

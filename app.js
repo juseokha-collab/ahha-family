@@ -2190,7 +2190,9 @@ function openScheduleModal(existing, prefill, occurDate){
 const FAMILY_MEMBERS=[{key:'dad',label:'아빠'},{key:'mom',label:'엄마'},{key:'daughter',label:'딸'}];
 const MEMBER_EMOJI={dad:'👨',mom:'👩',daughter:'👧'};
 const MEAL_TYPES=['아침','점심','저녁','간식'];
-const MEAL_AMOUNTS=['조금 적게','적당하게','조금 많이','너무 많이'];
+const MEAL_AMOUNTS=['쫌쫌따리','알잘딱','쫌만이','레전드'];
+const MEAL_ICONS={아침:'🌅',점심:'☀️',저녁:'🌙',간식:'🍰'};
+const MEAL_FAST_TEXT={아침:'단식했어요',점심:'단식했어요',저녁:'단식했어요',간식:'참았어요'};
 function openMealEditModal(dateStr, id){
   const meals=(state.daily[dateStr] && state.daily[dateStr].health && state.daily[dateStr].health[healthPerson] && state.daily[dateStr].health[healthPerson].meals) || [];
   const m=meals.find(x=>x.id===id);
@@ -2216,6 +2218,66 @@ function openMealEditModal(dateStr, id){
   document.getElementById('mDelete').onclick=()=>{
     if(!confirm('삭제할까요?')) return;
     state.daily[dateStr].health[healthPerson].meals=meals.filter(x=>x.id!==id);
+    queueSave(); closeModal(); renderHealth();
+  };
+}
+function findOrCreateMealSlot(mealType){
+  ensureDay(healthDate);
+  if(!state.daily[healthDate].health) state.daily[healthDate].health={};
+  if(!state.daily[healthDate].health[healthPerson]) state.daily[healthDate].health[healthPerson]={};
+  if(!state.daily[healthDate].health[healthPerson].meals) state.daily[healthDate].health[healthPerson].meals=[];
+  const meals=state.daily[healthDate].health[healthPerson].meals;
+  let entry=meals.find(m=>m.mealType===mealType);
+  if(!entry){
+    const now=new Date();
+    entry={id:uid(), time:pad2(now.getHours())+':'+pad2(now.getMinutes()), mealType, content:'', amount:''};
+    meals.push(entry);
+  }
+  return entry;
+}
+function dinnerNudgeText(){
+  const rec=(state.daily[healthDate] && state.daily[healthDate].health && state.daily[healthDate].health[healthPerson]) || {};
+  const prevDate=fmtDate(addDays(parseDate(healthDate),-1));
+  const prevRec=(state.daily[prevDate] && state.daily[prevDate].health && state.daily[prevDate].health[healthPerson]) || {};
+  return (rec.weight && prevRec.weight && Number(rec.weight)>Number(prevRec.weight)) ? '오늘 저녁은 살찌니까 간단하게 ^^' : '';
+}
+function openMealSlotModal(mealType){
+  const meals=(state.daily[healthDate] && state.daily[healthDate].health && state.daily[healthDate].health[healthPerson] && state.daily[healthDate].health[healthPerson].meals) || [];
+  const existing=meals.find(m=>m.mealType===mealType);
+  let selectedAmount=existing?existing.amount:'';
+  const placeholder=(mealType==='저녁' && dinnerNudgeText()) ? dinnerNudgeText() : '무엇을 먹었는지';
+  openModal(`
+    <h3>${MEAL_ICONS[mealType]} ${mealType} 기록</h3>
+    <div class="field"><label>무엇을 먹었는지</label><textarea id="mMealContent" placeholder="${escapeHtml(placeholder)}" style="overflow:hidden;">${existing?escapeHtml(existing.content):''}</textarea></div>
+    <div class="field" style="margin-top:10px;"><label>먹은 양</label>
+      <div class="row" style="gap:6px;flex-wrap:wrap;">
+        ${MEAL_AMOUNTS.map(a=>`<label class="pill" style="cursor:pointer;"><input type="radio" name="mMealAmount" value="${a}" ${selectedAmount===a?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">${a}</label>`).join('')}
+      </div>
+    </div>
+    <div class="modal-actions">
+      ${existing?`<button class="btn danger" id="mDelete">삭제</button>`:''}
+      <button class="btn" id="mCancel">취소</button>
+      <button class="btn primary" id="mSave">저장</button>
+    </div>
+  `);
+  document.getElementById('mCancel').onclick=closeModal;
+  const contentEl=document.getElementById('mMealContent');
+  const autoResizeMeal=()=>{ contentEl.style.height='auto'; contentEl.style.height=contentEl.scrollHeight+'px'; };
+  autoResizeMeal();
+  contentEl.addEventListener('input', autoResizeMeal);
+  document.getElementById('mSave').onclick=()=>{
+    const content=contentEl.value.trim();
+    const amount=(document.querySelector('input[name="mMealAmount"]:checked')||{}).value||'';
+    if(!content){ showToast('내용을 입력해주세요'); return; }
+    const entry=findOrCreateMealSlot(mealType);
+    entry.content=content;
+    entry.amount=amount;
+    queueSave(); closeModal(); renderHealth();
+  };
+  const delBtn=document.getElementById('mDelete');
+  if(delBtn) delBtn.onclick=()=>{
+    if(!confirm('삭제할까요?')) return;
+    state.daily[healthDate].health[healthPerson].meals=meals.filter(x=>x.id!==existing.id);
     queueSave(); closeModal(); renderHealth();
   };
 }
@@ -2327,9 +2389,6 @@ function renderHealth(){
   const rec=(day.health&&day.health[healthPerson])||{};
   const todaysMealsByType={};
   (rec.meals||[]).forEach(m=>{ todaysMealsByType[m.mealType]=m; });
-  const prevHealthDate=fmtDate(addDays(parseDate(healthDate),-1));
-  const prevWeightRec=(state.daily[prevHealthDate] && state.daily[prevHealthDate].health && state.daily[prevHealthDate].health[healthPerson]) || {};
-  const dinnerNudge=(rec.weight && prevWeightRec.weight && Number(rec.weight)>Number(prevWeightRec.weight)) ? '오늘 저녁은 살찌니까 간단하게 ^^' : '';
   const mealWindowDates=Array.from({length:7},(_,i)=>fmtDate(addDays(parseDate(healthDate), -(6-i))));
   const mealList=mealWindowDates.flatMap(d=>{
     const dayRec=(state.daily[d] && state.daily[d].health && state.daily[d].health[healthPerson]) || {};
@@ -2432,25 +2491,20 @@ function renderHealth(){
         <input id="hNetwork" placeholder="쉼표로 구분 (예: 홍길동, 김철수)" value="${escapeHtml(rec.network||'')}">
       </div>
       <div class="field" style="margin-top:8px;">
-        <div class="meal-grid">
-          ${[['아침','🌅'],['점심','☀️'],['저녁','🌙']].map(([t,emoji])=>{
+        <label>식단 기록</label>
+        <div class="meal-card-grid">
+          ${MEAL_TYPES.map(t=>{
             const m=todaysMealsByType[t];
-            const placeholder = (t==='저녁' && dinnerNudge) ? dinnerNudge : '무엇을 먹었는지';
-            return `<div>
-              <div class="meta" style="margin-bottom:2px;">${emoji} ${t} 식단기록</div>
-              <textarea data-meal-slot="${t}" class="meal-input" placeholder="${escapeHtml(placeholder)}" rows="2" style="width:100%;box-sizing:border-box;resize:none;overflow:hidden;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:13px;font-family:inherit;">${m?escapeHtml(m.content):''}</textarea>
-              <select data-meal-amount="${t}" style="width:100%;margin-top:4px;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:13px;">
-                ${MEAL_AMOUNTS.map(a=>`<option ${m&&m.amount===a?'selected':''}>${a}</option>`).join('')}
-              </select>
+            const statusText = m ? (m.amount||'기록됨') : MEAL_FAST_TEXT[t];
+            return `<div class="meal-card">
+              <div class="row" style="justify-content:space-between;align-items:flex-start;">
+                <span class="meal-card-icon">${MEAL_ICONS[t]}</span>
+                <button type="button" class="meal-card-add" data-meal-add="${t}" title="${t} 기록">+</button>
+              </div>
+              <div class="meal-card-label">${t}</div>
+              <div class="meal-card-status">✅ ${escapeHtml(statusText)}</div>
             </div>`;
           }).join('')}
-        </div>
-        <div class="row" style="gap:8px;align-items:flex-start;margin-top:8px;flex-wrap:wrap;">
-          <div class="meta" style="width:40px;flex-shrink:0;margin-top:6px;">🍪 간식</div>
-          <textarea data-meal-slot="간식" class="meal-input" placeholder="무엇을 먹었는지" rows="2" style="flex:1;min-width:120px;box-sizing:border-box;resize:none;overflow:hidden;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:13px;font-family:inherit;">${todaysMealsByType['간식']?escapeHtml(todaysMealsByType['간식'].content):''}</textarea>
-          <select data-meal-amount="간식" style="background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:13px;">
-            ${MEAL_AMOUNTS.map(a=>`<option ${todaysMealsByType['간식']&&todaysMealsByType['간식'].amount===a?'selected':''}>${a}</option>`).join('')}
-          </select>
         </div>
         <div style="margin-top:8px;">
           ${mealList.length? mealList.map(mEntry=>`
@@ -2548,37 +2602,7 @@ function renderHealth(){
     const now=new Date();
     document.getElementById('healthSaveStatus').textContent = `✓ 저장됨 (${now.getHours()}:${pad2(now.getMinutes())})`;
   };
-  const findOrCreateMealSlot=(mealType)=>{
-    ensureDay(healthDate);
-    if(!state.daily[healthDate].health) state.daily[healthDate].health={};
-    if(!state.daily[healthDate].health[healthPerson]) state.daily[healthDate].health[healthPerson]={};
-    if(!state.daily[healthDate].health[healthPerson].meals) state.daily[healthDate].health[healthPerson].meals=[];
-    const meals=state.daily[healthDate].health[healthPerson].meals;
-    let entry=meals.find(m=>m.mealType===mealType);
-    if(!entry){
-      const now=new Date();
-      entry={id:uid(), time:pad2(now.getHours())+':'+pad2(now.getMinutes()), mealType, content:'', amount:MEAL_AMOUNTS[0]};
-      meals.push(entry);
-    }
-    return entry;
-  };
-  el.querySelectorAll('.meal-input').forEach(inp=>{
-    const autoResizeMeal=()=>{ inp.style.height='auto'; inp.style.height=inp.scrollHeight+'px'; };
-    autoResizeMeal();
-    inp.addEventListener('input', autoResizeMeal);
-  });
-  el.querySelectorAll('[data-meal-slot]').forEach(inp=>inp.addEventListener('change', ()=>{
-    const content=inp.value.trim();
-    if(!content) return;
-    const entry=findOrCreateMealSlot(inp.dataset.mealSlot);
-    entry.content=content;
-    queueSave();
-  }));
-  el.querySelectorAll('[data-meal-amount]').forEach(sel=>sel.addEventListener('change', ()=>{
-    const entry=findOrCreateMealSlot(sel.dataset.mealAmount);
-    entry.amount=sel.value;
-    queueSave();
-  }));
+  el.querySelectorAll('[data-meal-add]').forEach(b=>b.onclick=()=>openMealSlotModal(b.dataset.mealAdd));
   el.querySelectorAll('[data-edit-meal]').forEach(b=>b.onclick=()=>openMealEditModal(b.dataset.mealDate, b.dataset.editMeal));
   el.querySelectorAll('[data-del-meal]').forEach(b=>b.onclick=()=>{
     if(!confirm('삭제할까요?')) return;
