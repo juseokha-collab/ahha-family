@@ -2977,16 +2977,18 @@ function openCarryoverModal(){
     queueSave(); closeModal(); renderBudget();
   };
 }
-function openCurrencyExchangeModal(){
+function openCurrencyExchangeModal(exchangeId){
+  const exKrw = exchangeId ? state.budget.find(b=>b.exchangeId===exchangeId && b.currency==='KRW') : null;
+  const exGbp = exchangeId ? state.budget.find(b=>b.exchangeId===exchangeId && b.currency==='GBP') : null;
   openModal(`
-    <h3>💱 환전</h3>
+    <h3>💱 환전${exchangeId?' 수정':''}</h3>
     <div class="meta" style="margin-bottom:10px;">원화를 파운드로 환전한 내역을 기록해요. 원화 지출과 파운드 수입이 함께 추가되고, 각각의 통화 잔액에 바로 반영돼요.</div>
-    <div class="field"><label>날짜</label><input type="text" readonly class="date-input" id="mDate" value="${todayStr()}"></div>
+    <div class="field"><label>날짜</label><input type="text" readonly class="date-input" id="mDate" value="${exKrw?exKrw.date:todayStr()}"></div>
     <div class="grid2">
-      <div class="field"><label>보낸 금액 (원)</label><input type="number" id="mKrw" placeholder="예: 100000"></div>
-      <div class="field"><label>받은 금액 (£)</label><input type="number" id="mGbp" placeholder="예: 58"></div>
+      <div class="field"><label>보낸 금액 (원)</label><input type="number" id="mKrw" placeholder="예: 100000" value="${exKrw?exKrw.amount:''}"></div>
+      <div class="field"><label>받은 금액 (£)</label><input type="number" id="mGbp" placeholder="예: 58" value="${exGbp?exGbp.amount:''}"></div>
     </div>
-    <div class="modal-actions"><button class="btn" id="mCancel">취소</button><button class="btn primary" id="mSave">환전 기록</button></div>
+    <div class="modal-actions"><button class="btn" id="mCancel">취소</button><button class="btn primary" id="mSave">${exchangeId?'수정 저장':'환전 기록'}</button></div>
   `);
   document.getElementById('mCancel').onclick=closeModal;
   attachDatePicker('mDate');
@@ -2997,11 +2999,17 @@ function openCurrencyExchangeModal(){
     if(!date||!krw||!gbp){ showToast('날짜, 원화 금액, 파운드 금액을 모두 입력해주세요'); return; }
     const myKey=currentAuthorKey();
     const rate=Math.round((krw/gbp)*100)/100;
-    state.budget.push({id:uid(), date, category:'환전', amount:krw, currency:'KRW', memo:`£${gbp} 환전 (환율 ${rate.toLocaleString()})`, type:'expense', owner:myKey});
-    state.budget.push({id:uid(), date, category:'환전', amount:gbp, currency:'GBP', memo:`₩${krw.toLocaleString()} 환전`, type:'income', owner:myKey});
+    if(exKrw && exGbp){
+      exKrw.date=date; exKrw.amount=krw; exKrw.memo=`£${gbp} 환전 (환율 ${rate.toLocaleString()})`;
+      exGbp.date=date; exGbp.amount=gbp; exGbp.memo=`₩${krw.toLocaleString()} 환전`;
+    } else {
+      const exId=uid();
+      state.budget.push({id:uid(), exchangeId:exId, date, category:'환전', amount:krw, currency:'KRW', memo:`£${gbp} 환전 (환율 ${rate.toLocaleString()})`, type:'expense', owner:myKey});
+      state.budget.push({id:uid(), exchangeId:exId, date, category:'환전', amount:gbp, currency:'GBP', memo:`₩${krw.toLocaleString()} 환전`, type:'income', owner:myKey});
+    }
     budgetMonth=date.slice(0,7);
     queueSave(); closeModal(); renderBudget(); renderHome();
-    showToast('환전 내역이 기록됐어요');
+    showToast(exchangeId?'환전 내역이 수정됐어요':'환전 내역이 기록됐어요');
   };
 }
 function mondayWeekRange(dateStr){
@@ -3096,13 +3104,18 @@ function renderBudget(){
   const [y,m]=budgetMonth.split('-');
   const monthBalanceKRW = incomeByCur.KRW - expenseByCur.KRW;
   const monthBalanceGBP = incomeByCur.GBP - expenseByCur.GBP;
-  const allIncomeByCur={KRW:0,GBP:0};
-  myBudget.filter(b=>b.type==='income').forEach(b=>{ const cur=b.currency||'KRW'; allIncomeByCur[cur]=(allIncomeByCur[cur]||0)+Number(b.amount||0); });
-  const allExpenseByCur={KRW:0,GBP:0};
-  myBudget.filter(b=>b.type!=='income').forEach(b=>{ const cur=b.currency||'KRW'; allExpenseByCur[cur]=(allExpenseByCur[cur]||0)+Number(b.amount||0); });
   const carryover=budgetCarryoverFor(myKey);
-  const totalBalanceKRW = carryover.KRW + allIncomeByCur.KRW - allExpenseByCur.KRW;
-  const totalBalanceGBP = carryover.GBP + allIncomeByCur.GBP - allExpenseByCur.GBP;
+  const exchangeItemsThisMonth = monthItems.filter(b=>b.category==='환전');
+  const exchangedKRWThisMonth = exchangeItemsThisMonth.filter(b=>(b.currency||'KRW')==='KRW').reduce((s,b)=>s+Number(b.amount||0),0);
+  const exchangedGBPThisMonth = exchangeItemsThisMonth.filter(b=>b.currency==='GBP').reduce((s,b)=>s+Number(b.amount||0),0);
+  const displayIncomeKRW = incomeByCur.KRW - exchangedKRWThisMonth;
+  const exchangeRecordMap={};
+  myBudget.filter(b=>b.category==='환전' && b.exchangeId).forEach(b=>{
+    if(!exchangeRecordMap[b.exchangeId]) exchangeRecordMap[b.exchangeId]={id:b.exchangeId, date:b.date};
+    if(b.currency==='KRW') exchangeRecordMap[b.exchangeId].krw=b.amount;
+    if(b.currency==='GBP') exchangeRecordMap[b.exchangeId].gbp=b.amount;
+  });
+  const exchangeRecords=Object.values(exchangeRecordMap).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5);
   el.innerHTML=`
     <div class="card">
       <div class="row" style="justify-content:space-between;align-items:center;">
@@ -3110,11 +3123,23 @@ function renderBudget(){
         <button class="btn small" id="exchangeCurBtn">💱 환전</button>
       </div>
       <div class="stat-grid" style="margin-top:16px;">
+        <div class="stat" id="carryoverStat" style="cursor:pointer;" title="클릭해서 전월 이월 금액 입력"><div class="v">${fmtCurrencyColored(carryover.KRW,'KRW')}${carryover.GBP?' / '+fmtCurrencyColored(carryover.GBP,'GBP'):''}</div><div class="l">전월 이월금액</div></div>
+        <div class="stat">
+          <div class="v">${fmtCurrencyColored(displayIncomeKRW,'KRW')}${incomeByCur.GBP?' / '+fmtCurrencyColored(incomeByCur.GBP,'GBP'):''}</div>
+          <div class="l">이번달 총 수입</div>
+          ${exchangedKRWThisMonth?`<div class="v" style="margin-top:6px;">${fmtCurrencyColored(exchangedKRWThisMonth,'KRW')}${exchangedGBPThisMonth?' / '+fmtCurrencyColored(exchangedGBPThisMonth,'GBP'):''}</div><div class="l">이번달 환전액</div>`:''}
+        </div>
         <div class="stat"><div class="v">${fmtCurrencyColored(expenseByCur.KRW,'KRW')}${expenseByCur.GBP?' / '+fmtCurrencyColored(expenseByCur.GBP,'GBP'):''}</div><div class="l">이번달 총 지출</div></div>
-        <div class="stat"><div class="v">${fmtCurrencyColored(incomeByCur.KRW,'KRW')}${incomeByCur.GBP?' / '+fmtCurrencyColored(incomeByCur.GBP,'GBP'):''}</div><div class="l">이번달 총 수입</div></div>
         <div class="stat"><div class="v">${fmtCurrencyColored(monthBalanceKRW,'KRW')}${monthBalanceGBP?' / '+fmtCurrencyColored(monthBalanceGBP,'GBP'):''}</div><div class="l">이번달 잔액</div></div>
-        <div class="stat" id="totalBalanceStat" style="cursor:pointer;" title="클릭해서 전월 이월 금액 입력"><div class="v">${fmtCurrencyColored(totalBalanceKRW,'KRW')}${totalBalanceGBP?' / '+fmtCurrencyColored(totalBalanceGBP,'GBP'):''}</div><div class="l">총잔액(전월 이월 포함)</div></div>
       </div>
+      ${exchangeRecords.length?`
+      <div style="margin-top:12px;">
+        ${exchangeRecords.map(r=>`
+          <div class="list-item">
+            <div class="content-text">${r.date.slice(5)} · ₩${(r.krw||0).toLocaleString()} → £${r.gbp||0}</div>
+            <div class="row" style="flex-shrink:0;"><button class="btn small" style="font-size:11px;padding:3px 8px;" data-edit-exchange="${r.id}" title="수정">✏️</button> <button class="btn small danger" style="font-size:11px;padding:3px 8px;" data-del-exchange="${r.id}" title="삭제">✕</button></div>
+          </div>`).join('')}
+      </div>` : ''}
     </div>
     ${isDaughter?renderIncomeEstimateCard():''}
     <div class="card">
@@ -3190,7 +3215,16 @@ function renderBudget(){
   document.getElementById('bPrev').onclick=()=>{ budgetMonth=shiftMonth(budgetMonth,-1); renderBudget(); };
   document.getElementById('bNext').onclick=()=>{ budgetMonth=shiftMonth(budgetMonth,1); renderBudget(); };
   document.getElementById('exchangeCurBtn').onclick=()=>openCurrencyExchangeModal();
-  document.getElementById('totalBalanceStat').onclick=()=>openCarryoverModal();
+  document.getElementById('carryoverStat').onclick=()=>openCarryoverModal();
+  el.querySelectorAll('[data-edit-exchange]').forEach(b=>b.onclick=()=>openCurrencyExchangeModal(b.dataset.editExchange));
+  el.querySelectorAll('[data-del-exchange]').forEach(b=>b.onclick=()=>{
+    if(confirm('삭제할까요?')){
+      const exId=b.dataset.delExchange;
+      state.budget.filter(x=>x.exchangeId===exId).forEach(x=>markDeleted(x.id));
+      state.budget=state.budget.filter(x=>x.exchangeId!==exId);
+      queueSave(); renderBudget(); renderHome();
+    }
+  });
   document.getElementById('addBudgetBtn').onclick=()=>openBudgetModal();
   document.getElementById('manageCatBtn').onclick=()=>openCategoryManageModal();
   document.getElementById('addIncomeBtn').onclick=()=>openIncomeModal();
