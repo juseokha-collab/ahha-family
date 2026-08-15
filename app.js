@@ -2512,11 +2512,11 @@ function renderHealth(){
             const points = hasContent ? MEAL_AMOUNT_POINTS[m.amount] : (fasted ? MEAL_FAST_POINTS : null);
             const pointsHtml = points!=null ? `<span style="color:${points<0?'var(--bad)':'var(--good)'};font-weight:700;">${points>0?'+':''}${points}점</span>` : '';
             return `<div class="meal-card">
-              <div class="row" style="justify-content:space-between;align-items:flex-start;gap:4px;flex-wrap:nowrap;">
+              <div class="meal-card-top">
                 <span class="meal-card-icon">${MEAL_ICONS[t]}</span>
-                <button type="button" class="meal-card-add" data-meal-add="${t}" title="${t} 기록">${hasContent?'✏️':'+'}</button>
+                <div class="meal-card-preview${hasContent?'':' empty'}" title="${hasContent?escapeHtml(m.content):''}">${hasContent?escapeHtml(m.content):''}</div>
+                <button type="button" class="meal-card-edit" data-meal-add="${t}" title="${t} 기록">✏️</button>
               </div>
-              <div class="meal-card-preview" title="${hasContent?escapeHtml(m.content):''}">${hasContent?escapeHtml(m.content):''}</div>
               <div class="meal-card-label">${t}</div>
               <div class="meal-card-status">
                 <button type="button" class="meal-card-check" data-meal-check="${t}" ${hasContent?'disabled':''}>${confirmed?'✅':'⚪'}</button>

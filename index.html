@@ -54,12 +54,14 @@ nav.tabs button.active{background:var(--panel2);color:var(--text);border-color:v
 @media(max-width:600px){.grid2{grid-template-columns:1fr;}}
 .meal-card-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
 @media(min-width:601px){.meal-card-grid{grid-template-columns:repeat(4,1fr);}}
-.meal-card{background:var(--panel2);border:1px solid var(--border);border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:10px;height:150px;overflow:hidden;box-sizing:border-box;}
-.meal-card-icon{font-size:26px;line-height:1;}
-.meal-card-add{background:none;border:none;color:var(--text);font-size:28px;font-weight:800;cursor:pointer;width:36px;height:36px;border-radius:50%;flex-shrink:0;padding:0;line-height:1;}
-.meal-card-add:hover{background:var(--sel-bg);}
-.meal-card-label{font-weight:700;font-size:14px;margin-top:auto;}
-.meal-card-preview{height:26px;font-size:10.5px;color:var(--muted);line-height:1.3;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;}
+.meal-card{background:var(--panel2);border:1px solid var(--border);border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:6px;height:150px;overflow:hidden;box-sizing:border-box;}
+.meal-card-top{display:flex;align-items:flex-start;gap:4px;flex:1;min-height:0;}
+.meal-card-icon{font-size:22px;line-height:1;flex-shrink:0;}
+.meal-card-edit{background:none;border:none;color:var(--muted);font-size:13px;cursor:pointer;padding:2px;flex-shrink:0;align-self:flex-end;line-height:1;}
+.meal-card-edit:hover{color:var(--text);}
+.meal-card-label{font-weight:700;font-size:14px;}
+.meal-card-preview{flex:1;min-width:0;align-self:stretch;font-size:11px;color:var(--text);line-height:1.35;overflow:hidden;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;}
+.meal-card-preview.empty{color:var(--muted);font-size:10.5px;}
 .meal-card-status{font-size:11px;display:flex;align-items:center;gap:4px;flex-wrap:wrap;}
 .meal-card-check{background:none;border:none;font-size:14px;cursor:pointer;padding:0;width:18px;height:18px;flex-shrink:0;line-height:1;}
 .meal-card-check:disabled{cursor:default;}
@@ -251,7 +253,7 @@ button.iconbtn.habit-nav-btn.habit-nav-btn-weekly{color:var(--accent2);}
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-<script src="firebase-config.js?v=20260814ap"></script>
-<script src="app.js?v=20260814ap"></script>
+<script src="firebase-config.js?v=20260815a"></script>
+<script src="app.js?v=20260815a"></script>
 </body>
 </html>
