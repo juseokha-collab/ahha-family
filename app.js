@@ -3108,7 +3108,10 @@ function renderBudget(){
   const exchangeItemsThisMonth = monthItems.filter(b=>b.category==='환전');
   const exchangedKRWThisMonth = exchangeItemsThisMonth.filter(b=>(b.currency||'KRW')==='KRW').reduce((s,b)=>s+Number(b.amount||0),0);
   const exchangedGBPThisMonth = exchangeItemsThisMonth.filter(b=>b.currency==='GBP').reduce((s,b)=>s+Number(b.amount||0),0);
-  const displayIncomeKRW = incomeByCur.KRW - exchangedKRWThisMonth;
+  const totalSumKRW = carryover.KRW + incomeByCur.KRW;
+  const totalSumGBP = carryover.GBP + incomeByCur.GBP;
+  const afterExchangeKRW = totalSumKRW - exchangedKRWThisMonth;
+  const afterExchangeGBP = totalSumGBP + exchangedGBPThisMonth;
   const exchangeRecordMap={};
   myBudget.filter(b=>b.category==='환전' && b.exchangeId).forEach(b=>{
     if(!exchangeRecordMap[b.exchangeId]) exchangeRecordMap[b.exchangeId]={id:b.exchangeId, date:b.date};
@@ -3118,28 +3121,38 @@ function renderBudget(){
   const exchangeRecords=Object.values(exchangeRecordMap).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5);
   el.innerHTML=`
     <div class="card">
-      <div class="row" style="justify-content:space-between;align-items:center;">
+      <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
         <div class="datebar" style="margin-bottom:0;"><button class="iconbtn" id="bPrev">‹</button><div class="d">${y}년 ${Number(m)}월</div><button class="iconbtn" id="bNext">›</button></div>
-        <button class="btn small" id="exchangeCurBtn">💱 환전</button>
+        <div class="row" style="gap:10px;align-items:center;">
+          <span style="font-size:13px;font-weight:700;">이번달 잔액 ${fmtCurrencyColored(monthBalanceKRW,'KRW')}${monthBalanceGBP?' / '+fmtCurrencyColored(monthBalanceGBP,'GBP'):''}</span>
+          <button class="btn small" id="exchangeCurBtn">💱 환전</button>
+        </div>
       </div>
       <div class="stat-grid" style="margin-top:16px;">
-        <div class="stat" id="carryoverStat" style="cursor:pointer;" title="클릭해서 전월 이월 금액 입력"><div class="v">${fmtCurrencyColored(carryover.KRW,'KRW')}${carryover.GBP?' / '+fmtCurrencyColored(carryover.GBP,'GBP'):''}</div><div class="l">전월 이월금액</div></div>
-        <div class="stat">
-          <div class="v">${fmtCurrencyColored(displayIncomeKRW,'KRW')}${incomeByCur.GBP?' / '+fmtCurrencyColored(incomeByCur.GBP,'GBP'):''}</div>
-          <div class="l">이번달 총 수입</div>
-          ${exchangedKRWThisMonth?`<div class="v" style="margin-top:6px;">${fmtCurrencyColored(exchangedKRWThisMonth,'KRW')}${exchangedGBPThisMonth?' / '+fmtCurrencyColored(exchangedGBPThisMonth,'GBP'):''}</div><div class="l">이번달 환전액</div>`:''}
+        <div class="stat" id="carryoverStat" style="text-align:left;cursor:pointer;" title="클릭해서 전월 이월 금액 입력">
+          <div class="l">전월 이월금액</div>
+          <div class="v">${fmtCurrencyColored(carryover.KRW,'KRW')}${carryover.GBP?' / '+fmtCurrencyColored(carryover.GBP,'GBP'):''}</div>
+          <div class="l" style="margin-top:8px;">이번달 총 수입</div>
+          <div class="v">${fmtCurrencyColored(incomeByCur.KRW,'KRW')}${incomeByCur.GBP?' / '+fmtCurrencyColored(incomeByCur.GBP,'GBP'):''}</div>
         </div>
-        <div class="stat"><div class="v">${fmtCurrencyColored(expenseByCur.KRW,'KRW')}${expenseByCur.GBP?' / '+fmtCurrencyColored(expenseByCur.GBP,'GBP'):''}</div><div class="l">이번달 총 지출</div></div>
-        <div class="stat"><div class="v">${fmtCurrencyColored(monthBalanceKRW,'KRW')}${monthBalanceGBP?' / '+fmtCurrencyColored(monthBalanceGBP,'GBP'):''}</div><div class="l">이번달 잔액</div></div>
+        <div class="stat" style="text-align:left;">
+          <div class="l">합계 금액</div>
+          <div class="v">${fmtCurrencyColored(totalSumKRW,'KRW')}${totalSumGBP?' / '+fmtCurrencyColored(totalSumGBP,'GBP'):''}</div>
+        </div>
+        <div class="stat" style="text-align:left;">
+          <div class="l">환전후 금액</div>
+          <div class="v">${fmtCurrencyColored(afterExchangeKRW,'KRW')}${afterExchangeGBP?' / '+fmtCurrencyColored(afterExchangeGBP,'GBP'):''}</div>
+          ${exchangeRecords.length?`<div style="margin-top:8px;">${exchangeRecords.map(r=>`
+            <div style="margin-top:4px;">
+              <div class="meta" style="font-size:10px;line-height:1.3;">${r.date.slice(5)} ${(r.krw||0).toLocaleString()}원 환전 (+£${r.gbp||0})</div>
+              <div class="row" style="gap:4px;margin-top:1px;"><button type="button" class="btn small" style="font-size:10px;padding:1px 4px;" data-edit-exchange="${r.id}" title="수정">✏️</button><button type="button" class="btn small danger" style="font-size:10px;padding:1px 4px;" data-del-exchange="${r.id}" title="삭제">✕</button></div>
+            </div>`).join('')}</div>` : ''}
+        </div>
+        <div class="stat" style="text-align:left;">
+          <div class="l">이번달 지출</div>
+          <div class="v">${fmtCurrencyColored(expenseByCur.KRW,'KRW')}${expenseByCur.GBP?' / '+fmtCurrencyColored(expenseByCur.GBP,'GBP'):''}</div>
+        </div>
       </div>
-      ${exchangeRecords.length?`
-      <div style="margin-top:12px;">
-        ${exchangeRecords.map(r=>`
-          <div class="list-item">
-            <div class="content-text">${r.date.slice(5)} · ₩${(r.krw||0).toLocaleString()} → £${r.gbp||0}</div>
-            <div class="row" style="flex-shrink:0;"><button class="btn small" style="font-size:11px;padding:3px 8px;" data-edit-exchange="${r.id}" title="수정">✏️</button> <button class="btn small danger" style="font-size:11px;padding:3px 8px;" data-del-exchange="${r.id}" title="삭제">✕</button></div>
-          </div>`).join('')}
-      </div>` : ''}
     </div>
     ${isDaughter?renderIncomeEstimateCard():''}
     <div class="card">
