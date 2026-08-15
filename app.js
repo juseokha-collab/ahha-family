@@ -940,6 +940,7 @@ let showCommonOnHome=false;
 let showDaughterOnHome=false;
 let momHomeDefaultsApplied=false;
 let momWeightDefaultsApplied=false;
+let daughterWeightDefaultsApplied=false;
 let studyAnchor=todayStr();
 function resolveItemColors(s, dateStr){
   const ov=s.colorOverrides && s.colorOverrides[dateStr];
@@ -2316,8 +2317,14 @@ function renderHealth(){
     momWeightDefaultsApplied=true;
     weightChartOthers=['dad','daughter'];
   }
+  if(effectiveRole()==='daughter' && !daughterWeightDefaultsApplied){
+    daughterWeightDefaultsApplied=true;
+    weightChartOthers=['dad'];
+  }
   const day=state.daily[healthDate]||{};
   const rec=(day.health&&day.health[healthPerson])||{};
+  const todaysMealsByType={};
+  (rec.meals||[]).forEach(m=>{ todaysMealsByType[m.mealType]=m; });
   const mealWindowDates=Array.from({length:7},(_,i)=>fmtDate(addDays(parseDate(healthDate), -(6-i))));
   const mealList=mealWindowDates.flatMap(d=>{
     const dayRec=(state.daily[d] && state.daily[d].health && state.daily[d].health[healthPerson]) || {};
@@ -2420,18 +2427,25 @@ function renderHealth(){
         <input id="hNetwork" placeholder="쉼표로 구분 (예: 홍길동, 김철수)" value="${escapeHtml(rec.network||'')}">
       </div>
       <div class="field" style="margin-top:8px;">
-        <div class="row" style="justify-content:space-between;align-items:center;">
-          <label style="margin:0;">식단 기록</label>
-          <div class="row" style="gap:6px;">
-            ${MEAL_TYPES.map((t,i)=>`<label class="pill" style="cursor:pointer;"><input type="radio" name="mealTypeDraft" value="${t}" ${i===0?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">${t}</label>`).join('')}
-          </div>
+        <label>식단 기록</label>
+        <div class="meal-grid">
+          ${['아침','점심','저녁'].map(t=>{
+            const m=todaysMealsByType[t];
+            return `<div>
+              <div class="meta" style="margin-bottom:2px;">${t}</div>
+              <input data-meal-slot="${t}" placeholder="무엇을 먹었는지" value="${m?escapeHtml(m.content):''}" style="width:100%;box-sizing:border-box;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:13px;">
+              <select data-meal-amount="${t}" style="width:100%;margin-top:4px;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:13px;">
+                ${MEAL_AMOUNTS.map(a=>`<option ${m&&m.amount===a?'selected':''}>${a}</option>`).join('')}
+              </select>
+            </div>`;
+          }).join('')}
         </div>
-        <div class="row" style="gap:8px;flex-wrap:wrap;">
-          <input id="mealContentInput" placeholder="어디서 무엇을 먹었는지" style="flex:1;min-width:140px;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:13px;">
-          <select id="mealAmountInput" style="background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:13px;">
-            ${MEAL_AMOUNTS.map(a=>`<option>${a}</option>`).join('')}
+        <div class="row" style="gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap;">
+          <div class="meta" style="width:32px;flex-shrink:0;">간식</div>
+          <input data-meal-slot="간식" placeholder="무엇을 먹었는지" value="${todaysMealsByType['간식']?escapeHtml(todaysMealsByType['간식'].content):''}" style="flex:1;min-width:120px;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:13px;">
+          <select data-meal-amount="간식" style="background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:13px;">
+            ${MEAL_AMOUNTS.map(a=>`<option ${todaysMealsByType['간식']&&todaysMealsByType['간식'].amount===a?'selected':''}>${a}</option>`).join('')}
           </select>
-          <button class="btn small primary" id="addMealBtn">추가</button>
         </div>
         <div style="margin-top:8px;">
           ${mealList.length? mealList.map(mEntry=>`
@@ -2529,20 +2543,32 @@ function renderHealth(){
     const now=new Date();
     document.getElementById('healthSaveStatus').textContent = `✓ 저장됨 (${now.getHours()}:${pad2(now.getMinutes())})`;
   };
-  document.getElementById('addMealBtn').onclick=()=>{
-    const content=document.getElementById('mealContentInput').value.trim();
-    if(!content){ showToast('내용을 입력해주세요'); return; }
-    const mealType=(document.querySelector('input[name="mealTypeDraft"]:checked')||{}).value||MEAL_TYPES[0];
-    const amount=document.getElementById('mealAmountInput').value;
-    const now=new Date();
-    const entry={id:uid(), time:pad2(now.getHours())+':'+pad2(now.getMinutes()), mealType, content, amount};
+  const findOrCreateMealSlot=(mealType)=>{
     ensureDay(healthDate);
     if(!state.daily[healthDate].health) state.daily[healthDate].health={};
     if(!state.daily[healthDate].health[healthPerson]) state.daily[healthDate].health[healthPerson]={};
     if(!state.daily[healthDate].health[healthPerson].meals) state.daily[healthDate].health[healthPerson].meals=[];
-    state.daily[healthDate].health[healthPerson].meals.push(entry);
-    queueSave(); renderHealth();
+    const meals=state.daily[healthDate].health[healthPerson].meals;
+    let entry=meals.find(m=>m.mealType===mealType);
+    if(!entry){
+      const now=new Date();
+      entry={id:uid(), time:pad2(now.getHours())+':'+pad2(now.getMinutes()), mealType, content:'', amount:MEAL_AMOUNTS[0]};
+      meals.push(entry);
+    }
+    return entry;
   };
+  el.querySelectorAll('[data-meal-slot]').forEach(inp=>inp.addEventListener('change', ()=>{
+    const content=inp.value.trim();
+    if(!content) return;
+    const entry=findOrCreateMealSlot(inp.dataset.mealSlot);
+    entry.content=content;
+    queueSave();
+  }));
+  el.querySelectorAll('[data-meal-amount]').forEach(sel=>sel.addEventListener('change', ()=>{
+    const entry=findOrCreateMealSlot(sel.dataset.mealAmount);
+    entry.amount=sel.value;
+    queueSave();
+  }));
   el.querySelectorAll('[data-edit-meal]').forEach(b=>b.onclick=()=>openMealEditModal(b.dataset.mealDate, b.dataset.editMeal));
   el.querySelectorAll('[data-del-meal]').forEach(b=>b.onclick=()=>{
     if(!confirm('삭제할까요?')) return;
