@@ -2395,6 +2395,15 @@ function calcHourDiff(startHHMM, endHHMM){
   if(endMin<=startMin) endMin+=24*60;
   return Math.round(((endMin-startMin)/60)*10)/10;
 }
+function hourMinDiffLabel(startHHMM, endHHMM){
+  if(!startHHMM || !endHHMM) return '';
+  const [sh,sm]=startHHMM.split(':').map(Number);
+  const [eh,em]=endHHMM.split(':').map(Number);
+  let startMin=sh*60+sm, endMin=eh*60+em;
+  if(endMin<=startMin) endMin+=24*60;
+  const diff=endMin-startMin;
+  return `${pad2(Math.floor(diff/60))}h ${pad2(diff%60)}m`;
+}
 function weightGoalsFor(key){
   if(!state.weightGoals) state.weightGoals={};
   if(!state.weightGoals[key]) state.weightGoals[key]={target:'',weeklyLoss:'',finalTarget:''};
@@ -2578,25 +2587,25 @@ function renderHealth(){
       <div class="grid2" style="margin-top:10px;">
         <div class="field">
           <div class="row" style="justify-content:space-between;align-items:center;">
-            <label>수면 시간 (취침 → 기상)</label>
+            <label>취침시간 → 기상시간</label>
             <button type="button" class="btn small" id="hSleepNowBtn">기록하기</button>
           </div>
           <div class="row" style="gap:4px;flex-wrap:nowrap;">
-            ${timeSelect10Html('hSleepStart', rec.sleepStart||'22:00')}
+            ${timeSelect10Html('hSleepStart', rec.sleepStart||'23:00')}
             ${timeSelect10Html('hSleepEnd', rec.sleepEnd||'07:00')}
           </div>
-          <div class="meta" id="sleepCalcResult" style="margin-top:2px;">${rec.sleep?rec.sleep+'시간':''}</div>
+          <div class="meta" id="sleepCalcResult" style="margin-top:2px;">${rec.sleepStart && rec.sleepEnd ? `취침시간 → 기상시간 : ${hourMinDiffLabel(rec.sleepStart, rec.sleepEnd)}` : ''}</div>
         </div>
         <div class="field">
           <div class="row" style="justify-content:space-between;align-items:center;">
-            <label>공복시간 (Last Meal → First Meal)</label>
+            <label>Last Meal → First Meal</label>
             <button type="button" class="btn small" id="hFastingNowBtn">기록하기</button>
           </div>
           <div class="row" style="gap:4px;flex-wrap:nowrap;">
             ${timeSelect10Html('hLastMeal', rec.lastMeal||'18:30')}
             ${timeSelect10Html('hFirstMeal', rec.firstMeal||'07:30')}
           </div>
-          <div class="meta" id="fastingCalcResult" style="margin-top:2px;">${rec.fasting?rec.fasting+'시간':''}</div>
+          <div class="meta" id="fastingCalcResult" style="margin-top:2px;">${rec.lastMeal && rec.firstMeal ? `Last Meal → First Meal : ${hourMinDiffLabel(rec.lastMeal, rec.firstMeal)}` : ''}</div>
         </div>
       </div>
       ${showActivityTrend?renderActivityTrendPanel(healthPerson):''}
@@ -2694,14 +2703,14 @@ function renderHealth(){
     save('sleepStart', s); save('sleepEnd', en);
     const hrs=calcHourDiff(s, en);
     save('sleep', hrs==null?'':hrs);
-    document.getElementById('sleepCalcResult').textContent = hrs!=null ? hrs+'시간' : '';
+    document.getElementById('sleepCalcResult').textContent = hrs!=null ? `취침시간 → 기상시간 : ${hourMinDiffLabel(s, en)}` : '';
   };
   const recalcFasting=()=>{
     const lm=getTimeSelect10Value('hLastMeal'), fm=getTimeSelect10Value('hFirstMeal');
     save('lastMeal', lm); save('firstMeal', fm);
     const hrs=calcHourDiff(lm, fm);
     save('fasting', hrs==null?'':hrs);
-    document.getElementById('fastingCalcResult').textContent = hrs!=null ? hrs+'시간' : '';
+    document.getElementById('fastingCalcResult').textContent = hrs!=null ? `Last Meal → First Meal : ${hourMinDiffLabel(lm, fm)}` : '';
   };
   bindTimeSelect10('hSleepStart', recalcSleep);
   bindTimeSelect10('hSleepEnd', recalcSleep);
