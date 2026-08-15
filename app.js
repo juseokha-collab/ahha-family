@@ -3076,7 +3076,8 @@ function weekActivityMinutes(key, weekDates){
 }
 const WEEKLY_ALLOWANCE_KRW=200000, WEEKLY_ALLOWANCE_GBP=50;
 const INCENTIVE_RATE_GBP=2.5;
-function renderIncomeEstimateCard(){
+function renderIncomeEstimateCard(label){
+  label = label || '예상 수입';
   const thisWeek=mondayWeekRange(todayStr());
   const lastWeek=mondayWeekRange(fmtDate(addDays(parseDate(todayStr()),-7)));
   const lastWeekMin=weekActivityMinutes('daughter', lastWeek);
@@ -3085,7 +3086,7 @@ function renderIncomeEstimateCard(){
   const thisIncentive=Math.round((thisWeekMin/60)*INCENTIVE_RATE_GBP*100)/100;
   const latestWeight = latestWeightFor('daughter');
   const milestones=[{w:49,bonus:20},{w:48,bonus:50},{w:45,bonus:100}];
-  const myKey=currentAuthorKey();
+  const myKey='daughter';
   const loggedTexts=state.budget.filter(b=>b.type==='income'&&b.category==='체중감량 인센티브'&&(b.owner===undefined||b.owner===myKey)).map(b=>(b.memo||'')+' '+b.amount);
   const reached=latestWeight==null?[]:milestones.filter(ms=>latestWeight<=ms.w);
   const unpaid=reached.filter(ms=>!loggedTexts.some(t=>t.includes(String(ms.w))));
@@ -3099,8 +3100,8 @@ function renderIncomeEstimateCard(){
     return `<div style="margin-top:4px;white-space:nowrap;">${icon} ${headline}, ${detail}</div>`;
   };
   const headerLine = mobile
-    ? `<div style="font-size:13px;display:flex;"><span style="flex-shrink:0;">💡 예상 수입 = </span><span>(${headerBase})<br>+ 지난주 운동시간 × £${INCENTIVE_RATE_GBP} + Weight Incentive</span></div>`
-    : `<div style="font-size:13px;white-space:nowrap;">💡 예상 수입 = (${headerBase}) + 지난주 운동시간 × £${INCENTIVE_RATE_GBP} + Weight Incentive</div>`;
+    ? `<div style="font-size:13px;display:flex;"><span style="flex-shrink:0;">💡 ${label} = </span><span>(${headerBase})<br>+ 지난주 운동시간 × £${INCENTIVE_RATE_GBP} + Weight Incentive</span></div>`
+    : `<div style="font-size:13px;white-space:nowrap;">💡 ${label} = (${headerBase}) + 지난주 운동시간 × £${INCENTIVE_RATE_GBP} + Weight Incentive</div>`;
   return `
     <div class="card">
       <div style="overflow-x:auto;">
@@ -3269,6 +3270,7 @@ function renderBudget(){
         `).join('');
       }).join('') : `<div class="empty">지출 내역이 없어요</div>`}
     </div>
+    ${myRole==='mom'?renderIncomeEstimateCard('예상 지출'):''}
     <div class="card">
       <div class="row" style="justify-content:space-between;"><h3 style="margin:0;">🧾 지출 내역</h3>
         <div class="row"><button class="btn small" id="manageCatBtn">카테고리 관리</button><button class="btn primary small" id="addBudgetBtn">+ 지출 추가</button></div>
