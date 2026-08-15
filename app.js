@@ -3065,9 +3065,33 @@ function renderIncomeEstimateCard(){
     </div>
   `;
 }
+function ensureExchangeIdsMigrated(){
+  const unlinked = state.budget.filter(b=>b.category==='환전' && !b.exchangeId);
+  if(!unlinked.length) return false;
+  const byKey={};
+  unlinked.forEach(b=>{
+    const key=b.date+'|'+(b.owner||'');
+    if(!byKey[key]) byKey[key]=[];
+    byKey[key].push(b);
+  });
+  let changed=false;
+  Object.values(byKey).forEach(group=>{
+    const krwItems=group.filter(b=>(b.currency||'KRW')==='KRW');
+    const gbpItems=group.filter(b=>b.currency==='GBP');
+    const n=Math.min(krwItems.length, gbpItems.length);
+    for(let i=0;i<n;i++){
+      const exId=uid();
+      krwItems[i].exchangeId=exId;
+      gbpItems[i].exchangeId=exId;
+      changed=true;
+    }
+  });
+  return changed;
+}
 function renderBudget(){
   const el=document.getElementById('tab-budget');
   ensureBudgetOwnershipMigrated();
+  if(ensureExchangeIdsMigrated()) queueSave();
   const myKey=currentAuthorKey();
   const myRole=effectiveRole();
   const isDaughter=myRole==='daughter';
@@ -3124,7 +3148,7 @@ function renderBudget(){
       <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
         <div class="datebar" style="margin-bottom:0;"><button class="iconbtn" id="bPrev">‹</button><div class="d">${y}년 ${Number(m)}월</div><button class="iconbtn" id="bNext">›</button></div>
         <div class="row" style="gap:10px;align-items:center;">
-          <span style="font-size:13px;font-weight:700;">이번달 잔액 ${fmtCurrencyColored(monthBalanceKRW,'KRW')}${monthBalanceGBP?' / '+fmtCurrencyColored(monthBalanceGBP,'GBP'):''}</span>
+          <span style="font-size:16px;font-weight:700;">이번달 잔액 ${fmtCurrencyColored(monthBalanceKRW,'KRW')}${monthBalanceGBP?' / '+fmtCurrencyColored(monthBalanceGBP,'GBP'):''}</span>
           <button class="btn small" id="exchangeCurBtn">💱 환전</button>
         </div>
       </div>
