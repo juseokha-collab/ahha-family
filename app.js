@@ -2191,7 +2191,7 @@ const FAMILY_MEMBERS=[{key:'dad',label:'아빠'},{key:'mom',label:'엄마'},{key
 const MEMBER_EMOJI={dad:'👨',mom:'👩',daughter:'👧'};
 const MEAL_TYPES=['아침','점심','저녁','간식'];
 const MEAL_AMOUNTS=['쫌쫌따리','알잘딱','쫌많이','레전드'];
-const MEAL_ICONS={아침:'🌅',점심:'☀️',저녁:'🌙',간식:'🍰'};
+const MEAL_ICONS={아침:'☀️',점심:'🌤️',저녁:'🌙',간식:'🍰'};
 const MEAL_FAST_TEXT={아침:'단식했어요',점심:'단식했어요',저녁:'단식했어요',간식:'참았어요'};
 const MEAL_AMOUNT_POINTS={'쫌쫌따리':20,'알잘딱':10,'쫌많이':-10,'레전드':-30};
 const MEAL_FAST_POINTS=10;
@@ -2392,6 +2392,13 @@ function renderHealth(){
   const rec=(day.health&&day.health[healthPerson])||{};
   const todaysMealsByType={};
   (rec.meals||[]).forEach(m=>{ todaysMealsByType[m.mealType]=m; });
+  const hasAnyMealRecord = MEAL_TYPES.some(t=>{ const m=todaysMealsByType[t]; return m && (m.content || m.fasted); });
+  const mealScore = 100 + MEAL_TYPES.reduce((sum,t)=>{
+    const m=todaysMealsByType[t];
+    if(m && m.content) return sum + (MEAL_AMOUNT_POINTS[m.amount]||0);
+    if(m && m.fasted) return sum + MEAL_FAST_POINTS;
+    return sum;
+  }, 0);
   const mealWindowDates=Array.from({length:7},(_,i)=>fmtDate(addDays(parseDate(healthDate), -(6-i))));
   const mealList=mealWindowDates.flatMap(d=>{
     const dayRec=(state.daily[d] && state.daily[d].health && state.daily[d].health[healthPerson]) || {};
@@ -2494,7 +2501,7 @@ function renderHealth(){
         <input id="hNetwork" placeholder="쉼표로 구분 (예: 홍길동, 김철수)" value="${escapeHtml(rec.network||'')}">
       </div>
       <div class="field" style="margin-top:8px;">
-        <label>식단 기록</label>
+        <label>${hasAnyMealRecord ? `오늘의 식단은 ${mealScore}점 입니다` : `오늘의 식단 <span class="meta" style="font-weight:400;">(오늘 식단을 입력해 볼까 ^^)</span>`}</label>
         <div class="meal-card-grid">
           ${MEAL_TYPES.map(t=>{
             const m=todaysMealsByType[t];
@@ -2507,9 +2514,9 @@ function renderHealth(){
             return `<div class="meal-card">
               <div class="row" style="justify-content:space-between;align-items:flex-start;gap:4px;flex-wrap:nowrap;">
                 <span class="meal-card-icon">${MEAL_ICONS[t]}</span>
-                ${hasContent?`<span class="meal-card-preview" title="${escapeHtml(m.content)}">${escapeHtml(m.content)}</span>`:'<span></span>'}
                 <button type="button" class="meal-card-add" data-meal-add="${t}" title="${t} 기록">${hasContent?'✏️':'+'}</button>
               </div>
+              <div class="meal-card-preview" title="${hasContent?escapeHtml(m.content):''}">${hasContent?escapeHtml(m.content):''}</div>
               <div class="meal-card-label">${t}</div>
               <div class="meal-card-status">
                 <button type="button" class="meal-card-check" data-meal-check="${t}" ${hasContent?'disabled':''}>${confirmed?'✅':'⚪'}</button>
