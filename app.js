@@ -1992,7 +1992,7 @@ function renderSchedule(){
       </div>
       ${calendarColorPick?`<div class="meta" style="margin-bottom:6px;">🎨 색상을 적용할 날짜를 클릭하세요</div>`:''}
       <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
-        <div class="datebar" style="margin-bottom:0;"><button class="iconbtn" id="sPrev">‹</button><div class="d">${y}년 ${m+1}월</div><button class="iconbtn" id="sNext">›</button></div>
+        <div class="datebar" style="margin-bottom:0;"><button class="iconbtn" id="sPrev">‹</button><div class="d" style="font-size:15px;font-weight:700;">${y}년 ${m+1}월</div><button class="iconbtn" id="sNext">›</button></div>
         ${myRole==='dad'?`<div class="row" id="schedFilterRow" style="gap:6px;">
           ${allowedFilters.map(f=>`<button class="btn small ${scheduleFilter===f?'active':''}" data-owner="${f}">${scheduleFilterLabel(f)}</button>`).join('')}
         </div>`:''}
@@ -3097,8 +3097,8 @@ function renderBudget(){
   const isDaughter=myRole==='daughter';
   const myBudget=state.budget.filter(b=>b.owner===undefined || b.owner===myKey);
   const monthItems=myBudget.filter(b=>b.date.startsWith(budgetMonth));
-  const items=monthItems.filter(b=>b.type!=='income').sort((a,b)=>b.date.localeCompare(a.date));
-  const incomeItems=monthItems.filter(b=>b.type==='income').sort((a,b)=>b.date.localeCompare(a.date));
+  const items=monthItems.filter(b=>b.type!=='income' && b.category!=='환전').sort((a,b)=>b.date.localeCompare(a.date));
+  const incomeItems=monthItems.filter(b=>b.type==='income' && b.category!=='환전').sort((a,b)=>b.date.localeCompare(a.date));
   const expenseByCur={KRW:0,GBP:0};
   items.forEach(b=>{ const cur=b.currency||'KRW'; expenseByCur[cur]=(expenseByCur[cur]||0)+Number(b.amount||0); });
   const incomeByCur={KRW:0,GBP:0};
@@ -3126,15 +3126,16 @@ function renderBudget(){
     });
   }
   const [y,m]=budgetMonth.split('-');
-  const monthBalanceKRW = incomeByCur.KRW - expenseByCur.KRW;
-  const monthBalanceGBP = incomeByCur.GBP - expenseByCur.GBP;
   const carryover=budgetCarryoverFor(myKey);
   const exchangeItemsThisMonth = monthItems.filter(b=>b.category==='환전');
   const exchangedKRWThisMonth = exchangeItemsThisMonth.filter(b=>(b.currency||'KRW')==='KRW').reduce((s,b)=>s+Number(b.amount||0),0);
+  const exchangedGBPThisMonth = exchangeItemsThisMonth.filter(b=>b.currency==='GBP').reduce((s,b)=>s+Number(b.amount||0),0);
   const totalSumKRW = carryover.KRW + incomeByCur.KRW;
   const totalSumGBP = carryover.GBP + incomeByCur.GBP;
   const afterExchangeKRW = totalSumKRW - exchangedKRWThisMonth;
-  const afterExchangeGBP = totalSumGBP;
+  const afterExchangeGBP = totalSumGBP + exchangedGBPThisMonth;
+  const monthBalanceKRW = afterExchangeKRW - expenseByCur.KRW;
+  const monthBalanceGBP = afterExchangeGBP - expenseByCur.GBP;
   const exchangeRecordMap={};
   myBudget.filter(b=>b.category==='환전' && b.exchangeId).forEach(b=>{
     if(!exchangeRecordMap[b.exchangeId]) exchangeRecordMap[b.exchangeId]={id:b.exchangeId, date:b.date};
@@ -3145,9 +3146,9 @@ function renderBudget(){
   el.innerHTML=`
     <div class="card">
       <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
-        <div class="datebar" style="margin-bottom:0;"><button class="iconbtn" id="bPrev">‹</button><div class="d">${y}년 ${Number(m)}월</div><button class="iconbtn" id="bNext">›</button></div>
+        <div class="datebar" style="margin-bottom:0;"><button class="iconbtn" id="bPrev">‹</button><div class="d" style="font-size:15px;font-weight:700;">${y}년 ${Number(m)}월</div><button class="iconbtn" id="bNext">›</button></div>
         <div class="row" style="gap:10px;align-items:center;">
-          <span style="font-size:16px;font-weight:700;">이번달 잔액 ${fmtCurrencyColored(monthBalanceKRW,'KRW')}${monthBalanceGBP?' / '+fmtCurrencyColored(monthBalanceGBP,'GBP'):''}</span>
+          <span style="font-size:16px;font-weight:700;">💳 이번달 잔액 ${fmtCurrencyColored(monthBalanceKRW,'KRW')}${monthBalanceGBP?' / '+fmtCurrencyColored(monthBalanceGBP,'GBP'):''}</span>
           <button class="btn small" id="exchangeCurBtn">💱 환전</button>
         </div>
       </div>
@@ -3161,15 +3162,15 @@ function renderBudget(){
         <div class="stat" style="text-align:left;">
           <div class="l">합계 금액</div>
           <div class="v">${fmtCurrencyColored(totalSumKRW,'KRW')}${totalSumGBP?' / '+fmtCurrencyColored(totalSumGBP,'GBP'):''}</div>
-        </div>
-        <div class="stat" style="text-align:left;">
-          <div class="l">환전후 금액</div>
-          <div class="v">${fmtCurrencyColored(afterExchangeKRW,'KRW')}${afterExchangeGBP?' / '+fmtCurrencyColored(afterExchangeGBP,'GBP'):''}</div>
           ${exchangeRecords.length?`<div style="margin-top:8px;">${exchangeRecords.map(r=>`
             <div style="margin-top:4px;">
               <div class="meta" style="font-size:10px;line-height:1.3;">${r.date.slice(5)} ${(r.krw||0).toLocaleString()}원 환전 (+£${r.gbp||0})</div>
               <div class="row" style="gap:4px;margin-top:1px;"><button type="button" class="btn small" style="font-size:10px;padding:1px 4px;" data-edit-exchange="${r.id}" title="수정">✏️</button><button type="button" class="btn small danger" style="font-size:10px;padding:1px 4px;" data-del-exchange="${r.id}" title="삭제">✕</button></div>
             </div>`).join('')}</div>` : ''}
+        </div>
+        <div class="stat" style="text-align:left;">
+          <div class="l">환전후 금액</div>
+          <div class="v">${fmtCurrencyColored(afterExchangeKRW,'KRW')}${afterExchangeGBP?' / '+fmtCurrencyColored(afterExchangeGBP,'GBP'):''}</div>
         </div>
         <div class="stat" style="text-align:left;">
           <div class="l">이번달 지출</div>
