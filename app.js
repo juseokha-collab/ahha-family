@@ -3131,11 +3131,10 @@ function renderBudget(){
   const carryover=budgetCarryoverFor(myKey);
   const exchangeItemsThisMonth = monthItems.filter(b=>b.category==='환전');
   const exchangedKRWThisMonth = exchangeItemsThisMonth.filter(b=>(b.currency||'KRW')==='KRW').reduce((s,b)=>s+Number(b.amount||0),0);
-  const exchangedGBPThisMonth = exchangeItemsThisMonth.filter(b=>b.currency==='GBP').reduce((s,b)=>s+Number(b.amount||0),0);
   const totalSumKRW = carryover.KRW + incomeByCur.KRW;
   const totalSumGBP = carryover.GBP + incomeByCur.GBP;
   const afterExchangeKRW = totalSumKRW - exchangedKRWThisMonth;
-  const afterExchangeGBP = totalSumGBP + exchangedGBPThisMonth;
+  const afterExchangeGBP = totalSumGBP;
   const exchangeRecordMap={};
   myBudget.filter(b=>b.category==='환전' && b.exchangeId).forEach(b=>{
     if(!exchangeRecordMap[b.exchangeId]) exchangeRecordMap[b.exchangeId]={id:b.exchangeId, date:b.date};
