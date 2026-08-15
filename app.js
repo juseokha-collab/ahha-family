@@ -1453,7 +1453,7 @@ function habitRingStripHtml(habits, type, anchorDate){
     }).join('')}
   </div>`;
 }
-function habitRowHtml(h, type, anchorDate){
+function habitRowHtml(h, type, anchorDate, idx, total){
   const periods=habitPeriodKeys(type, anchorDate, 7);
   const log=habitLogFor(h.id);
   const streak=habitStreak(h.id,type);
@@ -1470,11 +1470,17 @@ function habitRowHtml(h, type, anchorDate){
   }).join('');
   return `
   <div class="habit-row">
-    <div class="habit-row-head">
-      <span class="habit-icon">${escapeHtml(h.icon||'⭐')}</span>
-      <span class="habit-row-name">${escapeHtml(h.name)}</span>
-      <button class="icon-btn" data-habit-edit="${h.id}" data-habit-type="${type}" title="수정">✏️</button>
-      <span class="meta habit-row-streak">(⚡ ${streak}${unit} 연속 · 🔥 최고 ${best}${unit})</span>
+    <div class="row" style="align-items:center;gap:4px;">
+      <div class="habit-row-head" style="flex:1;min-width:0;">
+        <span class="habit-icon">${escapeHtml(h.icon||'⭐')}</span>
+        <span class="habit-row-name">${escapeHtml(h.name)}</span>
+        <button class="icon-btn" data-habit-edit="${h.id}" data-habit-type="${type}" title="수정">✏️</button>
+        <span class="meta habit-row-streak">(⚡ ${streak}${unit} 연속 · 🔥 최고 ${best}${unit})</span>
+      </div>
+      <div class="habit-move-btns">
+        <button type="button" class="icon-btn" data-habit-move-up="${h.id}" data-habit-type="${type}" title="위로" ${idx===0?'disabled':''}>▲</button>
+        <button type="button" class="icon-btn" data-habit-move-down="${h.id}" data-habit-type="${type}" title="아래로" ${idx===total-1?'disabled':''}>▼</button>
+      </div>
     </div>
     <div class="row" style="align-items:center;gap:4px;">
       <span class="habit-cells-spacer"></span>
@@ -1498,9 +1504,18 @@ function habitSectionHtml(type, title, icon){
       <div style="flex:1;min-width:0;">${habitRingStripHtml(habits, type, anchorDate)}</div>
       <button class="iconbtn habit-nav-btn ${type==='weekly'?'habit-nav-btn-weekly':''}" data-habit-next="${type}">▶</button>
     </div>
-    ${habits.map(h=>habitRowHtml(h,type,anchorDate)).join('')}
+    ${habits.map((h,idx)=>habitRowHtml(h,type,anchorDate,idx,habits.length)).join('')}
     ` : `<div class="empty" style="margin-top:10px;">아직 등록된 습관이 없어요</div>`}
   </div>`;
+}
+function moveHabit(type, id, dir){
+  const habits=myHabits(type);
+  const idx=habits.findIndex(h=>h.id===id);
+  if(idx<0) return;
+  const swapIdx=idx+dir;
+  if(swapIdx<0 || swapIdx>=habits.length) return;
+  [habits[idx], habits[swapIdx]] = [habits[swapIdx], habits[idx]];
+  queueSave(); renderHome();
 }
 function openHabitEditModal(type, id){
   const habits=myHabits(type);
@@ -1557,6 +1572,8 @@ function bindHabitEvents(el){
     if(log[k]) delete log[k]; else log[k]=true;
     queueSave(); renderHome();
   });
+  el.querySelectorAll('[data-habit-move-up]').forEach(b=>b.onclick=()=>moveHabit(b.dataset.habitType, b.dataset.habitMoveUp, -1));
+  el.querySelectorAll('[data-habit-move-down]').forEach(b=>b.onclick=()=>moveHabit(b.dataset.habitType, b.dataset.habitMoveDown, 1));
   el.querySelectorAll('[data-habit-prev]').forEach(b=>b.onclick=()=>{
     const type=b.dataset.habitPrev;
     const n = type==='daily'?7:49;
