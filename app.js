@@ -1449,7 +1449,7 @@ function habitRingStripHtml(habits, type, anchorDate){
       const label = type==='daily' ? fmtShortDateSlashDow(labelDate) : fmtSlashMD(labelDate.slice(5));
       const wc=weekdayColor(labelDate);
       const badgeText = type==='daily' ? 'Today' : 'This Week';
-      return `<div class="habit-ring-col" title="${done}/${total}"><div class="habit-today-slot">${isCurrent?`<span class="habit-today-badge">${badgeText}</span>`:''}</div>${habitMiniRingSvg(done,total,type)}<div class="habit-ring-date" style="${wc?'color:'+wc+';':''}">${label}</div></div>`;
+      return `<div class="habit-ring-col${isCurrent?' habit-col-current':''}" title="${done}/${total}"><div class="habit-today-slot">${isCurrent?`<span class="habit-today-badge">${badgeText}</span>`:''}</div>${habitMiniRingSvg(done,total,type)}<div class="habit-ring-date" style="${wc?'color:'+wc+';':''}">${label}</div></div>`;
     }).join('')}
   </div>`;
 }
@@ -1462,11 +1462,12 @@ function habitRowHtml(h, type, anchorDate, idx, total){
   const unit = type==='daily'?'일':'주';
   const cells=periods.map(k=>{
     const isFuture = k>todayKey;
-    if(isFuture) return `<div class="habit-cell-col"><span class="habit-cell habit-future">○</span></div>`;
+    const colCls = k===todayKey ? ' habit-col-current' : '';
+    if(isFuture) return `<div class="habit-cell-col${colCls}"><span class="habit-cell habit-future">○</span></div>`;
     const done=!!log[k];
     const checkColor = type==='weekly' ? 'var(--accent2)' : 'var(--good)';
     const mark = done ? `<span style="color:${checkColor};font-weight:800;font-size:15px;">✓</span>` : '❌';
-    return `<div class="habit-cell-col"><button type="button" class="habit-cell ${done?'habit-done':'habit-undone'} ${type==='weekly'?'habit-weekly':''}" data-habit-toggle="${h.id}" data-habit-key="${k}" title="${k}">${mark}</button></div>`;
+    return `<div class="habit-cell-col${colCls}"><button type="button" class="habit-cell ${done?'habit-done':'habit-undone'} ${type==='weekly'?'habit-weekly':''}" data-habit-toggle="${h.id}" data-habit-key="${k}" title="${k}">${mark}</button></div>`;
   }).join('');
   return `
   <div class="habit-row">
