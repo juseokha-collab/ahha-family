@@ -970,7 +970,9 @@ function myHomeVisibleScheduleItems(dateStr){
   return visible.filter(it=>scheduleItemOccursOn(it,dateStr)).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
 }
 function renderDayTimelines(){
-  const days=Array.from({length:multiDayCount()},(_,n)=>fmtDate(addDays(parseDate(homeDate), n)));
+  const dayCount=multiDayCount();
+  const dayOffset=Math.floor((dayCount-1)/2);
+  const days=Array.from({length:dayCount},(_,n)=>fmtDate(addDays(parseDate(homeDate), n-dayOffset)));
   const layouts=days.map(d=>computeDayLayoutFromItems(myHomeVisibleScheduleItems(d).filter(it=>!String(it.id).startsWith('evt-'))));
   const indices=[-1].concat(Array.from({length:DT_ROWS},(_,i)=>i)).concat([DT_ROWS]);
   const nowInfo=nowInfoForRole(effectiveRole());
@@ -2325,6 +2327,9 @@ function renderHealth(){
   const rec=(day.health&&day.health[healthPerson])||{};
   const todaysMealsByType={};
   (rec.meals||[]).forEach(m=>{ todaysMealsByType[m.mealType]=m; });
+  const prevHealthDate=fmtDate(addDays(parseDate(healthDate),-1));
+  const prevWeightRec=(state.daily[prevHealthDate] && state.daily[prevHealthDate].health && state.daily[prevHealthDate].health[healthPerson]) || {};
+  const dinnerNudge=(rec.weight && prevWeightRec.weight && Number(rec.weight)>Number(prevWeightRec.weight)) ? '오늘 저녁은 살찌니까 간단하게 ^^' : '';
   const mealWindowDates=Array.from({length:7},(_,i)=>fmtDate(addDays(parseDate(healthDate), -(6-i))));
   const mealList=mealWindowDates.flatMap(d=>{
     const dayRec=(state.daily[d] && state.daily[d].health && state.daily[d].health[healthPerson]) || {};
@@ -2427,22 +2432,22 @@ function renderHealth(){
         <input id="hNetwork" placeholder="쉼표로 구분 (예: 홍길동, 김철수)" value="${escapeHtml(rec.network||'')}">
       </div>
       <div class="field" style="margin-top:8px;">
-        <label>식단 기록</label>
         <div class="meal-grid">
-          ${['아침','점심','저녁'].map(t=>{
+          ${[['아침','🌅'],['점심','☀️'],['저녁','🌙']].map(([t,emoji])=>{
             const m=todaysMealsByType[t];
+            const placeholder = (t==='저녁' && dinnerNudge) ? dinnerNudge : '무엇을 먹었는지';
             return `<div>
-              <div class="meta" style="margin-bottom:2px;">${t}</div>
-              <input data-meal-slot="${t}" placeholder="무엇을 먹었는지" value="${m?escapeHtml(m.content):''}" style="width:100%;box-sizing:border-box;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:13px;">
+              <div class="meta" style="margin-bottom:2px;">${emoji} ${t} 식단기록</div>
+              <textarea data-meal-slot="${t}" class="meal-input" placeholder="${escapeHtml(placeholder)}" rows="2" style="width:100%;box-sizing:border-box;resize:none;overflow:hidden;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:13px;font-family:inherit;">${m?escapeHtml(m.content):''}</textarea>
               <select data-meal-amount="${t}" style="width:100%;margin-top:4px;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:13px;">
                 ${MEAL_AMOUNTS.map(a=>`<option ${m&&m.amount===a?'selected':''}>${a}</option>`).join('')}
               </select>
             </div>`;
           }).join('')}
         </div>
-        <div class="row" style="gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap;">
-          <div class="meta" style="width:32px;flex-shrink:0;">간식</div>
-          <input data-meal-slot="간식" placeholder="무엇을 먹었는지" value="${todaysMealsByType['간식']?escapeHtml(todaysMealsByType['간식'].content):''}" style="flex:1;min-width:120px;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:13px;">
+        <div class="row" style="gap:8px;align-items:flex-start;margin-top:8px;flex-wrap:wrap;">
+          <div class="meta" style="width:40px;flex-shrink:0;margin-top:6px;">🍪 간식</div>
+          <textarea data-meal-slot="간식" class="meal-input" placeholder="무엇을 먹었는지" rows="2" style="flex:1;min-width:120px;box-sizing:border-box;resize:none;overflow:hidden;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:13px;font-family:inherit;">${todaysMealsByType['간식']?escapeHtml(todaysMealsByType['간식'].content):''}</textarea>
           <select data-meal-amount="간식" style="background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:13px;">
             ${MEAL_AMOUNTS.map(a=>`<option ${todaysMealsByType['간식']&&todaysMealsByType['간식'].amount===a?'selected':''}>${a}</option>`).join('')}
           </select>
@@ -2557,6 +2562,11 @@ function renderHealth(){
     }
     return entry;
   };
+  el.querySelectorAll('.meal-input').forEach(inp=>{
+    const autoResizeMeal=()=>{ inp.style.height='auto'; inp.style.height=inp.scrollHeight+'px'; };
+    autoResizeMeal();
+    inp.addEventListener('input', autoResizeMeal);
+  });
   el.querySelectorAll('[data-meal-slot]').forEach(inp=>inp.addEventListener('change', ()=>{
     const content=inp.value.trim();
     if(!content) return;
