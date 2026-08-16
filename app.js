@@ -2599,7 +2599,7 @@ function renderHealth(){
     else mealWeekComment='잘 하고 있어요';
   }
   const mealSummaryLine = hasAnyMealRecord
-    ? `<b>오늘</b>의 식단은 <b style="color:var(--accent);">${mealScore}점</b> 입니다. ${escapeHtml(mealTodayComment)}${weekAvgScore!=null?` / 지난 <b>7일간</b>의 점수 평균은 <b style="color:var(--accent);">${weekAvgScore}점</b> 입니다. ${escapeHtml(mealWeekComment)}`:''}`
+    ? `<b>오늘 식단 관리는</b> <b style="color:var(--accent);">${mealScore}점</b> 입니다. <b style="color:var(--accent);">${escapeHtml(mealTodayComment)}</b>${weekAvgScore!=null?` / 지난 <b>7일간</b>의 점수 평균은 <b style="color:var(--accent);">${weekAvgScore}점</b> 입니다. <b style="color:var(--accent);">${escapeHtml(mealWeekComment)}</b>`:''}`
     : `오늘의 식단 <span class="meta" style="font-weight:400;">(오늘 식단을 입력해 볼까 ^^)</span>`;
   const el=document.getElementById('tab-health');
   const dLabel = parseDate(healthDate).toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'});
