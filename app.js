@@ -2326,20 +2326,25 @@ const MEAL_MOODS={
   neomeogeotda:{img:'moods/neomeogeotda.png', label:'넘 먹었다'},
   salppajyeotda:{img:'moods/salppajyeotda.png', label:'살빠졌다'}
 };
-function mealMoodKey(entries){
-  const {score,any}=mealScoreForEntries(entries);
-  if(!any) return null;
+function moodKeyForScore(score){
   if(score<=80) return 'neomeogeotda';
   if(score<=99) return 'baebureungeol';
   if(score>=126) return 'salppajyeotda';
   if(score>=110) return 'ajoota';
   return 'gibunjoa';
 }
-function mealMoodImgHtml(entries){
-  const key=mealMoodKey(entries);
+function mealMoodKey(entries){
+  const {score,any}=mealScoreForEntries(entries);
+  if(!any) return null;
+  return moodKeyForScore(score);
+}
+function mealMoodImgHtmlForKey(key){
   if(!key) return `<img src="moods/norecord.png" alt="기록 없음" class="meal-mood-icon" title="기록 없음">`;
   const mood=MEAL_MOODS[key];
   return `<img src="${mood.img}" alt="${escapeHtml(mood.label)}" class="meal-mood-icon" title="${escapeHtml(mood.label)}">`;
+}
+function mealMoodImgHtml(entries){
+  return mealMoodImgHtmlForKey(mealMoodKey(entries));
 }
 function mealEntryLineHtml(m){
   const hasContent = !!m.content;
@@ -2720,7 +2725,10 @@ function renderHealth(){
             <span class="meal-mood-icon-sm">${mealMoodImgHtml(rec.meals||[])}</span>
             <span>${mealTodayPart}</span>
           </span>
-          ${mealWeekPart?`<span>${mealWeekPart}</span>`:''}
+          ${mealWeekPart?`<span class="row" style="align-items:center;gap:6px;">
+            <span class="meal-mood-icon-sm">${mealMoodImgHtmlForKey(moodKeyForScore(weekAvgScore))}</span>
+            <span>${mealWeekPart}</span>
+          </span>`:''}
         </div>
         <div class="meal-card-grid">
           ${MEAL_TYPES.map(t=>{
