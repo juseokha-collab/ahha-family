@@ -2298,6 +2298,22 @@ const MEAL_ICONS={아침:'☀️',점심:'🌤️',저녁:'🌙',간식:'🍰'};
 const MEAL_FAST_TEXT={아침:'단식했어요',점심:'단식했어요',저녁:'단식했어요',간식:'참았어요'};
 const MEAL_AMOUNT_POINTS={'쫌쫌따리':20,'알잘딱':10,'쫌많이':-10,'레전드':-30};
 const MEAL_FAST_POINTS=10;
+function mealScoreForEntries(entries){
+  let sum=0, any=false;
+  MEAL_TYPES.forEach(t=>{
+    const m=entries.find(x=>x.mealType===t);
+    if(m && m.content){ sum+=(MEAL_AMOUNT_POINTS[m.amount]||0); any=true; }
+    else if(m && m.fasted){ sum+=MEAL_FAST_POINTS; any=true; }
+  });
+  return {score:100+sum, any};
+}
+function mealMoodEmoji(entries){
+  const {score,any}=mealScoreForEntries(entries);
+  if(!any) return '🦥';
+  if(score>=110) return '💪';
+  if(score<=70) return '🐷';
+  return '🙂';
+}
 function mealEntryLineHtml(m){
   const hasContent = !!m.content;
   const points = hasContent ? MEAL_AMOUNT_POINTS[m.amount] : (m.fasted ? MEAL_FAST_POINTS : null);
@@ -2538,16 +2554,11 @@ function renderHealth(){
     if(m && m.fasted) return sum + MEAL_FAST_POINTS;
     return sum;
   }, 0);
-  const mealWindowDates=Array.from({length:7},(_,i)=>fmtDate(addDays(parseDate(healthDate), -(6-i))));
-  const mealList=mealWindowDates.flatMap(d=>{
+  const mealWindowDates=Array.from({length:7},(_,i)=>fmtDate(addDays(parseDate(healthDate), -(7-i))));
+  const mealGroups=mealWindowDates.slice().reverse().map(d=>{
     const dayRec=(state.daily[d] && state.daily[d].health && state.daily[d].health[healthPerson]) || {};
-    return (dayRec.meals||[]).map(m=>({...m, date:d}));
-  }).sort((a,b)=> b.date.localeCompare(a.date) || b.time.localeCompare(a.time));
-  const mealGroups=[];
-  mealList.forEach(m=>{
-    let g=mealGroups.find(x=>x.date===m.date);
-    if(!g){ g={date:m.date, entries:[]}; mealGroups.push(g); }
-    g.entries.push(m);
+    const entries=(dayRec.meals||[]).slice().sort((a,b)=>b.time.localeCompare(a.time));
+    return {date:d, entries};
   });
   const el=document.getElementById('tab-health');
   const dLabel = parseDate(healthDate).toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'});
@@ -2681,14 +2692,19 @@ function renderHealth(){
           }).join('')}
         </div>
         <div style="margin-top:8px;">
-          ${mealGroups.length? mealGroups.map(g=>`
-            <div class="list-item" style="align-items:flex-start;">
+          ${mealGroups.map(g=>{
+            const wc=weekdayColor(g.date);
+            const dLabel=`${mealMoodEmoji(g.entries)} ${g.date.slice(5)}(${parseDate(g.date).toLocaleDateString('ko-KR',{weekday:'short'})})`;
+            const body = g.entries.length ? g.entries.map(m=>`<div class="content-text" style="margin-top:2px;">${mealEntryLineHtml(m)}</div>`).join('') : `<div class="meta" style="margin-top:2px;">기록 없음</div>`;
+            const actions = g.entries.length ? `<button class="btn small" style="font-size:11px;padding:3px 8px;" data-edit-meal-day="${g.date}" title="수정">✏️</button> <button class="btn small danger" style="font-size:11px;padding:3px 8px;" data-del-meal-day="${g.date}" title="삭제">✕</button>` : '';
+            return `<div class="list-item" style="align-items:flex-start;">
               <div>
-                <div style="font-weight:700;font-size:12.5px;">${g.date.slice(5)}(${parseDate(g.date).toLocaleDateString('ko-KR',{weekday:'short'})})</div>
-                ${g.entries.map(m=>`<div class="content-text" style="margin-top:2px;">${mealEntryLineHtml(m)}</div>`).join('')}
+                <div style="font-weight:700;font-size:12.5px;${wc?'color:'+wc+';':''}">${dLabel}</div>
+                ${body}
               </div>
-              <div class="row" style="flex-shrink:0;"><button class="btn small" style="font-size:11px;padding:3px 8px;" data-edit-meal-day="${g.date}" title="수정">✏️</button> <button class="btn small danger" style="font-size:11px;padding:3px 8px;" data-del-meal-day="${g.date}" title="삭제">✕</button></div>
-            </div>`).join('') : `<div class="empty">아직 기록된 식단이 없어요</div>`}
+              <div class="row" style="flex-shrink:0;">${actions}</div>
+            </div>`;
+          }).join('')}
         </div>
       </div>
     </div>
