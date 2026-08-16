@@ -2694,13 +2694,13 @@ function renderHealth(){
             const points = hasContent ? MEAL_AMOUNT_POINTS[m.amount] : (fasted ? MEAL_FAST_POINTS : null);
             const pointsHtml = points!=null ? `<span style="color:${points<0?'#ff8080':'#4ade80'};font-weight:700;">${points>0?'+':''}${points}점</span>` : '';
             const amountImg = hasContent ? MEAL_AMOUNT_IMAGES[m.amount] : null;
-            return `<div class="meal-card${confirmed?' meal-card-done':''}">
+            const photoStyle = amountImg ? ` style="background-image:linear-gradient(rgba(0,0,0,0.35),rgba(0,0,0,0.6)),url('${amountImg}');"` : '';
+            return `<div class="meal-card${confirmed?' meal-card-done':''}${amountImg?' meal-card-photo':''}"${photoStyle}>
               <div class="meal-card-top">
                 <span class="meal-card-icon">${MEAL_ICONS[t]}</span>
                 <div class="meal-card-preview${hasContent?'':' empty'}" title="${hasContent?escapeHtml(m.content):''}">${hasContent?escapeHtml(m.content):''}</div>
                 <button type="button" class="meal-card-edit" data-meal-add="${t}" title="${t} 기록">✏️</button>
               </div>
-              <div class="meal-card-amount-img-wrap">${amountImg?`<img src="${amountImg}" alt="${escapeHtml(m.amount)}" class="meal-card-amount-img">`:''}</div>
               <div class="meal-card-label">${t}</div>
               <div class="meal-card-status">
                 <button type="button" class="meal-card-check" data-meal-check="${t}" ${hasContent?'disabled':''}>${confirmed?'✅':'⚪'}</button>
