@@ -623,6 +623,11 @@ function mergeTodoCategories(localObj, cloudObj){
   });
   return merged;
 }
+function mergeFlatCategoryList(localArr, cloudArr){
+  const cloud=cloudArr||[];
+  const names=new Set(cloud.map(c=>c.name));
+  return cloud.concat((localArr||[]).filter(c=>c && !names.has(c.name)));
+}
 function mergeDaily(localDaily, cloudDaily){
   const merged=JSON.parse(JSON.stringify(cloudDaily||{}));
   Object.keys(localDaily||{}).forEach(date=>{
@@ -683,6 +688,7 @@ function mergeStates(localState, cloudState){
   merged.vehicle=mergeVehicle(localState.vehicle, cloudState.vehicle, deletedSet);
   merged.calendarDayColors=mergeKeyedColorMaps(localState.calendarDayColors, cloudState.calendarDayColors);
   merged.todoCategories=mergeTodoCategories(localState.todoCategories, cloudState.todoCategories);
+  merged.eventCategories=mergeFlatCategoryList(localState.eventCategories, cloudState.eventCategories);
   merged.habits={
     daily: mergeById(localState.habits&&localState.habits.daily, cloudState.habits&&cloudState.habits.daily, deletedSet),
     weekly: mergeById(localState.habits&&localState.habits.weekly, cloudState.habits&&cloudState.habits.weekly, deletedSet)
@@ -1474,6 +1480,72 @@ function openTodoCategoryEditModal(idx){
       cats.push({name, color:selectedColor});
     }
     queueSave(); closeModal(); openTodoCategoryManageModal();
+  };
+}
+function eventCategories(){
+  if(!state.eventCategories) state.eventCategories=[{name:'세금', color:SCHED_COLORS[0]}];
+  return state.eventCategories;
+}
+function eventCategoryOf(ev){ return ev.category || (ev.isTax?'세금':''); }
+function openEventCategoryManageModal(){
+  const cats=eventCategories();
+  openModal(`
+    <h3>D-day 카테고리 관리</h3>
+    ${cats.map((c,i)=>{
+      const cnt=state.events.filter(ev=>eventCategoryOf(ev)===c.name).length;
+      return `<div class="list-item"><div class="row" style="gap:8px;align-items:center;"><span style="width:14px;height:14px;border-radius:50%;background:${c.color};display:inline-block;flex-shrink:0;"></span>${escapeHtml(c.name)}${cnt?` <span class="meta">(${cnt}건 사용중)</span>`:''}</div><div class="row" style="gap:4px;"><button class="btn small" style="font-size:11px;padding:3px 8px;" data-edit-eventcat="${i}" title="수정">✏️</button><button class="btn small danger" style="font-size:11px;padding:3px 8px;" data-del-eventcat="${i}" title="삭제">✕</button></div></div>`;
+    }).join('')}
+    <div class="modal-actions" style="justify-content:flex-start;">
+      <button class="btn primary small" id="addEventCatBtn">+ 새 카테고리</button>
+    </div>
+    <div class="modal-actions"><button class="btn" id="mCancel">닫기</button></div>
+  `);
+  document.getElementById('mCancel').onclick=closeModal;
+  document.getElementById('addEventCatBtn').onclick=()=>openEventCategoryEditModal(null);
+  document.querySelectorAll('[data-edit-eventcat]').forEach(b=>b.onclick=()=>openEventCategoryEditModal(Number(b.dataset.editEventcat)));
+  document.querySelectorAll('[data-del-eventcat]').forEach(b=>b.onclick=()=>{
+    const idx=Number(b.dataset.delEventcat);
+    const cat=cats[idx];
+    const cnt=state.events.filter(ev=>eventCategoryOf(ev)===cat.name).length;
+    const msg = cnt>0 ? `"${cat.name}" 카테고리를 사용한 D-day가 ${cnt}건 있어요. 그래도 삭제할까요? (기존 항목은 카테고리 없음으로 남아요)` : `"${cat.name}" 카테고리를 삭제할까요?`;
+    if(!confirm(msg)) return;
+    cats.splice(idx,1);
+    queueSave(); openEventCategoryManageModal();
+  });
+}
+function openEventCategoryEditModal(idx){
+  const cats=eventCategories();
+  const existing = idx!=null ? cats[idx] : null;
+  let selectedColor = existing ? existing.color : SCHED_COLORS[0];
+  openModal(`
+    <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <h3 style="margin:0;">${existing?'카테고리 수정':'카테고리 추가'}</h3>
+      ${renderColorSwatches(selectedColor, 'eventcat')}
+    </div>
+    <div class="field"><label>이름</label><input id="mCatName" value="${existing?escapeHtml(existing.name):''}"></div>
+    <div class="modal-actions"><button class="btn" id="mCancel">취소</button><button class="btn primary" id="mSave">저장</button></div>
+  `);
+  document.getElementById('mCancel').onclick=closeModal;
+  document.querySelectorAll('[data-swatch-group="eventcat"] .color-swatch').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      selectedColor=btn.dataset.color;
+      document.querySelectorAll('[data-swatch-group="eventcat"] .color-swatch').forEach(b=>{
+        b.style.border=(b.dataset.color===selectedColor)?'3px solid var(--text)':'2px solid transparent';
+      });
+    });
+  });
+  document.getElementById('mSave').onclick=()=>{
+    const name=document.getElementById('mCatName').value.trim();
+    if(!name){ showToast('이름을 입력해주세요'); return; }
+    if(existing){
+      const oldName=existing.name;
+      existing.name=name; existing.color=selectedColor;
+      if(oldName!==name){ state.events.forEach(ev=>{ if(eventCategoryOf(ev)===oldName){ ev.category=name; ev.isTax=false; } }); }
+    } else {
+      if(cats.some(c=>c.name===name)){ showToast('이미 있는 카테고리예요'); return; }
+      cats.push({name, color:selectedColor});
+    }
+    queueSave(); closeModal(); openEventCategoryManageModal();
   };
 }
 /* ---------- HABITS (딸 전용) ---------- */
@@ -4197,7 +4269,7 @@ function renderEvents(){
   const row = ev => `
     <div class="list-item" style="align-items:center;">
       <div style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
-        ${ev.isTax?`<span class="pill" style="background:rgba(255,105,150,0.14);margin-right:4px;">세금</span>`:''}<span style="font-size:13px;font-weight:400;">${escapeHtml(ev.name)}</span>
+        ${(()=>{ const catName=eventCategoryOf(ev); if(!catName) return ''; const cat=eventCategories().find(c=>c.name===catName); const color=cat?cat.color:'rgba(255,105,150,0.14)'; return `<span class="pill" style="background:${color};margin-right:4px;">${escapeHtml(catName)}</span>`; })()}<span style="font-size:13px;font-weight:400;">${escapeHtml(ev.name)}</span>
         <span class="meta">${ev.lunar?`음력 ${ev.lunarMonth}/${ev.lunarDay}${ev.lunarLeap?'(윤)':''}`:ev.date}${ev.recurring?' (매년)':''}${ev.recurringMonthly?` (매월, ${nthWeekdayLabel(ev.date)})`:''}${ev.hiddenFromDaughter?` <span class="pill">비공개</span>`:''}${ev.memo?' · '+escapeHtml(ev.memo):''}</span>
       </div>
       <div class="row" style="flex-wrap:nowrap;flex-shrink:0;">
@@ -4220,13 +4292,18 @@ function renderEvents(){
   });
 }
 function openEventModal(existing){
-  const ev=existing||{id:null,name:'',date:todayStr(),recurring:true,recurringMonthly:false,memo:'',lunar:false,lunarYear:new Date().getFullYear(),lunarMonth:'',lunarDay:'',lunarLeap:false,hiddenFromDaughter:false,isTax:false};
+  const ev=existing||{id:null,name:'',date:todayStr(),recurring:true,recurringMonthly:false,memo:'',lunar:false,lunarYear:new Date().getFullYear(),lunarMonth:'',lunarDay:'',lunarLeap:false,hiddenFromDaughter:false,category:''};
+  const effectiveCat=eventCategoryOf(ev);
   openModal(`
     <h3>${existing?'D-day 수정':'D-day 추가'}</h3>
     <div class="field"><label>이름</label><input id="mName" value="${escapeHtml(ev.name)}"></div>
     <div class="row" style="gap:6px;margin:6px 0;">
       <label class="pill" style="cursor:pointer;"><input type="checkbox" id="mLunar" ${ev.lunar?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">음력 날짜</label>
-      <label class="pill" style="cursor:pointer;"><input type="checkbox" id="mIsTax" ${ev.isTax?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">세금</label>
+    </div>
+    <div class="row" style="gap:6px;margin:6px 0;flex-wrap:wrap;align-items:center;">
+      <label class="pill" style="cursor:pointer;"><input type="radio" name="mEventCat" value="" ${!effectiveCat?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">없음</label>
+      ${eventCategories().map(c=>`<label class="pill" style="cursor:pointer;"><input type="radio" name="mEventCat" value="${escapeHtml(c.name)}" ${effectiveCat===c.name?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">${escapeHtml(c.name)}</label>`).join('')}
+      <button type="button" class="link-btn" id="manageEventCatBtn">카테고리 관리</button>
     </div>
     <div class="field" id="solarDateWrap" style="${ev.lunar?'display:none':''}">
       <label>날짜</label><input type="text" readonly class="date-input" placeholder="YYYY-MM-DD" id="mDate" value="${ev.date}">
@@ -4266,6 +4343,7 @@ function openEventModal(existing){
     document.getElementById('solarDateWrap').style.display = e.target.checked ? 'none' : '';
     document.getElementById('lunarDateWrap').style.display = e.target.checked ? '' : 'none';
   });
+  document.getElementById('manageEventCatBtn').onclick=()=>openEventCategoryManageModal();
   mRecurringEl.addEventListener('change', ()=>{ if(mRecurringEl.checked){ mRecurringMonthlyEl.checked=false; updateMonthlyInfo(); } });
   mRecurringMonthlyEl.addEventListener('change', ()=>{ if(mRecurringMonthlyEl.checked){ mRecurringEl.checked=false; } updateMonthlyInfo(); });
   document.getElementById('mDate').addEventListener('change', updateMonthlyInfo);
@@ -4286,7 +4364,8 @@ function openEventModal(existing){
       date=document.getElementById('mDate').value;
       if(!name||!date){ showToast('이름과 날짜를 입력해주세요'); return; }
     }
-    const rec={id:ev.id||uid(),name,date,lunar:isLunar,lunarYear,lunarMonth,lunarDay,lunarLeap,recurring:mRecurringEl.checked,recurringMonthly:mRecurringMonthlyEl.checked,hiddenFromDaughter:document.getElementById('mHideDaughter').checked,isTax:document.getElementById('mIsTax').checked,memo:document.getElementById('mMemo').value};
+    const category=(document.querySelector('input[name="mEventCat"]:checked')||{}).value||'';
+    const rec={id:ev.id||uid(),name,date,lunar:isLunar,lunarYear,lunarMonth,lunarDay,lunarLeap,recurring:mRecurringEl.checked,recurringMonthly:mRecurringMonthlyEl.checked,hiddenFromDaughter:document.getElementById('mHideDaughter').checked,category,memo:document.getElementById('mMemo').value};
     if(ev.id){ const idx=state.events.findIndex(x=>x.id===ev.id); state.events[idx]=rec; }
     else state.events.push(rec);
     queueSave(); closeModal(); renderEvents(); renderHome(); renderSchedule();
