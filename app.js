@@ -305,7 +305,8 @@ function defaultState(){
     habitLog:{},
     monthNotes:{},
     letters:[],
-    daughterActivity:[]
+    daughterActivity:[],
+    momActivity:[]
   };
 }
 function markDeleted(id){
@@ -449,8 +450,9 @@ function loadLocal(){
 }
 let state=loadLocal();
 let saveTimer=null;
-let daughterSessionLogged=false;
-let currentSessionActivityEntry=null;
+let sessionLoggedRoles={};
+let currentSessionActivityEntries={};
+const ACTIVITY_STATE_KEYS={daughter:'daughterActivity', mom:'momActivity'};
 const TAB_LOG_NAMES={home:'홈',schedule:'일정',health:'건강',budget:'가계부',study:'Learning'};
 function activityContentFor(tab){
   try{
@@ -484,28 +486,41 @@ function activityContentFor(tab){
   }catch(e){}
   return '';
 }
-function logDaughterActivity(){
-  if(!(user && EMAIL_ROLE[user.email]==='daughter')) return;
+function logRoleActivity(){
+  const myRole = user && EMAIL_ROLE[user.email];
+  const stateKey = ACTIVITY_STATE_KEYS[myRole];
+  if(!stateKey) return;
   const now=new Date();
   const ts=`${pad2(now.getMonth()+1)}-${pad2(now.getDate())} ${pad2(now.getHours())}:${pad2(now.getMinutes())}`;
   const tabName=TAB_LOG_NAMES[activeTab]||activeTab;
   const content=activityContentFor(activeTab);
   const desc = content ? `${tabName}탭 '${content}'` : `${tabName}탭 수정`;
-  if(!state.daughterActivity) state.daughterActivity=[];
-  if(!daughterSessionLogged){
-    daughterSessionLogged=true;
-    currentSessionActivityEntry={id:uid(), startTs:ts, startDesc:desc, endTs:ts, endDesc:desc};
-    state.daughterActivity.unshift(currentSessionActivityEntry);
-    state.daughterActivity=state.daughterActivity.slice(0,50);
-  } else if(currentSessionActivityEntry){
-    currentSessionActivityEntry.endTs=ts;
-    currentSessionActivityEntry.endDesc=desc;
+  if(!state[stateKey]) state[stateKey]=[];
+  if(!sessionLoggedRoles[myRole]){
+    sessionLoggedRoles[myRole]=true;
+    const entry={id:uid(), startTs:ts, startDesc:desc, endTs:ts, endDesc:desc};
+    currentSessionActivityEntries[myRole]=entry;
+    state[stateKey].unshift(entry);
+    state[stateKey]=state[stateKey].slice(0,50);
+  } else if(currentSessionActivityEntries[myRole]){
+    currentSessionActivityEntries[myRole].endTs=ts;
+    currentSessionActivityEntries[myRole].endDesc=desc;
   }
+}
+function activityListHtml(stateKey){
+  const sorted=[...(state[stateKey]||[])].sort((a,b)=>(b.startTs||b.ts||'').localeCompare(a.startTs||a.ts||'')).slice(0,6);
+  if(!sorted.length) return `<div class="meta">아직 접속 기록이 없어요</div>`;
+  return sorted.map(e=>{
+    if(e.startTs===undefined) return `<div class="meta" style="margin-top:2px;">${escapeHtml(e.ts)} ${escapeHtml(e.text)}</div>`;
+    const sameEnd = e.startTs===e.endTs && e.startDesc===e.endDesc;
+    const endDisplay = e.endTs.slice(0,5)===e.startTs.slice(0,5) ? e.endTs.slice(6) : e.endTs;
+    return `<div class="meta" style="margin-top:2px;">${escapeHtml(e.startTs)} ${escapeHtml(e.startDesc)}${sameEnd?'':` / ${escapeHtml(endDisplay)} ${escapeHtml(e.endDesc)}`}</div>`;
+  }).join('');
 }
 function saveLocal(){ try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }catch(e){} }
 function familyDocRef(){ return db.collection('shared').doc('family-state'); }
 function queueSave(){
-  logDaughterActivity();
+  logRoleActivity();
   saveLocal();
   clearTimeout(saveTimer);
   saveTimer=setTimeout(()=>{
@@ -650,6 +665,7 @@ function mergeStates(localState, cloudState){
   merged.monthNotes=mergeKeyedColorMaps(localState.monthNotes, cloudState.monthNotes);
   merged.letters=mergeById(localState.letters, cloudState.letters, deletedSet);
   merged.daughterActivity=mergeById(localState.daughterActivity, cloudState.daughterActivity, deletedSet);
+  merged.momActivity=mergeById(localState.momActivity, cloudState.momActivity, deletedSet);
   return merged;
 }
 function initAuth(){
@@ -1704,18 +1720,16 @@ function renderHome(){
       </div>
       ${(user && effectiveRole()!=='daughter')?`
       <div class="field" style="margin-top:10px;">
-        <label>👀 Lora's Activities</label>
-        <div style="margin-top:4px;">
-          ${(()=>{
-            const sorted=[...(state.daughterActivity||[])].sort((a,b)=>(b.startTs||b.ts||'').localeCompare(a.startTs||a.ts||'')).slice(0,6);
-            if(!sorted.length) return `<div class="meta">아직 접속 기록이 없어요</div>`;
-            return sorted.map(e=>{
-              if(e.startTs===undefined) return `<div class="meta" style="margin-top:2px;">${escapeHtml(e.ts)} ${escapeHtml(e.text)}</div>`;
-              const sameEnd = e.startTs===e.endTs && e.startDesc===e.endDesc;
-              const endDisplay = e.endTs.slice(0,5)===e.startTs.slice(0,5) ? e.endTs.slice(6) : e.endTs;
-              return `<div class="meta" style="margin-top:2px;">${escapeHtml(e.startTs)} ${escapeHtml(e.startDesc)}${sameEnd?'':` / ${escapeHtml(endDisplay)} ${escapeHtml(e.endDesc)}`}</div>`;
-            }).join('');
-          })()}
+        <div class="${(effectiveRole()==='dad' && !isMobileViewport())?'grid2':''}">
+          <div>
+            <label>👀 Lora's Activities</label>
+            <div style="margin-top:4px;">${activityListHtml('daughterActivity')}</div>
+          </div>
+          ${(effectiveRole()==='dad' && !isMobileViewport())?`
+          <div>
+            <label>👀 Jinah's Activities</label>
+            <div style="margin-top:4px;">${activityListHtml('momActivity')}</div>
+          </div>`:''}
         </div>
       </div>`:''}
       <div class="field" style="margin-top:10px;">
