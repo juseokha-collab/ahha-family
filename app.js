@@ -2302,7 +2302,7 @@ const MEAL_AMOUNT_IMAGES={'쫌쫌따리':'amounts/jjomjjomttari.png','알잘딱'
 const MEAL_AMOUNT_IMAGE_STYLE={
   '쫌쫌따리':{x:50, y:15, scale:1.0},
   '알잘딱':{x:50, y:15, scale:1.0},
-  '쫌많이':{x:50, y:15, scale:0.75},
+  '쫌많이':{x:50, y:15, scale:0.9},
   '레전드':{x:60, y:15, scale:1.0}
 };
 const MEAL_FAST_POINTS=10;
@@ -2584,6 +2584,19 @@ function renderHealth(){
     const entries=(dayRec.meals||[]).slice().sort((a,b)=>MEAL_TYPES.indexOf(a.mealType)-MEAL_TYPES.indexOf(b.mealType));
     return {date:d, entries};
   });
+  const weekValidScores = mealGroups.map(g=>mealScoreForEntries(g.entries)).filter(r=>r.any).map(r=>r.score);
+  const weekAvgScore = weekValidScores.length ? Math.round(weekValidScores.reduce((a,b)=>a+b,0)/weekValidScores.length) : null;
+  let mealTodayComment='';
+  if(hasAnyMealRecord){
+    if(mealScore<90) mealTodayComment='운동을 좀 해볼까?';
+    else if(mealScore>=110) mealTodayComment='와 내일 살빠지겠는걸!';
+  }
+  const mealWeekAvgText = weekAvgScore!=null ? `지난 7일간의 점수 평균은 ${weekAvgScore}점 입니다` : '';
+  let mealWeekComment='';
+  if(weekAvgScore!=null){
+    if(weekAvgScore<90) mealWeekComment='이번주는 운동이 필수겠지 ^^';
+    else if(weekAvgScore>=110) mealWeekComment='이뻐지겠는걸! ㅎㅎ';
+  }
   const el=document.getElementById('tab-health');
   const dLabel = parseDate(healthDate).toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'});
   const dLabelColor = weekdayColor(healthDate);
@@ -2691,6 +2704,9 @@ function renderHealth(){
       </div>
       <div class="field" style="margin-top:8px;">
         <label>${hasAnyMealRecord ? `오늘의 식단은 <span style="color:var(--accent);font-weight:800;">${mealScore}점</span> 입니다` : `오늘의 식단 <span class="meta" style="font-weight:400;">(오늘 식단을 입력해 볼까 ^^)</span>`}</label>
+        ${mealTodayComment?`<div class="meta" style="margin-top:2px;">${escapeHtml(mealTodayComment)}</div>`:''}
+        ${mealWeekAvgText?`<div class="meta" style="margin-top:2px;">${escapeHtml(mealWeekAvgText)}</div>`:''}
+        ${mealWeekComment?`<div class="meta" style="margin-top:2px;">${escapeHtml(mealWeekComment)}</div>`:''}
         <div class="meal-card-grid">
           ${MEAL_TYPES.map(t=>{
             const m=todaysMealsByType[t];
