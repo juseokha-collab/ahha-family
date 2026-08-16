@@ -1517,6 +1517,16 @@ function nextUnusedColor(usedColors){
   const unused=SCHED_COLORS.find(c=>!usedColors.includes(c));
   return unused || SCHED_COLORS[usedColors.length % SCHED_COLORS.length];
 }
+function dedupeEventCategoryColors(){
+  const cats=eventCategories();
+  const used=[];
+  let changed=false;
+  cats.forEach(c=>{
+    if(used.includes(c.color)){ c.color=nextUnusedColor(used); changed=true; }
+    used.push(c.color);
+  });
+  return changed;
+}
 function openEventCategoryEditModal(idx){
   const cats=eventCategories();
   const existing = idx!=null ? cats[idx] : null;
@@ -4267,6 +4277,7 @@ function openMaintModal(existing){
 /* ---------- EVENTS (경조사) ---------- */
 function renderEvents(){
   const el=document.getElementById('tab-events');
+  if(dedupeEventCategoryColors()) queueSave();
   const withD = state.events.map(ev=>({...ev, d: ddayFromDate(eventOccurrence(ev)), occDate: fmtDate(eventOccurrence(ev))}));
   const upcoming = withD.filter(e=>e.d>=0).sort((a,b)=>a.d-b.d);
   const past = withD.filter(e=>e.d<0).sort((a,b)=>b.d-a.d);
