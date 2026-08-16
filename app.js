@@ -2308,12 +2308,25 @@ function mealScoreForEntries(entries){
   });
   return {score:100+sum, any};
 }
-function mealMoodEmoji(entries){
+const MEAL_MOODS={
+  ajoota:{emoji:'🐷', label:'아주 좋아'},
+  baegopa:{emoji:'😣', label:'배고파'},
+  gibunjoa:{emoji:'🙂', label:'기분 좋아'},
+  baebureungeol:{emoji:'😋', label:'배부른걸'},
+  neomeogeotda:{emoji:'🤤', label:'넘 먹었다'}
+};
+function mealMoodKey(entries){
   const {score,any}=mealScoreForEntries(entries);
-  if(!any) return '🦥';
-  if(score>=110) return '💪';
-  if(score<=70) return '🐷';
-  return '🙂';
+  if(!any) return null;
+  if(score<=60) return 'ajoota';
+  if(score<=70) return 'baegopa';
+  if(score>=130) return 'neomeogeotda';
+  if(score>=110) return 'baebureungeol';
+  return 'gibunjoa';
+}
+function mealMoodEmoji(entries){
+  const key=mealMoodKey(entries);
+  return key ? MEAL_MOODS[key].emoji : '🦥';
 }
 function mealEntryLineHtml(m){
   const hasContent = !!m.content;
