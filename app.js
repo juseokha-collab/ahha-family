@@ -2321,18 +2321,18 @@ function mealScoreForEntries(entries){
 }
 const MEAL_MOODS={
   ajoota:{img:'moods/ajoota.png', label:'아주 좋아'},
-  baegopa:{img:'moods/baegopa.png', label:'배고파'},
   gibunjoa:{img:'moods/gibunjoa.png', label:'기분 좋아'},
   baebureungeol:{img:'moods/baebureungeol.png', label:'배부른걸'},
-  neomeogeotda:{img:'moods/neomeogeotda.png', label:'넘 먹었다'}
+  neomeogeotda:{img:'moods/neomeogeotda.png', label:'넘 먹었다'},
+  salppajyeotda:{img:'moods/salppajyeotda.png', label:'살빠졌다'}
 };
 function mealMoodKey(entries){
   const {score,any}=mealScoreForEntries(entries);
   if(!any) return null;
-  if(score<=60) return 'ajoota';
-  if(score<=70) return 'baegopa';
-  if(score>=130) return 'neomeogeotda';
-  if(score>=110) return 'baebureungeol';
+  if(score<=60) return 'neomeogeotda';
+  if(score<=70) return 'baebureungeol';
+  if(score>=130) return 'salppajyeotda';
+  if(score>=110) return 'ajoota';
   return 'gibunjoa';
 }
 function mealMoodImgHtml(entries){
