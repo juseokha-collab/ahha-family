@@ -2329,9 +2329,9 @@ const MEAL_MOODS={
 function mealMoodKey(entries){
   const {score,any}=mealScoreForEntries(entries);
   if(!any) return null;
-  if(score<=60) return 'neomeogeotda';
-  if(score<=70) return 'baebureungeol';
-  if(score>=130) return 'salppajyeotda';
+  if(score<=80) return 'neomeogeotda';
+  if(score<=99) return 'baebureungeol';
+  if(score>=126) return 'salppajyeotda';
   if(score>=110) return 'ajoota';
   return 'gibunjoa';
 }
