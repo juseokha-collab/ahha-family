@@ -1018,7 +1018,7 @@ function unifiedRowMeta(idx){
 }
 let showCommonOnHome=false;
 let showDaughterOnHome=false;
-let momHomeDefaultsApplied=false;
+let parentHomeDefaultsApplied=false;
 let momWeightDefaultsApplied=false;
 let daughterWeightDefaultsApplied=false;
 let studyAnchor=todayStr();
@@ -1671,8 +1671,8 @@ function bindHabitEvents(el){
   });
 }
 function renderHome(){
-  if(effectiveRole()==='mom' && !momHomeDefaultsApplied){
-    momHomeDefaultsApplied=true;
+  if((effectiveRole()==='mom' || effectiveRole()==='dad') && !parentHomeDefaultsApplied){
+    parentHomeDefaultsApplied=true;
     showCommonOnHome=true;
     showDaughterOnHome=true;
   }
