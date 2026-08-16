@@ -2301,9 +2301,9 @@ const MEAL_AMOUNT_POINTS={'쫌쫌따리':20,'알잘딱':10,'쫌많이':-10,'레�
 const MEAL_AMOUNT_IMAGES={'쫌쫌따리':'amounts/jjomjjomttari.png','알잘딱':'amounts/aljaldak.png','쫌많이':'amounts/jjommanhi.png','레전드':'amounts/legend.png'};
 const MEAL_AMOUNT_IMAGE_STYLE={
   '쫌쫌따리':{x:50, y:15, scale:1.0},
-  '알잘딱':{x:50, y:15, scale:0.80},
-  '쫌많이':{x:50, y:60, scale:0.55},
-  '레전드':{x:60, y:15, scale:0.85}
+  '알잘딱':{x:50, y:15, scale:1.0},
+  '쫌많이':{x:50, y:15, scale:0.9},
+  '레전드':{x:60, y:15, scale:1.0}
 };
 const MEAL_FAST_POINTS=10;
 function mealScoreForEntries(entries){
