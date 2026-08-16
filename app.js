@@ -2302,7 +2302,7 @@ const MEAL_AMOUNT_IMAGES={'쫌쫌따리':'amounts/jjomjjomttari.png','알잘딱'
 const MEAL_AMOUNT_IMAGE_STYLE={
   '쫌쫌따리':{x:50, y:15, scale:1.0},
   '알잘딱':{x:50, y:15, scale:0.80},
-  '쫌많이':{x:50, y:20, scale:0.55},
+  '쫌많이':{x:50, y:60, scale:0.55},
   '레전드':{x:60, y:15, scale:0.85}
 };
 const MEAL_FAST_POINTS=10;
@@ -2581,7 +2581,7 @@ function renderHealth(){
   const mealWindowDates=Array.from({length:7},(_,i)=>fmtDate(addDays(parseDate(healthDate), -(7-i))));
   const mealGroups=mealWindowDates.slice().reverse().map(d=>{
     const dayRec=(state.daily[d] && state.daily[d].health && state.daily[d].health[healthPerson]) || {};
-    const entries=(dayRec.meals||[]).slice().sort((a,b)=>b.time.localeCompare(a.time));
+    const entries=(dayRec.meals||[]).slice().sort((a,b)=>MEAL_TYPES.indexOf(a.mealType)-MEAL_TYPES.indexOf(b.mealType));
     return {date:d, entries};
   });
   const el=document.getElementById('tab-health');
