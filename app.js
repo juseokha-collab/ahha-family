@@ -2298,6 +2298,10 @@ const MEAL_AMOUNTS=['쫌쫌따리','알잘딱','쫌많이','레전드'];
 const MEAL_ICONS={아침:'☀️',점심:'🌤️',저녁:'🌙',간식:'🍰'};
 const MEAL_FAST_TEXT={아침:'단식했어요',점심:'단식했어요',저녁:'단식했어요',간식:'참았어요'};
 const MEAL_AMOUNT_POINTS={'쫌쫌따리':20,'알잘딱':10,'쫌많이':-10,'레전드':-30};
+function mealAmountPoints(mealType, amount){
+  const base=MEAL_AMOUNT_POINTS[amount]||0;
+  return mealType==='저녁' ? Math.round(base*1.5) : base;
+}
 const MEAL_AMOUNT_IMAGES={'쫌쫌따리':'amounts/jjomjjomttari.png','알잘딱':'amounts/aljaldak.png','쫌많이':'amounts/jjommanhi.png','레전드':'amounts/legend.png'};
 const MEAL_AMOUNT_IMAGE_STYLE={
   '쫌쫌따리':{x:50, y:15, scale:1.0},
@@ -2310,7 +2314,7 @@ function mealScoreForEntries(entries){
   let sum=0, any=false;
   MEAL_TYPES.forEach(t=>{
     const m=entries.find(x=>x.mealType===t);
-    if(m && m.content){ sum+=(MEAL_AMOUNT_POINTS[m.amount]||0); any=true; }
+    if(m && m.content){ sum+=mealAmountPoints(t, m.amount); any=true; }
     else if(m && m.fasted){ sum+=MEAL_FAST_POINTS; any=true; }
   });
   return {score:100+sum, any};
@@ -2339,7 +2343,7 @@ function mealMoodImgHtml(entries){
 }
 function mealEntryLineHtml(m){
   const hasContent = !!m.content;
-  const points = hasContent ? MEAL_AMOUNT_POINTS[m.amount] : (m.fasted ? MEAL_FAST_POINTS : null);
+  const points = hasContent ? mealAmountPoints(m.mealType, m.amount) : (m.fasted ? MEAL_FAST_POINTS : null);
   const pointsHtml = points!=null ? ` <span style="color:${points<0?'var(--bad)':'var(--good)'};font-weight:700;">${points>0?'+':''}${points}점</span>` : '';
   const statusText = hasContent ? m.amount : (m.fasted ? MEAL_FAST_TEXT[m.mealType] : '');
   const showContent = hasContent && !isMobileViewport();
@@ -2377,7 +2381,7 @@ function openMealEditModal(dateStr, id){
       </div>
     </div>
     <div class="field"><label>내용</label><input id="mMealContent" value="${escapeHtml(m.content)}"></div>
-    <div class="field"><label>양</label><select id="mMealAmount">${MEAL_AMOUNTS.map(a=>`<option ${m.amount===a?'selected':''}>${a}</option>`).join('')}</select></div>
+    <div class="field"><label>양</label><select id="mMealAmount">${MEAL_AMOUNTS.map(a=>{ const p=mealAmountPoints(m.mealType,a); return `<option value="${a}" ${m.amount===a?'selected':''}>${a} (${p>0?'+':''}${p}점)</option>`; }).join('')}</select></div>
     <div class="modal-actions"><button class="btn danger" id="mDelete">삭제</button><button class="btn" id="mCancel">취소</button><button class="btn primary" id="mSave">저장</button></div>
   `);
   document.getElementById('mCancel').onclick=closeModal;
@@ -2574,7 +2578,7 @@ function renderHealth(){
   const hasAnyMealRecord = MEAL_TYPES.some(t=>{ const m=todaysMealsByType[t]; return m && (m.content || m.fasted); });
   const mealScore = 100 + MEAL_TYPES.reduce((sum,t)=>{
     const m=todaysMealsByType[t];
-    if(m && m.content) return sum + (MEAL_AMOUNT_POINTS[m.amount]||0);
+    if(m && m.content) return sum + mealAmountPoints(t, m.amount);
     if(m && m.fasted) return sum + MEAL_FAST_POINTS;
     return sum;
   }, 0);
@@ -2598,9 +2602,12 @@ function renderHealth(){
     else if(weekAvgScore>=110) mealWeekComment='이뻐지겠는걸! ㅎㅎ';
     else mealWeekComment='잘 하고 있어요';
   }
-  const mealSummaryLine = hasAnyMealRecord
-    ? `<b>오늘 식단 관리는</b> <b style="color:var(--accent);">${mealScore}점</b> 입니다. <b style="color:var(--accent);">${escapeHtml(mealTodayComment)}</b>${weekAvgScore!=null?` / 지난 <b>7일간</b>의 점수 평균은 <b style="color:var(--accent);">${weekAvgScore}점</b> 입니다. <b style="color:var(--accent);">${escapeHtml(mealWeekComment)}</b>`:''}`
+  const mealTodayPart = hasAnyMealRecord
+    ? `<b>오늘 식단 관리는</b> <b style="color:var(--accent);">${mealScore}점</b> 입니다. <b style="color:var(--accent);">${escapeHtml(mealTodayComment)}</b>`
     : `오늘의 식단 <span class="meta" style="font-weight:400;">(오늘 식단을 입력해 볼까 ^^)</span>`;
+  const mealWeekPart = (hasAnyMealRecord && weekAvgScore!=null)
+    ? `지난 <b>7일간</b>의 점수 평균은 <b style="color:var(--accent);">${weekAvgScore}점</b> 입니다. <b style="color:var(--accent);">${escapeHtml(mealWeekComment)}</b>`
+    : '';
   const el=document.getElementById('tab-health');
   const dLabel = parseDate(healthDate).toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'});
   const dLabelColor = weekdayColor(healthDate);
@@ -2707,7 +2714,10 @@ function renderHealth(){
         <input id="hNetwork" placeholder="쉼표로 구분 (예: 홍길동, 김철수)" value="${escapeHtml(rec.network||'')}">
       </div>
       <div class="field" style="margin-top:8px;">
-        <label style="font-size:13px;">${mealSummaryLine}</label>
+        <div class="row" style="justify-content:space-between;align-items:baseline;flex-wrap:wrap;font-size:13px;column-gap:12px;">
+          <span>${mealTodayPart}</span>
+          ${mealWeekPart?`<span>${mealWeekPart}</span>`:''}
+        </div>
         <div class="meal-card-grid">
           ${MEAL_TYPES.map(t=>{
             const m=todaysMealsByType[t];
@@ -2715,7 +2725,7 @@ function renderHealth(){
             const fasted = !!(m && m.fasted);
             const confirmed = hasContent || fasted;
             const statusText = hasContent ? m.amount : MEAL_FAST_TEXT[t];
-            const points = hasContent ? MEAL_AMOUNT_POINTS[m.amount] : (fasted ? MEAL_FAST_POINTS : null);
+            const points = hasContent ? mealAmountPoints(t, m.amount) : (fasted ? MEAL_FAST_POINTS : null);
             const pointsHtml = points!=null ? `<span style="color:${points<0?'#ff8080':'#4ade80'};font-weight:700;">${points>0?'+':''}${points}점</span>` : '';
             const amountImg = hasContent ? MEAL_AMOUNT_IMAGES[m.amount] : null;
             const imgStyle = hasContent ? (MEAL_AMOUNT_IMAGE_STYLE[m.amount] || {x:50,y:15,scale:1.0}) : null;
