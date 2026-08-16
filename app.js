@@ -2336,7 +2336,8 @@ function mealEntryLineHtml(m){
   const points = hasContent ? MEAL_AMOUNT_POINTS[m.amount] : (m.fasted ? MEAL_FAST_POINTS : null);
   const pointsHtml = points!=null ? ` <span style="color:${points<0?'var(--bad)':'var(--good)'};font-weight:700;">${points>0?'+':''}${points}점</span>` : '';
   const statusText = hasContent ? m.amount : (m.fasted ? MEAL_FAST_TEXT[m.mealType] : '');
-  return `${escapeHtml(m.mealType)} · ${escapeHtml(statusText)}${hasContent?' · '+escapeHtml(m.content):''}${pointsHtml}`;
+  const showContent = hasContent && !isMobileViewport();
+  return `${escapeHtml(m.mealType)} · ${escapeHtml(statusText)}${showContent?' · '+escapeHtml(m.content):''}${pointsHtml}`;
 }
 function openMealDayModal(dateStr){
   const meals=(state.daily[dateStr] && state.daily[dateStr].health && state.daily[dateStr].health[healthPerson] && state.daily[dateStr].health[healthPerson].meals) || [];
