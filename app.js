@@ -2609,10 +2609,10 @@ function renderHealth(){
     else mealWeekComment='잘 하고 있어요';
   }
   const mealTodayPart = hasAnyMealRecord
-    ? `<b>오늘 식단 관리는</b> <b style="color:var(--accent);">${mealScore}점</b> 입니다. <b style="color:var(--accent);">${escapeHtml(mealTodayComment)}</b>`
+    ? `<div><b>오늘 식단 관리는</b> <b style="color:var(--accent);">${mealScore}점</b> 입니다.</div><div style="margin-top:2px;"><b style="color:var(--accent);font-size:14.5px;">${escapeHtml(mealTodayComment)}</b></div>`
     : `오늘의 식단 <span class="meta" style="font-weight:400;">(오늘 식단을 입력해 볼까 ^^)</span>`;
   const mealWeekPart = (hasAnyMealRecord && weekAvgScore!=null)
-    ? `지난 <b>7일간</b>의 점수 평균은 <b style="color:var(--accent);">${weekAvgScore}점</b> 입니다. <b style="color:var(--accent);">${escapeHtml(mealWeekComment)}</b>`
+    ? `<div>지난 <b>7일간</b>의 점수 평균은 <b style="color:var(--accent);">${weekAvgScore}점</b> 입니다.</div><div style="margin-top:2px;"><b style="color:var(--accent);font-size:14.5px;">${escapeHtml(mealWeekComment)}</b></div>`
     : '';
   const el=document.getElementById('tab-health');
   const dLabel = parseDate(healthDate).toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'});
@@ -2727,7 +2727,7 @@ function renderHealth(){
           </span>
           ${mealWeekPart?`<span class="row" style="align-items:center;gap:6px;">
             <span class="meal-mood-icon-sm">${mealMoodImgHtmlForKey(moodKeyForScore(weekAvgScore))}</span>
-            <span>${mealWeekPart}</span>
+            <span style="text-align:right;">${mealWeekPart}</span>
           </span>`:''}
         </div>
         <div class="meal-card-grid">
