@@ -2302,7 +2302,7 @@ const MEAL_AMOUNT_IMAGES={'쫌쫌따리':'amounts/jjomjjomttari.png','알잘딱'
 const MEAL_AMOUNT_IMAGE_STYLE={
   '쫌쫌따리':{x:50, y:15, scale:1.0},
   '알잘딱':{x:50, y:15, scale:0.9},
-  '쫌많이':{x:50, y:0, scale:0.85},
+  '쫌많이':{x:50, y:-20, scale:0.85},
   '레전드':{x:60, y:15, scale:0.95}
 };
 const MEAL_FAST_POINTS=10;
@@ -2333,7 +2333,7 @@ function mealMoodKey(entries){
 }
 function mealMoodImgHtml(entries){
   const key=mealMoodKey(entries);
-  if(!key) return `<span class="meal-mood-icon meal-mood-fallback">🦥</span>`;
+  if(!key) return `<img src="moods/norecord.png" alt="기록 없음" class="meal-mood-icon" title="기록 없음">`;
   const mood=MEAL_MOODS[key];
   return `<img src="${mood.img}" alt="${escapeHtml(mood.label)}" class="meal-mood-icon" title="${escapeHtml(mood.label)}">`;
 }
@@ -2702,7 +2702,7 @@ function renderHealth(){
             const pointsHtml = points!=null ? `<span style="color:${points<0?'#ff8080':'#4ade80'};font-weight:700;">${points>0?'+':''}${points}점</span>` : '';
             const amountImg = hasContent ? MEAL_AMOUNT_IMAGES[m.amount] : null;
             const imgStyle = hasContent ? (MEAL_AMOUNT_IMAGE_STYLE[m.amount] || {x:50,y:15,scale:1.0}) : null;
-            const bgImgHtml = amountImg ? `<img src="${amountImg}" class="meal-card-bg" style="object-position:${imgStyle.x}% ${imgStyle.y}%;transform:scale(${imgStyle.scale});"><div class="meal-card-overlay"></div>` : '';
+            const bgImgHtml = amountImg ? `<img src="${amountImg}" class="meal-card-bg" style="object-position:${imgStyle.x}% ${imgStyle.y}%;transform:scale(${imgStyle.scale});">` : '';
             return `<div class="meal-card${confirmed?' meal-card-done':''}${amountImg?' meal-card-photo':''}">
               ${bgImgHtml}
               <div class="meal-card-top">
