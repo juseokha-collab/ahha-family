@@ -981,8 +981,9 @@ function dtChip(it){
   const memoAttr = it.memo ? ` data-memo="${escapeHtml(it.memo)}"` : '';
   if(isVirtual) return `<div class="dt-evt" data-virtual="1"${memoAttr}>${escapeHtml(it.title)}</div>`;
   const badge = authorBadge(it.createdBy);
+  const commonCls = (!it.color && it.owner==='common') ? ' dt-evt-common' : '';
   const colorAttr = it.color ? ` style="background:${it.color};color:#181820;"` : '';
-  return `<div class="dt-evt" draggable="true" data-item-id="${it.id}"${memoAttr}${colorAttr}>${badge}${timeRangeLabel(it)?escapeHtml(timeRangeLabel(it))+' ':''}${escapeHtml(it.title)}</div>`;
+  return `<div class="dt-evt${commonCls}" draggable="true" data-item-id="${it.id}"${memoAttr}${colorAttr}>${badge}${timeRangeLabel(it)?escapeHtml(timeRangeLabel(it))+' ':''}${escapeHtml(it.title)}</div>`;
 }
 let dtTooltipEl=null;
 function showDtTooltip(target, text){
