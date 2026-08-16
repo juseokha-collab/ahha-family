@@ -99,10 +99,10 @@ function dday(dateStr){
   const t=parseDate(dateStr); t.setHours(0,0,0,0);
   return Math.round((t-now)/86400000);
 }
-function nextOccurrence(dateStr, recurring){
+function nextOccurrence(dateStr, recurring, refDateStr){
   const d=parseDate(dateStr);
   if(!recurring) return d;
-  const now=new Date(); now.setHours(0,0,0,0);
+  const now=refDateStr?parseDate(refDateStr):new Date(); now.setHours(0,0,0,0);
   let next=new Date(now.getFullYear(), d.getMonth(), d.getDate());
   if(next<now) next=new Date(now.getFullYear()+1, d.getMonth(), d.getDate());
   return next;
@@ -158,8 +158,8 @@ function lunar2solar(lYear,lMonth,lDay,isLeapMonth){
   const d=new Date(base+offset*86400000);
   return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
 }
-function nextLunarOccurrence(lMonth,lDay,isLeap){
-  const now=new Date(); now.setHours(0,0,0,0);
+function nextLunarOccurrence(lMonth,lDay,isLeap,refDateStr){
+  const now=refDateStr?parseDate(refDateStr):new Date(); now.setHours(0,0,0,0);
   for(let y=now.getFullYear(); y<=now.getFullYear()+1; y++){
     const d=lunar2solar(y,lMonth,lDay,isLeap);
     if(d && d>=now) return d;
@@ -182,11 +182,11 @@ function nthWeekdayLabel(dateStr){
   const n=Math.ceil(d.getDate()/7);
   return `${n}번째 ${WEEKDAY_KO[d.getDay()]}요일`;
 }
-function nextMonthlyOccurrence(dateStr){
+function nextMonthlyOccurrence(dateStr,refDateStr){
   const orig=parseDate(dateStr);
   const weekday=orig.getDay();
   const n=Math.ceil(orig.getDate()/7);
-  const now=new Date(); now.setHours(0,0,0,0);
+  const now=refDateStr?parseDate(refDateStr):new Date(); now.setHours(0,0,0,0);
   let y=now.getFullYear(), m=now.getMonth();
   for(let i=0;i<24;i++){
     const d=nthWeekdayOfMonth(y,m,weekday,n);
@@ -195,10 +195,35 @@ function nextMonthlyOccurrence(dateStr){
   }
   return orig;
 }
+function computeEventOccurrenceBase(ev, refDateStr){
+  if(ev.lunar && ev.recurring) return fmtDate(nextLunarOccurrence(ev.lunarMonth, ev.lunarDay, ev.lunarLeap, refDateStr));
+  if(ev.recurringMonthly) return fmtDate(nextMonthlyOccurrence(ev.date, refDateStr));
+  return fmtDate(nextOccurrence(ev.date, ev.recurring, refDateStr));
+}
+function ensureEventPendingOccurrence(ev){
+  if(!ev.recurring && !ev.recurringMonthly) return;
+  if(!ev.pendingOccurrence){
+    ev.pendingOccurrence=computeEventOccurrenceBase(ev, null);
+    queueSave();
+    return;
+  }
+  const today=todayStr();
+  if(ev.completedOccurrence===ev.pendingOccurrence && today>ev.pendingOccurrence){
+    const afterDate=fmtDate(addDays(parseDate(ev.pendingOccurrence),1));
+    ev.pendingOccurrence=computeEventOccurrenceBase(ev, afterDate);
+    queueSave();
+  }
+}
+function eventOccurrenceKey(ev){
+  if(!ev.recurring && !ev.recurringMonthly) return ev.date;
+  ensureEventPendingOccurrence(ev);
+  return ev.pendingOccurrence;
+}
+function isEventCompleted(ev){ return !!ev.completedOccurrence && ev.completedOccurrence===eventOccurrenceKey(ev); }
 function eventOccurrence(ev){
-  if(ev.lunar && ev.recurring) return nextLunarOccurrence(ev.lunarMonth, ev.lunarDay, ev.lunarLeap);
-  if(ev.recurringMonthly) return nextMonthlyOccurrence(ev.date);
-  return nextOccurrence(ev.date, ev.recurring);
+  if(!ev.recurring && !ev.recurringMonthly) return parseDate(ev.date);
+  ensureEventPendingOccurrence(ev);
+  return parseDate(ev.pendingOccurrence);
 }
 
 /* ---------- holidays (KR) ---------- */
@@ -4281,9 +4306,12 @@ function renderEvents(){
   const withD = state.events.map(ev=>({...ev, d: ddayFromDate(eventOccurrence(ev)), occDate: fmtDate(eventOccurrence(ev))}));
   const upcoming = withD.filter(e=>e.d>=0).sort((a,b)=>a.d-b.d);
   const past = withD.filter(e=>e.d<0).sort((a,b)=>b.d-a.d);
-  const row = ev => `
+  const row = ev => {
+    const completed=isEventCompleted(ev);
+    return `
     <div class="list-item" style="align-items:center;">
-      <div style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+      <button type="button" class="icon-btn" style="padding:0 6px;font-size:15px;flex-shrink:0;" data-toggle-complete="${ev.id}" title="완료 표시">${completed?'✅':'⬜'}</button>
+      <div style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${completed?'text-decoration:line-through;opacity:0.6;':''}">
         ${(()=>{ const catName=eventCategoryOf(ev); if(!catName) return ''; const cat=eventCategories().find(c=>c.name===catName); const color=cat?cat.color:'rgba(255,105,150,0.14)'; return `<span class="pill" style="background:${color};margin-right:4px;">${escapeHtml(catName)}</span>`; })()}<span style="font-size:13px;font-weight:400;">${escapeHtml(ev.name)}</span>
         <span class="meta">${ev.lunar?`음력 ${ev.lunarMonth}/${ev.lunarDay}${ev.lunarLeap?'(윤)':''}`:ev.date}${ev.recurring?' (매년)':''}${ev.recurringMonthly?` (매월, ${nthWeekdayLabel(ev.date)})`:''}${ev.hiddenFromDaughter?` <span class="pill">비공개</span>`:''}${ev.memo?' · '+escapeHtml(ev.memo):''}</span>
       </div>
@@ -4293,6 +4321,7 @@ function renderEvents(){
         <button class="btn small" style="font-size:11px;padding:3px 8px;" data-edit="${ev.id}" title="수정">✏️</button> <button class="btn small danger" style="font-size:11px;padding:3px 8px;" data-del="${ev.id}" title="삭제">✕</button>
       </div>
     </div>`;
+  };
   el.innerHTML=`
     <div class="card">
       <div class="row" style="justify-content:space-between;"><h3 style="margin:0;">🎉 D-day List</h3><button class="btn primary small" id="addEventBtn">+ 추가</button></div>
@@ -4304,6 +4333,13 @@ function renderEvents(){
   el.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>openEventModal(state.events.find(x=>x.id===b.dataset.edit)));
   el.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{
     if(confirm('삭제할까요?')){ state.events=state.events.filter(x=>x.id!==b.dataset.del); markDeleted(b.dataset.del); queueSave(); renderEvents(); renderHome(); renderSchedule(); }
+  });
+  el.querySelectorAll('[data-toggle-complete]').forEach(b=>b.onclick=()=>{
+    const ev=state.events.find(x=>x.id===b.dataset.toggleComplete);
+    if(!ev) return;
+    const key=eventOccurrenceKey(ev);
+    ev.completedOccurrence = (ev.completedOccurrence===key) ? '' : key;
+    queueSave(); renderEvents(); renderHome(); renderSchedule();
   });
 }
 function openEventModal(existing){
@@ -4380,7 +4416,8 @@ function openEventModal(existing){
       if(!name||!date){ showToast('이름과 날짜를 입력해주세요'); return; }
     }
     const category=(document.querySelector('input[name="mEventCat"]:checked')||{}).value||'';
-    const rec={id:ev.id||uid(),name,date,lunar:isLunar,lunarYear,lunarMonth,lunarDay,lunarLeap,recurring:mRecurringEl.checked,recurringMonthly:mRecurringMonthlyEl.checked,hiddenFromDaughter:document.getElementById('mHideDaughter').checked,category,memo:document.getElementById('mMemo').value};
+    const scheduleChanged = !ev.id || ev.date!==date || !!ev.recurring!==mRecurringEl.checked || !!ev.recurringMonthly!==mRecurringMonthlyEl.checked || !!ev.lunar!==isLunar;
+    const rec={id:ev.id||uid(),name,date,lunar:isLunar,lunarYear,lunarMonth,lunarDay,lunarLeap,recurring:mRecurringEl.checked,recurringMonthly:mRecurringMonthlyEl.checked,hiddenFromDaughter:document.getElementById('mHideDaughter').checked,category,memo:document.getElementById('mMemo').value,pendingOccurrence:scheduleChanged?'':ev.pendingOccurrence,completedOccurrence:scheduleChanged?'':ev.completedOccurrence};
     if(ev.id){ const idx=state.events.findIndex(x=>x.id===ev.id); state.events[idx]=rec; }
     else state.events.push(rec);
     queueSave(); closeModal(); renderEvents(); renderHome(); renderSchedule();
