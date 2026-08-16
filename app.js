@@ -1513,10 +1513,14 @@ function openEventCategoryManageModal(){
     queueSave(); openEventCategoryManageModal();
   });
 }
+function nextUnusedColor(usedColors){
+  const unused=SCHED_COLORS.find(c=>!usedColors.includes(c));
+  return unused || SCHED_COLORS[usedColors.length % SCHED_COLORS.length];
+}
 function openEventCategoryEditModal(idx){
   const cats=eventCategories();
   const existing = idx!=null ? cats[idx] : null;
-  let selectedColor = existing ? existing.color : SCHED_COLORS[0];
+  let selectedColor = existing ? existing.color : nextUnusedColor(cats.map(c=>c.color));
   openModal(`
     <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:14px;">
       <h3 style="margin:0;">${existing?'카테고리 수정':'카테고리 추가'}</h3>
