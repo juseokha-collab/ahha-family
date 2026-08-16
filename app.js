@@ -2715,8 +2715,11 @@ function renderHealth(){
         <input id="hNetwork" placeholder="쉼표로 구분 (예: 홍길동, 김철수)" value="${escapeHtml(rec.network||'')}">
       </div>
       <div class="field" style="margin-top:8px;">
-        <div class="row" style="justify-content:space-between;align-items:baseline;flex-wrap:wrap;font-size:13px;column-gap:12px;">
-          <span>${mealTodayPart}</span>
+        <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:wrap;font-size:13px;column-gap:12px;">
+          <span class="row" style="align-items:center;gap:6px;">
+            <span class="meal-mood-icon-sm">${mealMoodImgHtml(rec.meals||[])}</span>
+            <span>${mealTodayPart}</span>
+          </span>
           ${mealWeekPart?`<span>${mealWeekPart}</span>`:''}
         </div>
         <div class="meal-card-grid">
