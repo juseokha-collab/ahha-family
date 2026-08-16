@@ -1507,6 +1507,7 @@ function openTodoCategoryEditModal(idx){
     queueSave(); closeModal(); openTodoCategoryManageModal();
   };
 }
+const EVENT_CATEGORY_ICONS={'싸강쥐':'moods/ssagangjwi.png'};
 function eventCategories(){
   if(!state.eventCategories) state.eventCategories=[{name:'세금', color:SCHED_COLORS[0]}];
   return state.eventCategories;
@@ -4312,7 +4313,7 @@ function renderEvents(){
     <div class="list-item" style="align-items:center;">
       <button type="button" class="icon-btn" style="padding:0 6px;font-size:15px;flex-shrink:0;" data-toggle-complete="${ev.id}" title="완료 표시">${completed?'✅':'⬜'}</button>
       <div style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${completed?'text-decoration:line-through;opacity:0.6;':''}">
-        ${(()=>{ const catName=eventCategoryOf(ev); if(!catName) return ''; const cat=eventCategories().find(c=>c.name===catName); const color=cat?cat.color:'rgba(255,105,150,0.14)'; return `<span class="pill" style="background:${color};margin-right:4px;">${escapeHtml(catName)}</span>`; })()}<span style="font-size:13px;font-weight:400;">${escapeHtml(ev.name)}</span>
+        ${(()=>{ const catName=eventCategoryOf(ev); if(!catName) return ''; const icon=EVENT_CATEGORY_ICONS[catName]; if(icon) return `<img src="${icon}" alt="${escapeHtml(catName)}" title="${escapeHtml(catName)}" style="width:20px;height:20px;border-radius:6px;object-fit:cover;vertical-align:middle;margin-right:4px;">`; const cat=eventCategories().find(c=>c.name===catName); const color=cat?cat.color:'rgba(255,105,150,0.14)'; return `<span class="pill" style="background:${color};margin-right:4px;">${escapeHtml(catName)}</span>`; })()}<span style="font-size:13px;font-weight:400;">${escapeHtml(ev.name)}</span>
         <span class="meta">${ev.lunar?`음력 ${ev.lunarMonth}/${ev.lunarDay}${ev.lunarLeap?'(윤)':''}`:ev.date}${ev.recurring?' (매년)':''}${ev.recurringMonthly?` (매월, ${nthWeekdayLabel(ev.date)})`:''}${ev.hiddenFromDaughter?` <span class="pill">비공개</span>`:''}${ev.memo?' · '+escapeHtml(ev.memo):''}</span>
       </div>
       <div class="row" style="flex-wrap:nowrap;flex-shrink:0;">
