@@ -170,8 +170,34 @@ function nextLunarOccurrence(lMonth,lDay,isLeap){
   }
   return now;
 }
+const WEEKDAY_KO=['일','월','화','수','목','금','토'];
+function nthWeekdayOfMonth(year, month, weekday, n){
+  const first=new Date(year, month, 1);
+  const day = 1 + (weekday - first.getDay() + 7) % 7 + (n-1)*7;
+  const d=new Date(year, month, day);
+  return d.getMonth()===month ? d : null;
+}
+function nthWeekdayLabel(dateStr){
+  const d=parseDate(dateStr);
+  const n=Math.ceil(d.getDate()/7);
+  return `${n}번째 ${WEEKDAY_KO[d.getDay()]}요일`;
+}
+function nextMonthlyOccurrence(dateStr){
+  const orig=parseDate(dateStr);
+  const weekday=orig.getDay();
+  const n=Math.ceil(orig.getDate()/7);
+  const now=new Date(); now.setHours(0,0,0,0);
+  let y=now.getFullYear(), m=now.getMonth();
+  for(let i=0;i<24;i++){
+    const d=nthWeekdayOfMonth(y,m,weekday,n);
+    if(d && d>=now) return d;
+    m++; if(m>11){ m=0; y++; }
+  }
+  return orig;
+}
 function eventOccurrence(ev){
   if(ev.lunar && ev.recurring) return nextLunarOccurrence(ev.lunarMonth, ev.lunarDay, ev.lunarLeap);
+  if(ev.recurringMonthly) return nextMonthlyOccurrence(ev.date);
   return nextOccurrence(ev.date, ev.recurring);
 }
 
@@ -4172,7 +4198,7 @@ function renderEvents(){
     <div class="list-item" style="align-items:center;">
       <div style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
         ${ev.isTax?`<span class="pill" style="background:rgba(255,105,150,0.14);margin-right:4px;">세금</span>`:''}<span style="font-size:13px;font-weight:400;">${escapeHtml(ev.name)}</span>
-        <span class="meta">${ev.lunar?`음력 ${ev.lunarMonth}/${ev.lunarDay}${ev.lunarLeap?'(윤)':''}`:ev.date}${ev.recurring?' (매년)':''}${ev.hiddenFromDaughter?` <span class="pill">비공개</span>`:''}${ev.memo?' · '+escapeHtml(ev.memo):''}</span>
+        <span class="meta">${ev.lunar?`음력 ${ev.lunarMonth}/${ev.lunarDay}${ev.lunarLeap?'(윤)':''}`:ev.date}${ev.recurring?' (매년)':''}${ev.recurringMonthly?` (매월, ${nthWeekdayLabel(ev.date)})`:''}${ev.hiddenFromDaughter?` <span class="pill">비공개</span>`:''}${ev.memo?' · '+escapeHtml(ev.memo):''}</span>
       </div>
       <div class="row" style="flex-wrap:nowrap;flex-shrink:0;">
         <span class="meta" style="width:76px;text-align:right;white-space:nowrap;">${ev.occDate}</span>
@@ -4194,7 +4220,7 @@ function renderEvents(){
   });
 }
 function openEventModal(existing){
-  const ev=existing||{id:null,name:'',date:todayStr(),recurring:true,memo:'',lunar:false,lunarYear:new Date().getFullYear(),lunarMonth:'',lunarDay:'',lunarLeap:false,hiddenFromDaughter:false,isTax:false};
+  const ev=existing||{id:null,name:'',date:todayStr(),recurring:true,recurringMonthly:false,memo:'',lunar:false,lunarYear:new Date().getFullYear(),lunarMonth:'',lunarDay:'',lunarLeap:false,hiddenFromDaughter:false,isTax:false};
   openModal(`
     <h3>${existing?'D-day 수정':'D-day 추가'}</h3>
     <div class="field"><label>이름</label><input id="mName" value="${escapeHtml(ev.name)}"></div>
@@ -4215,17 +4241,34 @@ function openEventModal(existing){
         <div class="field"><label>&nbsp;</label><label class="pill" style="cursor:pointer;"><input type="checkbox" id="mLeap" ${ev.lunarLeap?'checked':''} style="margin-right:4px;">윤달</label></div>
       </div>
     </div>
-    <label class="pill" style="cursor:pointer;display:inline-block;margin:6px 0;"><input type="checkbox" id="mRecurring" ${ev.recurring?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">매년 반복</label>
-    <label class="pill" style="cursor:pointer;display:inline-block;margin:6px 0 6px 6px;"><input type="checkbox" id="mHideDaughter" ${ev.hiddenFromDaughter?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">딸에게 비공개</label>
+    <div class="row" style="gap:6px;margin:6px 0;">
+      <label class="pill" style="cursor:pointer;"><input type="checkbox" id="mRecurring" ${ev.recurring?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">매년 반복</label>
+      <label class="pill" style="cursor:pointer;"><input type="checkbox" id="mRecurringMonthly" ${ev.recurringMonthly?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">매월 반복</label>
+    </div>
+    <div class="meta" id="monthlyRepeatInfo" style="margin:-2px 0 6px;${ev.recurringMonthly?'':'display:none'}">${nthWeekdayLabel(ev.lunar?fmtDate(lunar2solar(ev.lunarYear,ev.lunarMonth,ev.lunarDay,ev.lunarLeap)||new Date()):ev.date)}마다 반복돼요</div>
+    <label class="pill" style="cursor:pointer;display:inline-block;margin:6px 0;"><input type="checkbox" id="mHideDaughter" ${ev.hiddenFromDaughter?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">딸에게 비공개</label>
     <div class="field"><label>메모</label><input id="mMemo" value="${escapeHtml(ev.memo)}"></div>
     <div class="modal-actions"><button class="btn" id="mCancel">취소</button><button class="btn primary" id="mSave">저장</button></div>
   `);
   document.getElementById('mCancel').onclick=closeModal;
   attachDatePicker('mDate');
+  const mRecurringEl=document.getElementById('mRecurring');
+  const mRecurringMonthlyEl=document.getElementById('mRecurringMonthly');
+  const monthlyInfoEl=document.getElementById('monthlyRepeatInfo');
+  const updateMonthlyInfo=()=>{
+    monthlyInfoEl.style.display = mRecurringMonthlyEl.checked ? '' : 'none';
+    if(mRecurringMonthlyEl.checked){
+      const d=document.getElementById('mDate').value;
+      if(d) monthlyInfoEl.textContent = `${nthWeekdayLabel(d)}마다 반복돼요`;
+    }
+  };
   document.getElementById('mLunar').addEventListener('change', e=>{
     document.getElementById('solarDateWrap').style.display = e.target.checked ? 'none' : '';
     document.getElementById('lunarDateWrap').style.display = e.target.checked ? '' : 'none';
   });
+  mRecurringEl.addEventListener('change', ()=>{ if(mRecurringEl.checked){ mRecurringMonthlyEl.checked=false; updateMonthlyInfo(); } });
+  mRecurringMonthlyEl.addEventListener('change', ()=>{ if(mRecurringMonthlyEl.checked){ mRecurringEl.checked=false; } updateMonthlyInfo(); });
+  document.getElementById('mDate').addEventListener('change', updateMonthlyInfo);
   document.getElementById('mSave').onclick=()=>{
     const name=document.getElementById('mName').value.trim();
     const isLunar=document.getElementById('mLunar').checked;
@@ -4243,7 +4286,7 @@ function openEventModal(existing){
       date=document.getElementById('mDate').value;
       if(!name||!date){ showToast('이름과 날짜를 입력해주세요'); return; }
     }
-    const rec={id:ev.id||uid(),name,date,lunar:isLunar,lunarYear,lunarMonth,lunarDay,lunarLeap,recurring:document.getElementById('mRecurring').checked,hiddenFromDaughter:document.getElementById('mHideDaughter').checked,isTax:document.getElementById('mIsTax').checked,memo:document.getElementById('mMemo').value};
+    const rec={id:ev.id||uid(),name,date,lunar:isLunar,lunarYear,lunarMonth,lunarDay,lunarLeap,recurring:mRecurringEl.checked,recurringMonthly:mRecurringMonthlyEl.checked,hiddenFromDaughter:document.getElementById('mHideDaughter').checked,isTax:document.getElementById('mIsTax').checked,memo:document.getElementById('mMemo').value};
     if(ev.id){ const idx=state.events.findIndex(x=>x.id===ev.id); state.events[idx]=rec; }
     else state.events.push(rec);
     queueSave(); closeModal(); renderEvents(); renderHome(); renderSchedule();
