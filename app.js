@@ -1052,7 +1052,7 @@ function authorBadge(key){
 function dtChip(it){
   const isVirtual = typeof it.id==='string' && it.id.startsWith('evt-');
   const memoAttr = it.memo ? ` data-memo="${escapeHtml(it.memo)}"` : '';
-  if(isVirtual) return `<div class="dt-evt" data-virtual="1"${memoAttr}>${escapeHtml(it.title)}</div>`;
+  if(isVirtual) return `<div class="dt-evt${it.ddayCommon?' dt-evt-dday-common':''}" data-virtual="1"${memoAttr}>${escapeHtml(it.title)}</div>`;
   const badge = authorBadge(it.createdBy);
   const commonCls = (!it.color && it.owner==='common') ? ' dt-evt-common' : '';
   const colorAttr = it.color ? ` style="background:${it.color};color:#181820;"` : '';
@@ -1154,7 +1154,7 @@ function renderDayTimelines(){
   const ddayCells=days.map((d,i)=>{
     const gap = i>0 ? '<td class="dt-gap"></td>' : '';
     const evs=state.events.filter(ev=>!(ev.hiddenFromDaughter && ddayRole==='daughter') && fmtDate(eventOccurrence(ev))===d)
-      .map(ev=>({id:'evt-dday-'+ev.id, title:ev.name, memo:ev.memo}));
+      .map(ev=>({id:'evt-dday-'+ev.id, title:ev.name, memo:ev.memo, ddayCommon:ddayRole!=='daughter'}));
     if(!evs.length) return gap+`<td class="dt-cell"></td>`;
     return gap+`<td class="dt-cell filled">${evs.map(dtChip).join('')}</td>`;
   }).join('');
