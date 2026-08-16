@@ -2302,7 +2302,7 @@ const MEAL_AMOUNT_IMAGES={'쫌쫌따리':'amounts/jjomjjomttari.png','알잘딱'
 const MEAL_AMOUNT_IMAGE_STYLE={
   '쫌쫌따리':{x:50, y:15, scale:1.0},
   '알잘딱':{x:50, y:15, scale:0.9},
-  '쫌많이':{x:50, y:20, scale:0.85},
+  '쫌많이':{x:50, y:20, scale:0.70},
   '레전드':{x:60, y:15, scale:0.95}
 };
 const MEAL_FAST_POINTS=10;
