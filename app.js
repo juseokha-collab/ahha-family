@@ -2326,7 +2326,7 @@ function mealMoodKey(entries){
 }
 function mealMoodImgHtml(entries){
   const key=mealMoodKey(entries);
-  if(!key) return '🦥';
+  if(!key) return `<span class="meal-mood-icon meal-mood-fallback">🦥</span>`;
   const mood=MEAL_MOODS[key];
   return `<img src="${mood.img}" alt="${escapeHtml(mood.label)}" class="meal-mood-icon" title="${escapeHtml(mood.label)}">`;
 }
@@ -2710,13 +2710,16 @@ function renderHealth(){
         <div style="margin-top:8px;">
           ${mealGroups.map(g=>{
             const wc=weekdayColor(g.date);
-            const dLabel=`${mealMoodImgHtml(g.entries)}<span style="margin-left:4px;">${g.date.slice(5)}(${parseDate(g.date).toLocaleDateString('ko-KR',{weekday:'short'})})</span>`;
-            const body = g.entries.length ? g.entries.map(m=>`<div class="content-text" style="margin-top:2px;">${mealEntryLineHtml(m)}</div>`).join('') : `<div class="meta" style="margin-top:2px;">기록 없음</div>`;
+            const dateLabel=`${g.date.slice(5)}(${parseDate(g.date).toLocaleDateString('ko-KR',{weekday:'short'})})`;
+            const lines = g.entries.length ? g.entries.map(mealEntryLineHtml) : ['기록 없음'];
+            const gridRows = lines.map((line,i)=>`
+              <div style="font-weight:700;font-size:12.5px;white-space:nowrap;${wc?'color:'+wc+';':''}">${i===0?dateLabel:''}</div>
+              <div class="content-text">${line}</div>`).join('');
             const actions = g.entries.length ? `<button class="btn small" style="font-size:11px;padding:3px 8px;" data-edit-meal-day="${g.date}" title="수정">✏️</button> <button class="btn small danger" style="font-size:11px;padding:3px 8px;" data-del-meal-day="${g.date}" title="삭제">✕</button>` : '';
             return `<div class="list-item" style="align-items:flex-start;">
-              <div>
-                <div style="font-weight:700;font-size:12.5px;display:flex;align-items:center;${wc?'color:'+wc+';':''}">${dLabel}</div>
-                ${body}
+              <div class="row" style="gap:8px;align-items:flex-start;flex:1;min-width:0;">
+                ${mealMoodImgHtml(g.entries)}
+                <div class="meal-history-grid">${gridRows}</div>
               </div>
               <div class="row" style="flex-shrink:0;">${actions}</div>
             </div>`;
