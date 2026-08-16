@@ -2298,6 +2298,7 @@ const MEAL_AMOUNTS=['쫌쫌따리','알잘딱','쫌많이','레전드'];
 const MEAL_ICONS={아침:'☀️',점심:'🌤️',저녁:'🌙',간식:'🍰'};
 const MEAL_FAST_TEXT={아침:'단식했어요',점심:'단식했어요',저녁:'단식했어요',간식:'참았어요'};
 const MEAL_AMOUNT_POINTS={'쫌쫌따리':20,'알잘딱':10,'쫌많이':-10,'레전드':-30};
+const MEAL_AMOUNT_IMAGES={'쫌쫌따리':'amounts/jjomjjomttari.png','쫌많이':'amounts/jjommanhi.png','레전드':'amounts/legend.png'};
 const MEAL_FAST_POINTS=10;
 function mealScoreForEntries(entries){
   let sum=0, any=false;
@@ -2692,12 +2693,14 @@ function renderHealth(){
             const statusText = hasContent ? m.amount : MEAL_FAST_TEXT[t];
             const points = hasContent ? MEAL_AMOUNT_POINTS[m.amount] : (fasted ? MEAL_FAST_POINTS : null);
             const pointsHtml = points!=null ? `<span style="color:${points<0?'#ff8080':'#4ade80'};font-weight:700;">${points>0?'+':''}${points}점</span>` : '';
+            const amountImg = hasContent ? MEAL_AMOUNT_IMAGES[m.amount] : null;
             return `<div class="meal-card${confirmed?' meal-card-done':''}">
               <div class="meal-card-top">
                 <span class="meal-card-icon">${MEAL_ICONS[t]}</span>
                 <div class="meal-card-preview${hasContent?'':' empty'}" title="${hasContent?escapeHtml(m.content):''}">${hasContent?escapeHtml(m.content):''}</div>
                 <button type="button" class="meal-card-edit" data-meal-add="${t}" title="${t} 기록">✏️</button>
               </div>
+              <div class="meal-card-amount-img-wrap">${amountImg?`<img src="${amountImg}" alt="${escapeHtml(m.amount)}" class="meal-card-amount-img">`:''}</div>
               <div class="meal-card-label">${t}</div>
               <div class="meal-card-status">
                 <button type="button" class="meal-card-check" data-meal-check="${t}" ${hasContent?'disabled':''}>${confirmed?'✅':'⚪'}</button>
