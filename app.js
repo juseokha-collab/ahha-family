@@ -2309,11 +2309,11 @@ function mealScoreForEntries(entries){
   return {score:100+sum, any};
 }
 const MEAL_MOODS={
-  ajoota:{emoji:'🐷', label:'아주 좋아'},
-  baegopa:{emoji:'😣', label:'배고파'},
-  gibunjoa:{emoji:'🙂', label:'기분 좋아'},
-  baebureungeol:{emoji:'😋', label:'배부른걸'},
-  neomeogeotda:{emoji:'🤤', label:'넘 먹었다'}
+  ajoota:{img:'moods/ajoota.png', label:'아주 좋아'},
+  baegopa:{img:'moods/baegopa.png', label:'배고파'},
+  gibunjoa:{img:'moods/gibunjoa.png', label:'기분 좋아'},
+  baebureungeol:{img:'moods/baebureungeol.png', label:'배부른걸'},
+  neomeogeotda:{img:'moods/neomeogeotda.png', label:'넘 먹었다'}
 };
 function mealMoodKey(entries){
   const {score,any}=mealScoreForEntries(entries);
@@ -2324,9 +2324,11 @@ function mealMoodKey(entries){
   if(score>=110) return 'baebureungeol';
   return 'gibunjoa';
 }
-function mealMoodEmoji(entries){
+function mealMoodImgHtml(entries){
   const key=mealMoodKey(entries);
-  return key ? MEAL_MOODS[key].emoji : '🦥';
+  if(!key) return '🦥';
+  const mood=MEAL_MOODS[key];
+  return `<img src="${mood.img}" alt="${escapeHtml(mood.label)}" class="meal-mood-icon" title="${escapeHtml(mood.label)}">`;
 }
 function mealEntryLineHtml(m){
   const hasContent = !!m.content;
@@ -2708,12 +2710,12 @@ function renderHealth(){
         <div style="margin-top:8px;">
           ${mealGroups.map(g=>{
             const wc=weekdayColor(g.date);
-            const dLabel=`${mealMoodEmoji(g.entries)} ${g.date.slice(5)}(${parseDate(g.date).toLocaleDateString('ko-KR',{weekday:'short'})})`;
+            const dLabel=`${mealMoodImgHtml(g.entries)}<span style="margin-left:4px;">${g.date.slice(5)}(${parseDate(g.date).toLocaleDateString('ko-KR',{weekday:'short'})})</span>`;
             const body = g.entries.length ? g.entries.map(m=>`<div class="content-text" style="margin-top:2px;">${mealEntryLineHtml(m)}</div>`).join('') : `<div class="meta" style="margin-top:2px;">기록 없음</div>`;
             const actions = g.entries.length ? `<button class="btn small" style="font-size:11px;padding:3px 8px;" data-edit-meal-day="${g.date}" title="수정">✏️</button> <button class="btn small danger" style="font-size:11px;padding:3px 8px;" data-del-meal-day="${g.date}" title="삭제">✕</button>` : '';
             return `<div class="list-item" style="align-items:flex-start;">
               <div>
-                <div style="font-weight:700;font-size:12.5px;${wc?'color:'+wc+';':''}">${dLabel}</div>
+                <div style="font-weight:700;font-size:12.5px;display:flex;align-items:center;${wc?'color:'+wc+';':''}">${dLabel}</div>
                 ${body}
               </div>
               <div class="row" style="flex-shrink:0;">${actions}</div>
