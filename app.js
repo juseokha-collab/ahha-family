@@ -2427,8 +2427,9 @@ function openMealSlotModal(mealType){
     <div class="field"><label>무엇을 먹었는지</label><textarea id="mMealContent" placeholder="${escapeHtml(placeholder)}" style="overflow:hidden;">${existing?escapeHtml(existing.content):''}</textarea></div>
     <div class="field" style="margin-top:10px;"><label>먹은 양</label>
       <div class="row" style="gap:6px;flex-wrap:wrap;">
-        ${MEAL_AMOUNTS.map(a=>`<label class="pill" style="cursor:pointer;"><input type="radio" name="mMealAmount" value="${a}" ${selectedAmount===a?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">${a}</label>`).join('')}
+        ${MEAL_AMOUNTS.map(a=>{ const p=mealAmountPoints(mealType,a); return `<label class="pill" style="cursor:pointer;"><input type="radio" name="mMealAmount" value="${a}" ${selectedAmount===a?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">${a} (${p>0?'+':''}${p}점)</label>`; }).join('')}
       </div>
+      ${mealType==='저녁'?`<div class="meta" style="margin-top:6px;">🌙 저녁 식단은 점수가 1.5배로 가중돼요</div>`:''}
     </div>
     <div class="modal-actions">
       ${existing?`<button class="btn danger" id="mDelete">삭제</button>`:''}
