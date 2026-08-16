@@ -65,11 +65,12 @@ nav.tabs button.active{background:var(--panel2);color:var(--text);border-color:v
 .meal-card-photo{border-color:transparent;background:#fff;}
 .meal-card-done.meal-card-photo{background:#fff;}
 .meal-card-bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;}
+.meal-card-overlay{position:absolute;inset:0;background:linear-gradient(rgba(0,0,0,0.08),rgba(0,0,0,0.22));z-index:1;}
 .meal-card-photo .meal-card-top,.meal-card-photo .meal-card-label,.meal-card-photo .meal-card-status{position:relative;z-index:2;}
-.meal-card-photo .meal-card-preview{color:#fff;-webkit-text-stroke:0.6px rgba(0,0,0,0.9);text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000;}
-.meal-card-photo .meal-card-label{color:#fff;-webkit-text-stroke:0.6px rgba(0,0,0,0.9);text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000;}
-.meal-card-photo .meal-status-bold{color:#fff;-webkit-text-stroke:0.6px rgba(0,0,0,0.9);text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000;}
-.meal-card-photo .meal-card-edit{color:#fff;filter:drop-shadow(0 1px 2px rgba(0,0,0,0.9));}
+.meal-card-photo .meal-card-preview{color:#fff;-webkit-text-stroke:0.35px rgba(0,0,0,0.6);text-shadow:-0.5px -0.5px 0 rgba(0,0,0,0.6),0.5px -0.5px 0 rgba(0,0,0,0.6),-0.5px 0.5px 0 rgba(0,0,0,0.6),0.5px 0.5px 0 rgba(0,0,0,0.6);}
+.meal-card-photo .meal-card-label{color:#fff;-webkit-text-stroke:0.35px rgba(0,0,0,0.6);text-shadow:-0.5px -0.5px 0 rgba(0,0,0,0.6),0.5px -0.5px 0 rgba(0,0,0,0.6),-0.5px 0.5px 0 rgba(0,0,0,0.6),0.5px 0.5px 0 rgba(0,0,0,0.6);}
+.meal-card-photo .meal-status-bold{color:#fff;-webkit-text-stroke:0.35px rgba(0,0,0,0.6);text-shadow:-0.5px -0.5px 0 rgba(0,0,0,0.6),0.5px -0.5px 0 rgba(0,0,0,0.6),-0.5px 0.5px 0 rgba(0,0,0,0.6),0.5px 0.5px 0 rgba(0,0,0,0.6);}
+.meal-card-photo .meal-card-edit{color:#fff;filter:drop-shadow(0 1px 2px rgba(0,0,0,0.7));}
 .meal-card-photo .meal-card-icon{filter:drop-shadow(0 1px 2px rgba(0,0,0,0.7));}
 .meal-card-top{display:flex;align-items:flex-start;gap:4px;flex-shrink:0;}
 .meal-card-icon{font-size:22px;line-height:1;flex-shrink:0;}
@@ -279,7 +280,7 @@ button.iconbtn.habit-nav-btn.habit-nav-btn-weekly{color:var(--accent2);}
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-<script src="firebase-config.js?v=20260816q"></script>
-<script src="app.js?v=20260816q"></script>
+<script src="firebase-config.js?v=20260816r"></script>
+<script src="app.js?v=20260816r"></script>
 </body>
 </html>
