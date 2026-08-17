@@ -1891,7 +1891,7 @@ function renderHome(){
       </div>`:''}
       <div class="field" style="margin-top:10px;">
         <div class="row" style="justify-content:space-between;align-items:center;">
-          <label style="margin:0;display:flex;align-items:center;gap:4px;"><img src="moods/happycomment.png" alt="행복코멘트" style="width:50px;height:50px;object-fit:contain;">Comment</label>
+          <label style="margin:0;display:flex;align-items:center;gap:4px;"><img src="moods/happycomment.png" alt="행복코멘트" style="width:70px;height:70px;object-fit:contain;">Comment</label>
           <div class="row" style="gap:8px;">
             <span class="meta" id="diarySaveStatus">${mine.diary?'✓ 저장됨':''}</span>
             ${effectiveRole()!=='daughter'?`<button class="btn small" id="sendLetterBtn" title="쓴 내용을 딸에게 편지로 보내기">✉️ 딸에게</button>`:''}
@@ -2691,6 +2691,12 @@ function openWeightGoalModal(key){
     queueSave(); closeModal(); renderHealth();
   };
 }
+function prevWeightEntryBefore(key, dateStr){
+  const dates=Object.keys(state.daily).filter(d=>d<dateStr && state.daily[d].health && state.daily[d].health[key] && state.daily[d].health[key].weight).sort();
+  if(!dates.length) return null;
+  const d=dates[dates.length-1];
+  return {date:d, weight:Number(state.daily[d].health[key].weight)};
+}
 function latestWeightEntryFor(key){
   const today=todayStr();
   const dates=Object.keys(state.daily).filter(d=>d<=today && state.daily[d].health && state.daily[d].health[key] && state.daily[d].health[key].weight).sort();
@@ -2750,6 +2756,18 @@ function renderHealth(){
   }
   const day=state.daily[healthDate]||{};
   const rec=(day.health&&day.health[healthPerson])||{};
+  const prevWeightEntry=prevWeightEntryBefore(healthPerson, healthDate);
+  const todayWeightVal=rec.weight?Number(rec.weight):null;
+  let dietLine1='', dietLine2='';
+  if(todayWeightVal==null){
+    dietLine1='오늘 몸무게는 얼마일까? 궁금해';
+  } else if(prevWeightEntry){
+    const diff=Math.round((todayWeightVal-prevWeightEntry.weight)*10)/10;
+    if(diff<0) dietLine1=`와우 ${Math.abs(diff)}kg 빠졌네 ^^ 추카추카!`;
+    else if(diff>0) dietLine1=`${diff}kg 늘었네 ㅠㅠ. 괜찮아 다시 화이팅!`;
+    else dietLine1='어제와 몸무게가 같아요!';
+  }
+  if(prevWeightEntry) dietLine2=`지난 몸무게 ${prevWeightEntry.weight}kg`;
   const todaysMealsByType={};
   (rec.meals||[]).forEach(m=>{ todaysMealsByType[m.mealType]=m; });
   const hasAnyMealRecord = MEAL_TYPES.some(t=>{ const m=todaysMealsByType[t]; return m && (m.content || m.fasted); });
@@ -2855,8 +2873,17 @@ function renderHealth(){
         <button class="icon-btn" id="toggleActivityTrendBtn" title="추이 그래프">📈</button>
         <button class="btn small primary" id="healthSaveBtn">저장</button>
       </div>
-      <div class="grid2">
-        <div class="field"><label style="display:flex;align-items:center;gap:4px;"><img src="moods/dieting.png" alt="다이어트중" style="width:50px;height:50px;object-fit:contain;">체중 (kg)</label><input type="number" step="0.1" id="hWeight" value="${rec.weight||''}"></div>
+      <div class="grid2" style="align-items:flex-start;">
+        <div class="field">
+          <div class="row" style="align-items:center;gap:6px;">
+            <img src="moods/dieting.png" alt="다이어트중" style="width:70px;height:70px;object-fit:contain;flex-shrink:0;">
+            <div style="display:flex;flex-direction:column;gap:1px;min-width:0;">
+              <span style="font-size:12px;font-weight:600;">${escapeHtml(dietLine1)}</span>
+              <span class="meta" style="font-size:11px;">${escapeHtml(dietLine2)}</span>
+            </div>
+          </div>
+          <input type="number" step="0.1" id="hWeight" placeholder="체중 (kg)" value="${rec.weight||''}" style="margin-top:6px;">
+        </div>
         <div class="field"><label>총칼로리 (kcal)</label><input type="number" step="10" id="hCalories" value="${rec.calories||''}"></div>
       </div>
       <div class="grid2" style="margin-top:10px;">
