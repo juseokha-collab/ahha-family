@@ -3,12 +3,6 @@ function isMobileViewport(){ return window.innerWidth <= 600; }
 function multiDayCount(){ return isMobileViewport() ? 2 : 3; }
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
 function pad2(n){ return String(n).padStart(2,'0'); }
-function nowTimeStr10(){
-  const d=new Date();
-  let h=d.getHours(), m=Math.round(d.getMinutes()/10)*10;
-  if(m===60){ m=0; h=(h+1)%24; }
-  return pad2(h)+':'+pad2(m);
-}
 const TIME10_MINUTES=['00','10','20','30','40','50'];
 function snapMin10(m){ let s=Math.round((Number(m)||0)/10)*10; if(s>=60) s=0; return s; }
 function to12Hour(h24){ let h12=h24%12; if(h12===0) h12=12; return {ampm: h24<12?'오전':'오후', h12}; }
@@ -2644,6 +2638,10 @@ let weightChartOthers = [];
 let showActivityTrend = false;
 let sleepTimeEditing = false;
 let fastingTimeEditing = false;
+let weightEditing = false;
+let caloriesEditing = false;
+let symptomEditing = false;
+let networkEditing = false;
 function memberLabel(key){ const m=FAMILY_MEMBERS.find(x=>x.key===key); return m?m.label:key; }
 function timeLabel12(t){
   if(!t) return '';
@@ -2770,7 +2768,7 @@ function renderHealth(){
   const todayWeightVal=rec.weight?Number(rec.weight):null;
   let dietLine1='', dietLine1Emph='', dietLine1Color='', dietLine2='', dietIcon='moods/saranghae.png';
   if(todayWeightVal==null){
-    dietLine1='오늘 몸무게는 얼마일까? 궁금해';
+    dietLine1='오늘 몸무게 얼마일까? 궁금해 ^^';
   } else if(prevWeightEntry){
     const diff=Math.round((todayWeightVal-prevWeightEntry.weight)*10)/10;
     if(diff<0){ dietLine1Emph=`와우 ${Math.abs(diff)}kg 빠졌네 ^^`; dietLine1='추카추카!'; dietLine1Color='#4d7fe0'; }
@@ -2816,6 +2814,10 @@ function renderHealth(){
   const el=document.getElementById('tab-health');
   const sleepShowingEdit = sleepTimeEditing || !(rec.sleepStart && rec.sleepEnd);
   const fastingShowingEdit = fastingTimeEditing || !(rec.lastMeal && rec.firstMeal);
+  const weightShowingEdit = weightEditing || !rec.weight;
+  const caloriesShowingEdit = caloriesEditing || !rec.calories;
+  const symptomShowingEdit = symptomEditing || !(rec.symptom && rec.symptom.trim());
+  const networkShowingEdit = networkEditing || !(rec.network && rec.network.trim());
   const dLabel = parseDate(healthDate).toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'});
   const dLabelColor = weekdayColor(healthDate);
   const schedList = myHealthSchedList().map(it=>({...it,d:dday(it.date)})).sort((a,b)=>a.d-b.d);
@@ -2877,9 +2879,8 @@ function renderHealth(){
       </div>
     </div>
     <div class="card">
-      <div style="display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:8px;margin-bottom:8px;">
-        <div></div>
-        <div class="datebar" style="margin-bottom:0;"><button class="iconbtn" id="hPrev">‹</button><div class="d" style="${dLabelColor?'color:'+dLabelColor+';':''}">${dLabel}</div><button class="iconbtn" id="hNext">›</button>
+      <div class="row" style="justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px;">
+        <div class="datebar" style="margin-bottom:0;justify-content:flex-start;"><button class="iconbtn" id="hPrev">‹</button><div class="d" style="${dLabelColor?'color:'+dLabelColor+';':''}">${dLabel}</div><button class="iconbtn" id="hNext">›</button>
           ${healthDate!==todayStr()?todayPillBtn('hToday'):''}
         </div>
         <div class="row" style="justify-content:flex-end;align-items:center;gap:8px;">
@@ -2899,14 +2900,17 @@ function renderHealth(){
         <label class="meta" style="font-size:11px;">총칼로리 (kcal)</label>
       </div>
       <div class="grid2" style="margin-top:6px;">
-        <div class="field"><input type="number" step="0.1" id="hWeight" placeholder="체중 (kg)" value="${rec.weight||''}"></div>
-        <div class="field"><input type="number" step="10" id="hCalories" value="${rec.calories||''}"></div>
+        <div class="field">${weightShowingEdit
+          ? `<input type="number" step="0.1" id="hWeight" placeholder="체중 (kg)" value="${rec.weight||''}">`
+          : `<div class="row" style="align-items:center;gap:6px;"><span style="font-size:13px;">${rec.weight}kg</span><button type="button" class="icon-btn" id="hWeightEditBtn" title="수정">✏️</button></div>`}</div>
+        <div class="field">${caloriesShowingEdit
+          ? `<input type="number" step="10" id="hCalories" value="${rec.calories||''}">`
+          : `<div class="row" style="align-items:center;gap:6px;"><span style="font-size:13px;">${rec.calories}kcal</span><button type="button" class="icon-btn" id="hCaloriesEditBtn" title="수정">✏️</button></div>`}</div>
       </div>
       <div class="grid2" style="margin-top:10px;">
         <div class="field">
           <div class="row" style="justify-content:space-between;align-items:center;">
             <label id="sleepCalcResult">${rec.sleepStart && rec.sleepEnd ? `취침시간 → 기상시간 : ${hourMinDiffLabel(rec.sleepStart, rec.sleepEnd, rec.sleepStartDay==='today')}` : '취침시간 → 기상시간'}</label>
-            ${sleepShowingEdit?`<button type="button" class="btn small" id="hSleepNowBtn" title="기상시간을 지금 이 순간의 시각으로 기록">지금시각 기록</button>`:''}
           </div>
           ${sleepShowingEdit?`
           <div class="row" style="gap:4px;flex-wrap:wrap;align-items:center;">
@@ -2922,7 +2926,6 @@ function renderHealth(){
         <div class="field">
           <div class="row" style="justify-content:space-between;align-items:center;">
             <label id="fastingCalcResult">${rec.lastMeal && rec.firstMeal ? `Last Meal → First Meal : ${hourMinDiffLabel(rec.lastMeal, rec.firstMeal, rec.lastMealDay==='today')}` : 'Last Meal → First Meal'}</label>
-            ${fastingShowingEdit?`<button type="button" class="btn small" id="hFastingNowBtn" title="First Meal 시간을 지금 이 순간의 시각으로 기록">지금시각 기록</button>`:''}
           </div>
           ${fastingShowingEdit?`
           <div class="row" style="gap:4px;flex-wrap:wrap;align-items:center;">
@@ -2939,11 +2942,15 @@ function renderHealth(){
       ${showActivityTrend?renderActivityTrendPanel(healthPerson):''}
       <div class="field" style="margin-top:8px;">
         <label>Activity Comment</label>
-        <textarea id="hSymptom" placeholder="컨디션, 증상 등을 기록해보세요" style="overflow:hidden;">${escapeHtml(rec.symptom)}</textarea>
+        ${symptomShowingEdit
+          ? `<textarea id="hSymptom" placeholder="컨디션, 증상 등을 기록해보세요" style="overflow:hidden;">${escapeHtml(rec.symptom)}</textarea>`
+          : `<div class="row" style="align-items:flex-start;gap:6px;"><span style="font-size:13px;flex:1;min-width:0;white-space:pre-wrap;word-break:break-word;">${escapeHtml(rec.symptom)}</span><button type="button" class="icon-btn" id="hSymptomEditBtn" title="수정">✏️</button></div>`}
       </div>
       <div class="field" style="margin-top:8px;">
         <label>Network (오늘 만난 사람 등)</label>
-        <input id="hNetwork" placeholder="쉼표로 구분 (예: 홍길동, 김철수)" value="${escapeHtml(rec.network||'')}">
+        ${networkShowingEdit
+          ? `<input id="hNetwork" placeholder="쉼표로 구분 (예: 홍길동, 김철수)" value="${escapeHtml(rec.network||'')}">`
+          : `<div class="row" style="align-items:center;gap:6px;"><span style="font-size:13px;">${escapeHtml(rec.network)}</span><button type="button" class="icon-btn" id="hNetworkEditBtn" title="수정">✏️</button></div>`}
       </div>
       <div class="field" style="margin-top:8px;">
         <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:wrap;font-size:13px;column-gap:12px;">
@@ -3028,9 +3035,10 @@ function renderHealth(){
     pt.addEventListener('mouseenter', ()=>showDtTooltip(pt, pt.dataset.tip));
     pt.addEventListener('mouseleave', hideDtTooltip);
   });
-  document.getElementById('hPrev').onclick=()=>{ healthDate=fmtDate(addDays(parseDate(healthDate),-1)); sleepTimeEditing=false; fastingTimeEditing=false; renderHealth(); };
-  document.getElementById('hNext').onclick=()=>{ healthDate=fmtDate(addDays(parseDate(healthDate),1)); sleepTimeEditing=false; fastingTimeEditing=false; renderHealth(); };
-  const tb=document.getElementById('hToday'); if(tb) tb.onclick=()=>{ healthDate=todayStr(); sleepTimeEditing=false; fastingTimeEditing=false; renderHealth(); };
+  const resetEditingFlags=()=>{ sleepTimeEditing=false; fastingTimeEditing=false; weightEditing=false; caloriesEditing=false; symptomEditing=false; networkEditing=false; };
+  document.getElementById('hPrev').onclick=()=>{ healthDate=fmtDate(addDays(parseDate(healthDate),-1)); resetEditingFlags(); renderHealth(); };
+  document.getElementById('hNext').onclick=()=>{ healthDate=fmtDate(addDays(parseDate(healthDate),1)); resetEditingFlags(); renderHealth(); };
+  const tb=document.getElementById('hToday'); if(tb) tb.onclick=()=>{ healthDate=todayStr(); resetEditingFlags(); renderHealth(); };
   const save=(k,v)=>{
     ensureDay(healthDate);
     if(!state.daily[healthDate].health) state.daily[healthDate].health={};
@@ -3038,18 +3046,35 @@ function renderHealth(){
     state.daily[healthDate].health[healthPerson][k]=v;
     queueSave();
   };
-  document.getElementById('hWeight').addEventListener('change',e=>{
+  const hWeightEl=document.getElementById('hWeight');
+  if(hWeightEl) hWeightEl.addEventListener('change',e=>{
     const newVal=e.target.value?Number(e.target.value):'';
     const prevWeight=latestWeightFor(healthPerson);
     const prevDate=(goals.finalTarget && goals.weeklyLoss) ? projectedAchievementDate(prevWeight, goals.finalTarget, goals.weeklyLoss) : null;
     save('weight', newVal);
     const reachedGoal = newVal ? checkWeightGoalReached(healthPerson, newVal) : false;
     if(newVal && !reachedGoal) checkWeightDateChange(healthPerson, prevDate, newVal, goals);
+    weightEditing=false;
     renderHealth();
   });
-  document.getElementById('hCalories').addEventListener('change',e=>save('calories', e.target.value?Number(e.target.value):''));
-  document.getElementById('hSymptom').addEventListener('change',e=>save('symptom', e.target.value));
-  document.getElementById('hNetwork').addEventListener('change',e=>save('network', e.target.value));
+  const hCaloriesEl=document.getElementById('hCalories');
+  if(hCaloriesEl) hCaloriesEl.addEventListener('change',e=>{
+    save('calories', e.target.value?Number(e.target.value):'');
+    caloriesEditing=false;
+    renderHealth();
+  });
+  const hSymptomChangeEl=document.getElementById('hSymptom');
+  if(hSymptomChangeEl) hSymptomChangeEl.addEventListener('change',e=>save('symptom', e.target.value));
+  const hNetworkEl=document.getElementById('hNetwork');
+  if(hNetworkEl) hNetworkEl.addEventListener('change',e=>save('network', e.target.value));
+  const weightEditBtn=document.getElementById('hWeightEditBtn');
+  if(weightEditBtn) weightEditBtn.onclick=()=>{ weightEditing=true; renderHealth(); };
+  const caloriesEditBtn=document.getElementById('hCaloriesEditBtn');
+  if(caloriesEditBtn) caloriesEditBtn.onclick=()=>{ caloriesEditing=true; renderHealth(); };
+  const symptomEditBtn=document.getElementById('hSymptomEditBtn');
+  if(symptomEditBtn) symptomEditBtn.onclick=()=>{ symptomEditing=true; renderHealth(); };
+  const networkEditBtn=document.getElementById('hNetworkEditBtn');
+  if(networkEditBtn) networkEditBtn.onclick=()=>{ networkEditing=true; renderHealth(); };
   const curDayRec=()=>(state.daily[healthDate] && state.daily[healthDate].health && state.daily[healthDate].health[healthPerson]) || {};
   const recalcSleep=()=>{
     const s=getTimeSelect10Value('hSleepStart'), en=getTimeSelect10Value('hSleepEnd');
@@ -3087,32 +3112,19 @@ function renderHealth(){
     e.target.textContent = next==='yesterday'?'Last Meal 어제':'Last Meal 오늘';
     recalcFasting();
   };
-  const sleepNowBtn=document.getElementById('hSleepNowBtn');
-  if(sleepNowBtn) sleepNowBtn.onclick=()=>{
-    setTimeSelect10Value('hSleepEnd', nowTimeStr10());
-    recalcSleep();
-    sleepTimeEditing=false;
-    renderHealth();
-    document.getElementById('healthSaveStatus').textContent='✓ 저장됨';
-  };
-  const fastingNowBtn=document.getElementById('hFastingNowBtn');
-  if(fastingNowBtn) fastingNowBtn.onclick=()=>{
-    setTimeSelect10Value('hFirstMeal', nowTimeStr10());
-    recalcFasting();
-    fastingTimeEditing=false;
-    renderHealth();
-    document.getElementById('healthSaveStatus').textContent='✓ 저장됨';
-  };
   const sleepEditBtn=document.getElementById('hSleepEditBtn');
   if(sleepEditBtn) sleepEditBtn.onclick=()=>{ sleepTimeEditing=true; renderHealth(); };
   const fastingEditBtn=document.getElementById('hFastingEditBtn');
   if(fastingEditBtn) fastingEditBtn.onclick=()=>{ fastingTimeEditing=true; renderHealth(); };
   const hSymptomEl=document.getElementById('hSymptom');
-  const autoResize=()=>{ hSymptomEl.style.height='auto'; hSymptomEl.style.height=hSymptomEl.scrollHeight+'px'; };
-  autoResize();
-  hSymptomEl.addEventListener('input', autoResize);
+  if(hSymptomEl){
+    const autoResize=()=>{ hSymptomEl.style.height='auto'; hSymptomEl.style.height=hSymptomEl.scrollHeight+'px'; };
+    autoResize();
+    hSymptomEl.addEventListener('input', autoResize);
+  }
   ['hWeight','hCalories','hSymptom','hNetwork'].forEach(id=>{
-    document.getElementById(id).addEventListener('input', ()=>{
+    const idEl=document.getElementById(id);
+    if(idEl) idEl.addEventListener('input', ()=>{
       document.getElementById('healthSaveStatus').textContent='';
     });
   });
@@ -3124,14 +3136,13 @@ function renderHealth(){
     renderHealth();
   };
   document.getElementById('healthSaveBtn').onclick=()=>{
-    save('weight', document.getElementById('hWeight').value?Number(document.getElementById('hWeight').value):'');
+    if(weightShowingEdit) save('weight', document.getElementById('hWeight').value?Number(document.getElementById('hWeight').value):'');
     if(sleepShowingEdit) recalcSleep();
     if(fastingShowingEdit) recalcFasting();
-    save('calories', document.getElementById('hCalories').value?Number(document.getElementById('hCalories').value):'');
-    save('symptom', document.getElementById('hSymptom').value);
-    save('network', document.getElementById('hNetwork').value);
-    sleepTimeEditing=false;
-    fastingTimeEditing=false;
+    if(caloriesShowingEdit) save('calories', document.getElementById('hCalories').value?Number(document.getElementById('hCalories').value):'');
+    if(symptomShowingEdit) save('symptom', document.getElementById('hSymptom').value);
+    if(networkShowingEdit) save('network', document.getElementById('hNetwork').value);
+    resetEditingFlags();
     renderHealth();
     const now=new Date();
     document.getElementById('healthSaveStatus').textContent = `✓ 저장됨 (${now.getHours()}:${pad2(now.getMinutes())})`;
