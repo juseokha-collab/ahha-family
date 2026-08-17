@@ -4395,11 +4395,11 @@ function renderEvents(){
     </div>`;
   };
   el.innerHTML=`
+    ${past.length?`<div class="card"><h3>지난 D-day</h3>${past.map(row).join('')}</div>`:''}
     <div class="card">
       <div class="row" style="justify-content:space-between;"><h3 style="margin:0;">🎉 D-day List</h3><button class="btn primary small" id="addEventBtn">+ 추가</button></div>
       ${upcoming.length? upcoming.map(row).join('') : `<div class="empty">예정된 D-day가 없어요</div>`}
     </div>
-    ${past.length?`<div class="card"><h3>지난 D-day</h3>${past.map(row).join('')}</div>`:''}
   `;
   document.getElementById('addEventBtn').onclick=()=>openEventModal();
   el.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>openEventModal(state.events.find(x=>x.id===b.dataset.edit)));
