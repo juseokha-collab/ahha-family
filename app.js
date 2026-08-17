@@ -11,27 +11,38 @@ function timeSelect10Html(id, value){
   const [hRaw,mRaw]=(value||'00:00').split(':');
   const {ampm,h12}=to12Hour(Number(hRaw)||0);
   const m=pad2(snapMin10(mRaw));
-  const ampmOpts=['오전','오후'].map(a=>`<option value="${a}" ${a===ampm?'selected':''}>${a}</option>`).join('');
   const hourOpts=Array.from({length:12},(_,i)=>i+1).map(hh=>`<option value="${hh}" ${hh===h12?'selected':''}>${hh}</option>`).join('');
   const minOpts=TIME10_MINUTES.map(mm=>`<option value="${mm}" ${mm===m?'selected':''}>${mm}</option>`).join('');
   return `<span class="row time10-pair" style="gap:2px;flex:1;min-width:0;flex-wrap:nowrap;">
-    <select id="${id}_ap" class="time10-select">${ampmOpts}</select><select id="${id}_h" class="time10-select">${hourOpts}</select><span>:</span><select id="${id}_m" class="time10-select">${minOpts}</select>
+    <button type="button" id="${id}_ap" class="time10-ap-toggle" data-value="${ampm}">${ampm}</button><select id="${id}_h" class="time10-select">${hourOpts}</select><span>:</span><select id="${id}_m" class="time10-select">${minOpts}</select>
   </span>`;
 }
 function getTimeSelect10Value(id){
   const ap=document.getElementById(id+'_ap'), h=document.getElementById(id+'_h'), m=document.getElementById(id+'_m');
-  return (ap && h && m) ? pad2(to24Hour(ap.value, h.value))+':'+m.value : '';
+  return (ap && h && m) ? pad2(to24Hour(ap.dataset.value, h.value))+':'+m.value : '';
 }
 function setTimeSelect10Value(id, value){
   const [hRaw,mRaw]=(value||'00:00').split(':');
   const {ampm,h12}=to12Hour(Number(hRaw)||0);
   const apEl=document.getElementById(id+'_ap'), hEl=document.getElementById(id+'_h'), mEl=document.getElementById(id+'_m');
-  if(apEl) apEl.value=ampm;
+  if(apEl){ apEl.dataset.value=ampm; apEl.textContent=ampm; }
   if(hEl) hEl.value=String(h12);
   if(mEl) mEl.value=pad2(snapMin10(mRaw));
 }
 function bindTimeSelect10(id, onChange){
-  ['_ap','_h','_m'].forEach(suf=>{
+  const apEl=document.getElementById(id+'_ap');
+  if(apEl){
+    if(!apEl.dataset.toggleBound){
+      apEl.dataset.toggleBound='1';
+      apEl.addEventListener('click', ()=>{
+        apEl.dataset.value = apEl.dataset.value==='오전' ? '오후' : '오전';
+        apEl.textContent = apEl.dataset.value;
+        apEl.dispatchEvent(new Event('change', {bubbles:true}));
+      });
+    }
+    apEl.addEventListener('change', onChange);
+  }
+  ['_h','_m'].forEach(suf=>{
     const el=document.getElementById(id+suf);
     if(el) el.addEventListener('change', onChange);
   });
