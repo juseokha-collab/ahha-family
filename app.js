@@ -1899,7 +1899,7 @@ function renderHome(){
         </div>
         <div class="row" style="align-items:flex-start;gap:6px;margin-top:4px;">
           <span class="happycomment-icon-wrap"><img src="moods/happycomment.png" alt="행복코멘트"></span>
-          <textarea id="diaryInput" placeholder="오늘 하루는 어땠나요?" style="overflow:hidden;flex:1;min-width:0;">${escapeHtml(mine.diary)}</textarea>
+          <textarea id="diaryInput" placeholder="오늘 하루는 어땠나요?" style="overflow:hidden;flex:1;min-width:0;min-height:100px;">${escapeHtml(mine.diary)}</textarea>
         </div>
         <div class="row" style="justify-content:space-between;align-items:center;margin-top:8px;">
           <label id="diaryArchiveToggle" style="cursor:pointer;">${diaryArchiveOpen?'▲':'▼'} ${letterViewMode?'편지 모아보기':'Comment 모아보기'}</label>
@@ -1978,7 +1978,7 @@ function renderHome(){
     queueSave(); renderHome();
   });
   const diaryInputEl=document.getElementById('diaryInput');
-  const autoResizeDiary=()=>{ diaryInputEl.style.height='auto'; diaryInputEl.style.height=diaryInputEl.scrollHeight+'px'; };
+  const autoResizeDiary=()=>{ diaryInputEl.style.height='auto'; diaryInputEl.style.height=Math.max(diaryInputEl.scrollHeight,100)+'px'; };
   autoResizeDiary();
   diaryInputEl.addEventListener('input', ()=>{
     document.getElementById('diarySaveStatus').textContent='';
@@ -2760,13 +2760,13 @@ function renderHealth(){
   const rec=(day.health&&day.health[healthPerson])||{};
   const prevWeightEntry=prevWeightEntryBefore(healthPerson, healthDate);
   const todayWeightVal=rec.weight?Number(rec.weight):null;
-  let dietLine1='', dietLine2='';
+  let dietLine1='', dietLine1Emph='', dietLine1Color='', dietLine2='';
   if(todayWeightVal==null){
     dietLine1='오늘 몸무게는 얼마일까? 궁금해';
   } else if(prevWeightEntry){
     const diff=Math.round((todayWeightVal-prevWeightEntry.weight)*10)/10;
-    if(diff<0) dietLine1=`와우 ${Math.abs(diff)}kg 빠졌네 ^^ 추카추카!`;
-    else if(diff>0) dietLine1=`${diff}kg 늘었네 ㅠㅠ. 괜찮아 다시 화이팅!`;
+    if(diff<0){ dietLine1Emph=`와우 ${Math.abs(diff)}kg 빠졌네 ^^`; dietLine1=' 추카추카!'; dietLine1Color='#4d7fe0'; }
+    else if(diff>0){ dietLine1Emph=`${diff}kg 늘었네 ㅠㅠ.`; dietLine1=' 괜찮아 다시 화이팅!'; dietLine1Color='var(--bad)'; }
     else dietLine1='어제와 몸무게가 같아요!';
   }
   if(prevWeightEntry) dietLine2=`지난 몸무게 ${prevWeightEntry.weight}kg`;
@@ -2877,17 +2877,17 @@ function renderHealth(){
       </div>
       <div class="grid2" style="align-items:flex-start;">
         <div class="field">
-          <div class="row" style="align-items:center;gap:6px;">
+          <div class="row" style="align-items:flex-end;gap:6px;">
             <img src="moods/dieting.png" alt="다이어트중" style="width:100px;height:100px;object-fit:contain;flex-shrink:0;">
             <div style="display:flex;flex-direction:column;gap:1px;min-width:0;">
-              <span style="font-size:12px;font-weight:600;">${escapeHtml(dietLine1)}</span>
+              <span style="font-size:12px;font-weight:600;">${dietLine1Emph?`<span style="font-size:14px;font-weight:700;color:${dietLine1Color};">${escapeHtml(dietLine1Emph)}</span>${escapeHtml(dietLine1)}`:escapeHtml(dietLine1)}</span>
               <span class="meta" style="font-size:11px;">${escapeHtml(dietLine2)}</span>
             </div>
           </div>
           <input type="number" step="0.1" id="hWeight" placeholder="체중 (kg)" value="${rec.weight||''}" style="margin-top:6px;">
         </div>
         <div class="field">
-          <div class="row" style="align-items:center;gap:6px;">
+          <div class="row" style="align-items:flex-end;gap:6px;">
             <span style="width:100px;height:100px;flex-shrink:0;visibility:hidden;"></span>
             <div style="display:flex;flex-direction:column;gap:1px;min-width:0;">
               <span style="font-size:12px;font-weight:600;visibility:hidden;">placeholder</span>
