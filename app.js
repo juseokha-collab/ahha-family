@@ -1864,7 +1864,7 @@ function renderHome(){
   el.innerHTML = `
     ${renderDayTimelines()}
     <div class="card">
-      <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:nowrap;gap:8px;">
+      <div class="row" id="homeDateMoodRow" style="justify-content:space-between;align-items:center;flex-wrap:nowrap;gap:8px;">
         <div class="row" style="gap:4px;flex-shrink:0;">
           <button class="iconbtn" id="homePrev">◀</button>
           <div class="d" style="white-space:nowrap;font-size:15px;font-weight:700;${dLabelColor?'color:'+dLabelColor+';':''}">${dLabel}</div>
@@ -2086,7 +2086,7 @@ function diaryArchiveRowsHtml(){
   if(!rows.length) return `<div class="empty">아직 작성된 Comment가 없어요</div>`;
   return rows.map(r=>`
     <div class="list-item" data-jump="${r.date}" style="cursor:pointer;">
-      <div class="content-text" style="flex:1;min-width:0;white-space:normal;word-break:break-word;">${r.date} ${moodIconHtml(r.mood,16)} <span class="pill">${escapeHtml(authorLabel(r,r.key))}</span>${r.diary?' '+escapeHtml(r.diary):''}</div>
+      <div class="content-text" style="flex:1;min-width:0;white-space:normal;word-break:break-word;">${r.date.slice(5)} ${moodIconHtml(r.mood,28)} <span class="pill">${escapeHtml(authorLabel(r,r.key))}</span>${r.diary?' '+escapeHtml(r.diary):''}</div>
       ${r.key===myKey?`<button class="icon-btn" data-edit-diary="${escapeHtml(r.date)}|${escapeHtml(r.key)}" title="수정">✏️</button>`:''}
     </div>`).join('');
 }
@@ -2891,7 +2891,7 @@ function renderHealth(){
       <div class="row" style="align-items:center;gap:6px;flex-wrap:nowrap;">
         <img src="${dietIcon}" alt="${dietIcon==='moods/dieting.png'?'다이어트중':'사랑해'}" style="width:120px;height:120px;object-fit:contain;flex-shrink:0;">
         <div style="display:flex;flex-direction:column;gap:1px;min-width:0;">
-          ${dietLine1Emph?`<span style="font-size:14px;font-weight:700;color:${dietLine1Color};">${escapeHtml(dietLine1Emph)}</span><span style="font-size:12px;font-weight:600;">${escapeHtml(dietLine1)}</span>`:`<span style="font-size:12px;font-weight:600;">${escapeHtml(dietLine1)}</span>`}
+          ${dietLine1Emph?`<span style="font-size:14px;font-weight:700;color:${dietLine1Color};">${escapeHtml(dietLine1Emph)}</span><span style="font-size:12px;font-weight:600;">${escapeHtml(dietLine1)}</span>`:`<span style="font-size:14px;font-weight:600;">${escapeHtml(dietLine1)}</span>`}
         </div>
       </div>
       <div class="grid2" style="margin-top:0;">
@@ -2906,7 +2906,7 @@ function renderHealth(){
         <div class="field">
           <div class="row" style="justify-content:space-between;align-items:center;">
             <label id="sleepCalcResult">${rec.sleepStart && rec.sleepEnd ? `취침시간 → 기상시간 : ${hourMinDiffLabel(rec.sleepStart, rec.sleepEnd, rec.sleepStartDay==='today')}` : '취침시간 → 기상시간'}</label>
-            ${sleepShowingEdit?`<button type="button" class="btn small" id="hSleepNowBtn">기록하기</button>`:''}
+            ${sleepShowingEdit?`<button type="button" class="btn small" id="hSleepNowBtn" title="기상시간을 지금 이 순간의 시각으로 기록">지금시각 기록</button>`:''}
           </div>
           ${sleepShowingEdit?`
           <div class="row" style="gap:4px;flex-wrap:wrap;align-items:center;">
@@ -2922,7 +2922,7 @@ function renderHealth(){
         <div class="field">
           <div class="row" style="justify-content:space-between;align-items:center;">
             <label id="fastingCalcResult">${rec.lastMeal && rec.firstMeal ? `Last Meal → First Meal : ${hourMinDiffLabel(rec.lastMeal, rec.firstMeal, rec.lastMealDay==='today')}` : 'Last Meal → First Meal'}</label>
-            ${fastingShowingEdit?`<button type="button" class="btn small" id="hFastingNowBtn">기록하기</button>`:''}
+            ${fastingShowingEdit?`<button type="button" class="btn small" id="hFastingNowBtn" title="First Meal 시간을 지금 이 순간의 시각으로 기록">지금시각 기록</button>`:''}
           </div>
           ${fastingShowingEdit?`
           <div class="row" style="gap:4px;flex-wrap:wrap;align-items:center;">
