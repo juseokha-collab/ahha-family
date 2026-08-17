@@ -480,6 +480,13 @@ function resetWeeklyPaymentDataOnce(st){
   }
   return st;
 }
+function migrateEventCategories(st){
+  if(!st.eventCategoriesByRole){
+    const old=st.eventCategories||[{name:'세금', color:SCHED_COLORS[0]}];
+    st.eventCategoriesByRole={ dad: old.map(c=>({...c})), mom: old.map(c=>({...c})), daughter: [] };
+  }
+  return st;
+}
 function loadLocal(){
   try{
     const raw=localStorage.getItem(LS_KEY);
@@ -487,7 +494,7 @@ function loadLocal(){
       const parsed=JSON.parse(raw);
       const base=defaultState();
       base.vehicle=Object.assign(base.vehicle, parsed.vehicle||{});
-      return migrateCalendarDayColors(resetWeeklyPaymentDataOnce(migrateBudgetOwnership(migrateTodos(migrateVehicle(migrateDaily(Object.assign(base, parsed, {vehicle:base.vehicle})))))));
+      return migrateEventCategories(migrateCalendarDayColors(resetWeeklyPaymentDataOnce(migrateBudgetOwnership(migrateTodos(migrateVehicle(migrateDaily(Object.assign(base, parsed, {vehicle:base.vehicle}))))))));
     }
   }catch(e){}
   return defaultState();
@@ -646,6 +653,12 @@ function mergeFlatCategoryList(localArr, cloudArr){
   const names=new Set(cloud.map(c=>c.name));
   return cloud.concat((localArr||[]).filter(c=>c && !names.has(c.name)));
 }
+function mergeKeyedCategoryLists(localObj, cloudObj){
+  const merged={};
+  const keys=new Set([...Object.keys(localObj||{}), ...Object.keys(cloudObj||{})]);
+  keys.forEach(k=>{ merged[k]=mergeFlatCategoryList((localObj||{})[k], (cloudObj||{})[k]); });
+  return merged;
+}
 function mergeDaily(localDaily, cloudDaily){
   const merged=JSON.parse(JSON.stringify(cloudDaily||{}));
   Object.keys(localDaily||{}).forEach(date=>{
@@ -706,7 +719,7 @@ function mergeStates(localState, cloudState){
   merged.vehicle=mergeVehicle(localState.vehicle, cloudState.vehicle, deletedSet);
   merged.calendarDayColors=mergeKeyedColorMaps(localState.calendarDayColors, cloudState.calendarDayColors);
   merged.todoCategories=mergeTodoCategories(localState.todoCategories, cloudState.todoCategories);
-  merged.eventCategories=mergeFlatCategoryList(localState.eventCategories, cloudState.eventCategories);
+  merged.eventCategoriesByRole=mergeKeyedCategoryLists(localState.eventCategoriesByRole, cloudState.eventCategoriesByRole);
   merged.habits={
     daily: mergeById(localState.habits&&localState.habits.daily, cloudState.habits&&cloudState.habits.daily, deletedSet),
     weekly: mergeById(localState.habits&&localState.habits.weekly, cloudState.habits&&cloudState.habits.weekly, deletedSet)
@@ -733,7 +746,7 @@ function initAuth(){
           const data=doc.data();
           const base=defaultState();
           base.vehicle=Object.assign(base.vehicle, data.vehicle||{});
-          const cloudState=migrateCalendarDayColors(resetWeeklyPaymentDataOnce(migrateBudgetOwnership(migrateTodos(migrateVehicle(migrateDaily(Object.assign(base, data, {vehicle:base.vehicle})))))));
+          const cloudState=migrateEventCategories(migrateCalendarDayColors(resetWeeklyPaymentDataOnce(migrateBudgetOwnership(migrateTodos(migrateVehicle(migrateDaily(Object.assign(base, data, {vehicle:base.vehicle}))))))));
           state=mergeStates(localState, cloudState);
           await familyDocRef().set(state);
         } else {
@@ -1579,17 +1592,17 @@ function openTodoCategoryEditModal(idx){
 }
 const EVENT_CATEGORY_ICONS={'싸강쥐':'moods/ssagangjwi.png','딸':'moods/emo_heart.png'};
 function eventCategories(){
-  if(!state.eventCategories) state.eventCategories=[{name:'세금', color:SCHED_COLORS[0]}];
-  if(!state.eventCategories.some(c=>c.name==='딸')){
-    state.eventCategories.push({name:'딸', color:nextUnusedColor(state.eventCategories.map(c=>c.color))});
-  }
-  return state.eventCategories;
+  const key=effectiveRole()||'dad';
+  if(!state.eventCategoriesByRole) state.eventCategoriesByRole={};
+  if(!state.eventCategoriesByRole[key]) state.eventCategoriesByRole[key]=(key==='daughter')?[]:[{name:'세금', color:SCHED_COLORS[0]}];
+  return state.eventCategoriesByRole[key];
 }
 function eventCategoryOf(ev){ return ev.category || (ev.isTax?'세금':''); }
 function openEventCategoryManageModal(){
   const cats=eventCategories();
   openModal(`
     <h3>D-day 카테고리 관리</h3>
+    <div class="meta" style="margin-bottom:10px;">여기서 관리하는 카테고리는 지금 로그인한 계정에만 적용돼요.</div>
     ${cats.map((c,i)=>{
       const cnt=state.events.filter(ev=>eventCategoryOf(ev)===c.name).length;
       return `<div class="list-item"><div class="row" style="gap:8px;align-items:center;"><span style="width:14px;height:14px;border-radius:50%;background:${c.color};display:inline-block;flex-shrink:0;"></span>${escapeHtml(c.name)}${cnt?` <span class="meta">(${cnt}건 사용중)</span>`:''}</div><div class="row" style="gap:4px;"><button class="btn small" style="font-size:11px;padding:3px 8px;" data-edit-eventcat="${i}" title="수정">✏️</button><button class="btn small danger" style="font-size:11px;padding:3px 8px;" data-del-eventcat="${i}" title="삭제">✕</button></div></div>`;
@@ -4546,7 +4559,7 @@ function renderEvents(){
     <div class="list-item" style="align-items:center;">
       <button type="button" class="icon-btn" style="padding:0 6px;font-size:15px;flex-shrink:0;" data-toggle-complete="${ev.id}" title="완료 표시">${completed?'✅':'⬜'}</button>
       <div style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${completed?'text-decoration:line-through;opacity:0.6;':''}">
-        ${(()=>{ const catName=eventCategoryOf(ev); if(!catName) return ''; const icon=EVENT_CATEGORY_ICONS[catName]; if(icon) return `<img src="${icon}" alt="${escapeHtml(catName)}" title="${escapeHtml(catName)}" style="width:30px;height:30px;border-radius:6px;object-fit:cover;vertical-align:middle;margin-right:4px;">`; const cat=eventCategories().find(c=>c.name===catName); const color=cat?cat.color:'rgba(255,105,150,0.14)'; return `<span class="pill" style="background:${color};margin-right:4px;">${escapeHtml(catName)}</span>`; })()}<span style="font-size:13px;font-weight:400;">${escapeHtml(ev.name)}</span>
+        ${ev.ownerRole==='daughter' && effectiveRole()!=='daughter' ? `<img src="moods/emo_heart.png" alt="딸" title="딸이 작성" style="width:30px;height:30px;border-radius:6px;object-fit:cover;vertical-align:middle;margin-right:4px;">` : ''}${(()=>{ const catName=eventCategoryOf(ev); if(!catName) return ''; const icon=EVENT_CATEGORY_ICONS[catName]; if(icon) return `<img src="${icon}" alt="${escapeHtml(catName)}" title="${escapeHtml(catName)}" style="width:30px;height:30px;border-radius:6px;object-fit:cover;vertical-align:middle;margin-right:4px;">`; const cat=eventCategories().find(c=>c.name===catName); const color=cat?cat.color:'rgba(255,105,150,0.14)'; return `<span class="pill" style="background:${color};margin-right:4px;">${escapeHtml(catName)}</span>`; })()}<span style="font-size:13px;font-weight:400;">${escapeHtml(ev.name)}</span>
         <span class="meta">${ev.lunar?`음력 ${ev.lunarMonth}/${ev.lunarDay}${ev.lunarLeap?'(윤)':''}`:ev.date}${ev.recurring?' (매년)':''}${ev.recurringMonthly?` (매월, ${nthWeekdayLabel(ev.date)})`:''}${ev.hiddenFromDaughter?` <span class="pill">비공개</span>`:''}${ev.memo?' · '+escapeHtml(ev.memo):''}</span>
       </div>
       <div class="row" style="flex-wrap:nowrap;flex-shrink:0;">
@@ -4578,7 +4591,7 @@ function renderEvents(){
 }
 function openEventModal(existing){
   const isDaughter = effectiveRole()==='daughter';
-  const ev=existing||{id:null,name:'',date:todayStr(),recurring:true,recurringMonthly:false,memo:'',lunar:false,lunarYear:new Date().getFullYear(),lunarMonth:'',lunarDay:'',lunarLeap:false,hiddenFromDaughter:false,category:isDaughter?'딸':''};
+  const ev=existing||{id:null,name:'',date:todayStr(),recurring:true,recurringMonthly:false,memo:'',lunar:false,lunarYear:new Date().getFullYear(),lunarMonth:'',lunarDay:'',lunarLeap:false,hiddenFromDaughter:false,category:''};
   const effectiveCat=eventCategoryOf(ev);
   openModal(`
     <h3>${existing?'D-day 수정':'D-day 추가'}</h3>
@@ -4586,12 +4599,11 @@ function openEventModal(existing){
     <div class="row" style="gap:6px;margin:6px 0;">
       <label class="pill" style="cursor:pointer;"><input type="checkbox" id="mLunar" ${ev.lunar?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">음력 날짜</label>
     </div>
-    ${isDaughter?'':`
     <div class="row" style="gap:6px;margin:6px 0;flex-wrap:wrap;align-items:center;">
       <label class="pill" style="cursor:pointer;"><input type="radio" name="mEventCat" value="" ${!effectiveCat?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">없음</label>
       ${eventCategories().map(c=>`<label class="pill" style="cursor:pointer;"><input type="radio" name="mEventCat" value="${escapeHtml(c.name)}" ${effectiveCat===c.name?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">${escapeHtml(c.name)}</label>`).join('')}
       <button type="button" class="link-btn" id="manageEventCatBtn">카테고리 관리</button>
-    </div>`}
+    </div>
     <div class="field" id="solarDateWrap" style="${ev.lunar?'display:none':''}">
       <label>날짜</label><input type="text" readonly class="date-input" placeholder="YYYY-MM-DD" id="mDate" value="${ev.date}">
     </div>
@@ -4652,10 +4664,10 @@ function openEventModal(existing){
       date=document.getElementById('mDate').value;
       if(!name||!date){ showToast('이름과 날짜를 입력해주세요'); return; }
     }
-    const category=isDaughter?'딸':((document.querySelector('input[name="mEventCat"]:checked')||{}).value||'');
+    const category=(document.querySelector('input[name="mEventCat"]:checked')||{}).value||'';
     const scheduleChanged = !ev.id || ev.date!==date || !!ev.recurring!==mRecurringEl.checked || !!ev.recurringMonthly!==mRecurringMonthlyEl.checked || !!ev.lunar!==isLunar;
     const hideDaughterEl=document.getElementById('mHideDaughter');
-    const rec={id:ev.id||uid(),name,date,lunar:isLunar,lunarYear,lunarMonth,lunarDay,lunarLeap,recurring:mRecurringEl.checked,recurringMonthly:mRecurringMonthlyEl.checked,hiddenFromDaughter:hideDaughterEl?hideDaughterEl.checked:false,category,memo:document.getElementById('mMemo').value,pendingOccurrence:scheduleChanged?'':ev.pendingOccurrence,completedOccurrence:scheduleChanged?'':ev.completedOccurrence};
+    const rec={id:ev.id||uid(),name,date,lunar:isLunar,lunarYear,lunarMonth,lunarDay,lunarLeap,recurring:mRecurringEl.checked,recurringMonthly:mRecurringMonthlyEl.checked,hiddenFromDaughter:hideDaughterEl?hideDaughterEl.checked:false,category,ownerRole:ev.ownerRole||effectiveRole()||'dad',memo:document.getElementById('mMemo').value,pendingOccurrence:scheduleChanged?'':ev.pendingOccurrence,completedOccurrence:scheduleChanged?'':ev.completedOccurrence};
     if(ev.id){ const idx=state.events.findIndex(x=>x.id===ev.id); state.events[idx]=rec; }
     else state.events.push(rec);
     queueSave(); closeModal(); renderEvents(); renderHome(); renderSchedule();
