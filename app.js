@@ -1320,16 +1320,19 @@ let todoSortBy='dueDate';
 let expenseSortKey=null;
 let incomeSortKey=null;
 function todosForToday(){
-  const list=myTodos().filter(t=>!t.done || (t.doneDate && t.doneDate>=homeDate));
+  const list=myTodos().filter(t=>{
+    if(t.repeat && t.repeat!=='none') return todoOccursOn(t, homeDate);
+    return !t.done || (t.doneDate && t.doneDate>=homeDate);
+  });
   return list.sort((a,b)=>{
     if(todoSortBy==='task') return a.task.localeCompare(b.task);
     if(todoSortBy==='category') return (a.category||'').localeCompare(b.category||'') || a.dueDate.localeCompare(b.dueDate);
     return a.dueDate.localeCompare(b.dueDate);
   });
 }
-function todoProgressPct(list){
+function todoProgressPct(list, dateStr){
   if(!list.length) return null;
-  const done=list.filter(t=>t.done).length;
+  const done=list.filter(t=>isTodoDoneOn(t, dateStr)).length;
   return Math.round(done/list.length*100);
 }
 function computeDailyProgress(dateStr, authorKey){
@@ -1354,19 +1357,29 @@ function commitNewTodo(){
   showToast('할 일이 추가되었어요');
 }
 const TODO_REPEAT_LABELS={none:'반복 안함',daily:'매일',weekly:'매주',monthly:'매월',yearly:'매년'};
-function nextTodoRepeatDate(dateStr, repeat){
-  const d=parseDate(dateStr);
-  if(repeat==='daily') return fmtDate(addDays(d,1));
-  if(repeat==='weekly') return fmtDate(addDays(d,7));
-  if(repeat==='monthly'){ const nd=new Date(d); nd.setMonth(nd.getMonth()+1); return fmtDate(nd); }
-  if(repeat==='yearly'){ const nd=new Date(d); nd.setFullYear(nd.getFullYear()+1); return fmtDate(nd); }
-  return null;
+function todoOccursOn(t, dateStr){
+  if(!t.repeat || t.repeat==='none') return t.dueDate===dateStr;
+  if(dateStr<t.dueDate) return false;
+  if(t.repeatEndDate && dateStr>t.repeatEndDate) return false;
+  const base=parseDate(t.dueDate), target=parseDate(dateStr);
+  if(t.repeat==='daily') return true;
+  if(t.repeat==='weekly') return base.getDay()===target.getDay();
+  if(t.repeat==='monthly') return base.getDate()===target.getDate();
+  if(t.repeat==='yearly') return base.getMonth()===target.getMonth() && base.getDate()===target.getDate();
+  return false;
 }
-function spawnNextTodoOccurrence(t){
-  if(!t.repeat || t.repeat==='none') return;
-  const nextDate=nextTodoRepeatDate(t.dueDate, t.repeat);
-  if(!nextDate) return;
-  myTodos().push({id:uid(), task:t.task, dueDate:nextDate, dueTime:t.dueTime||'', category:t.category, done:false, doneDate:'', createdDate:todayStr(), repeat:t.repeat});
+function isTodoDoneOn(t, dateStr){
+  if(t.repeat && t.repeat!=='none') return !!(t.doneLog && t.doneLog[dateStr]);
+  return !!t.done;
+}
+function setTodoDoneOn(t, dateStr, done){
+  if(t.repeat && t.repeat!=='none'){
+    if(!t.doneLog) t.doneLog={};
+    if(done) t.doneLog[dateStr]=true; else delete t.doneLog[dateStr];
+  } else {
+    t.done=done;
+    t.doneDate=done?dateStr:'';
+  }
 }
 function mdLabel(dateStr){
   const d=parseDate(dateStr);
@@ -1388,11 +1401,13 @@ function openTodoEditModal(id){
   const [curH,curM]=(t.dueTime||'18:00').split(':');
   const hourOptions=Array.from({length:24},(_,h)=>pad2(h));
   const minOptions=['00','10','20','30','40','50'];
+  const isRepeatNow = t.repeat && t.repeat!=='none';
+  const doneTodayNow = isTodoDoneOn(t, homeDate);
   openModal(`
     <h3>To do 수정</h3>
     <div class="field"><label>할 일</label><input id="mTask" value="${escapeHtml(t.task)}"></div>
     <div class="grid2" style="margin-top:18px;">
-      <div class="field"><label>D-day 날짜</label><input type="text" readonly class="date-input" id="mDue" value="${t.dueDate}"></div>
+      <div class="field"><label id="mDueLabel">${isRepeatNow?'시작일 (반복 기준일)':'D-day 날짜'}</label><input type="text" readonly class="date-input" id="mDue" value="${t.dueDate}"></div>
       <div class="field"><label>시간 (선택)</label>
         <div class="row" style="gap:4px;">
           <select id="mDueHour" style="flex:1;min-width:0;"><option value="">--시</option>${hourOptions.map(h=>`<option value="${h}" ${curH===h?'selected':''}>${h}시</option>`).join('')}</select>
@@ -1409,15 +1424,22 @@ function openTodoEditModal(id){
         ${catOptions.map(c=>`<label class="pill" style="cursor:pointer;background:${t.category===c.name?c.color:'var(--panel2)'};border-color:${c.color};"><input type="radio" name="mCat" value="${escapeHtml(c.name)}" ${t.category===c.name?'checked':''} style="margin-right:4px;">${escapeHtml(c.name)}</label>`).join('')}
       </div>
     </div>
-    <label class="pill" style="cursor:pointer;display:inline-block;margin:6px 0;"><input type="checkbox" id="mDone" ${t.done?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">완료</label>
+    <label class="pill" style="cursor:pointer;display:inline-block;margin:6px 0;"><input type="checkbox" id="mDone" ${doneTodayNow?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">완료${isRepeatNow?' (오늘 기준)':''}</label>
     <div class="row" style="justify-content:space-between;align-items:center;margin-top:6px;">
       <button type="button" class="btn small" id="repeatToggleBtn">🔁 ${TODO_REPEAT_LABELS[t.repeat||'none']}</button>
     </div>
-    <div id="repeatOptions" style="display:${(t.repeat&&t.repeat!=='none')?'':'none'};margin-top:8px;">
+    <div id="repeatOptions" style="display:${isRepeatNow?'':'none'};margin-top:8px;">
       <div class="row" style="gap:6px;flex-wrap:wrap;">
         ${Object.keys(TODO_REPEAT_LABELS).map(r=>`<label class="pill" style="cursor:pointer;"><input type="radio" name="mTodoRepeat" value="${r}" ${((t.repeat||'none')===r)?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">${TODO_REPEAT_LABELS[r]}</label>`).join('')}
       </div>
-      <div class="meta" style="margin-top:4px;">완료 체크할 때마다 다음 일정으로 새 할 일이 자동 생성돼요</div>
+      <div class="field" style="margin-top:10px;">
+        <label>반복 종료일 (선택, 비워두면 무기한 반복)</label>
+        <div class="row" style="gap:6px;align-items:center;">
+          <input type="text" readonly class="date-input" id="mRepeatEnd" value="${t.repeatEndDate||''}" placeholder="비워두면 무기한" style="flex:1;min-width:0;">
+          <button type="button" class="btn small" id="mRepeatEndClear">지우기</button>
+        </div>
+      </div>
+      <div class="meta" style="margin-top:6px;">반복 종료일까지 매일(반복 주기에 맞춰) 목록에 표시되고, 완료 체크는 그날그날 따로 기록돼요</div>
     </div>
     <div class="modal-actions">
       <button class="btn danger" id="mDelete">삭제</button>
@@ -1427,6 +1449,8 @@ function openTodoEditModal(id){
     ${todoHistoryHtml(t)}
   `);
   attachDatePicker('mDue');
+  attachDatePicker('mRepeatEnd');
+  document.getElementById('mRepeatEndClear').onclick=()=>{ document.getElementById('mRepeatEnd').value=''; };
   document.getElementById('mCancel').onclick=closeModal;
   document.getElementById('manageTodoCatBtn').onclick=()=>openTodoCategoryManageModal();
   document.getElementById('repeatToggleBtn').onclick=()=>{
@@ -1434,24 +1458,24 @@ function openTodoEditModal(id){
     el.style.display = el.style.display==='none' ? '' : 'none';
   };
   document.getElementById('mSave').onclick=()=>{
-    const before={task:t.task, dueDate:t.dueDate, dueTime:t.dueTime, category:t.category, repeat:t.repeat, done:t.done};
+    const before={task:t.task, dueDate:t.dueDate, dueTime:t.dueTime, category:t.category, repeat:t.repeat, repeatEndDate:t.repeatEndDate, doneToday:isTodoDoneOn(t, homeDate)};
     t.task=document.getElementById('mTask').value.trim()||t.task;
     t.dueDate=document.getElementById('mDue').value||t.dueDate;
     const h=document.getElementById('mDueHour').value, mi=document.getElementById('mDueMin').value;
     t.dueTime=(h&&mi)?`${h}:${mi}`:'';
     t.category=(document.querySelector('input[name="mCat"]:checked')||{}).value||t.category;
     t.repeat=(document.querySelector('input[name="mTodoRepeat"]:checked')||{}).value||'none';
+    t.repeatEndDate = (t.repeat!=='none') ? (document.getElementById('mRepeatEnd').value||'') : '';
     const doneNow=document.getElementById('mDone').checked;
-    if(doneNow && !t.done){ t.doneDate=todayStr(); spawnNextTodoOccurrence(t); }
-    if(!doneNow) t.doneDate='';
-    t.done=doneNow;
+    setTodoDoneOn(t, homeDate, doneNow);
     const changedFields=[];
     if(before.task!==t.task) changedFields.push('내용');
     if(before.dueDate!==t.dueDate) changedFields.push('날짜');
     if(before.dueTime!==t.dueTime) changedFields.push('시간');
     if(before.category!==t.category) changedFields.push('카테고리');
     if(before.repeat!==t.repeat) changedFields.push('반복');
-    if(before.done!==t.done) changedFields.push('완료');
+    if(before.repeatEndDate!==t.repeatEndDate) changedFields.push('반복종료일');
+    if(before.doneToday!==isTodoDoneOn(t, homeDate)) changedFields.push('완료');
     if(changedFields.length){
       if(!t.editHistory) t.editHistory=[];
       const now=new Date();
@@ -1863,7 +1887,7 @@ function renderHome(){
   const dLabelColor = weekdayColor(homeDate);
   const todaySchedule = myHomeVisibleScheduleItems(homeDate);
   const todayTodos = todosForToday();
-  const todoPct = todoProgressPct(todayTodos);
+  const todoPct = todoProgressPct(todayTodos, homeDate);
 
   el.innerHTML = `
     ${renderDayTimelines()}
@@ -1927,19 +1951,23 @@ function renderHome(){
       </div>
       ${todoPct!=null?`<div class="bar-row" style="margin:6px 0;"><span class="meta" style="flex-shrink:0;">Today's things to do 진행율 ${todoPct}%</span><div class="bar-track"><div class="bar-fill" style="width:${todoPct}%"></div></div></div>`:''}
       ${todayTodos.map(t=>{
-        const d=dday(t.dueDate);
+        const isRepeat = t.repeat && t.repeat!=='none';
+        const doneToday = isTodoDoneOn(t, homeDate);
         const cat=myTodoCategories().find(c=>c.name===t.category);
         const catLabel=cat ? (cat.name.length>3?cat.name.slice(0,3):cat.name) : '';
         const catPill=cat ? `<span class="pill" style="background:${cat.color};color:rgba(0,0,0,0.5);border:none;" title="${escapeHtml(cat.name)}">${escapeHtml(catLabel)}</span>` : '';
+        const repeatPill = isRepeat ? `<span class="pill" title="${TODO_REPEAT_LABELS[t.repeat]} 반복">🔁 반복</span>` : '';
+        const ddayPill = (!isRepeat || t.repeatEndDate) ? (()=>{ const d=dday(isRepeat?t.repeatEndDate:t.dueDate); return `<span class="pill ${ddayPillClass(d)}">${ddayLabel(d)}</span>`; })() : '';
         return `
         <div class="list-item" style="align-items:center;">
           <div class="row" style="flex:1;gap:8px;min-width:0;">
-            <input type="checkbox" data-todo-id="${t.id}" ${t.done?'checked':''} style="flex-shrink:0;">
-            <span class="content-text" style="${t.done?'text-decoration:line-through;color:var(--muted);':''}flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(t.task)}</span>
+            <input type="checkbox" data-todo-id="${t.id}" ${doneToday?'checked':''} style="flex-shrink:0;">
+            <span class="content-text" style="${doneToday?'text-decoration:line-through;color:var(--muted);':''}flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(t.task)}</span>
           </div>
           <div class="row" style="flex-shrink:0;">
             ${catPill}
-            <span class="pill ${ddayPillClass(d)}">${ddayLabel(d)}</span>
+            ${repeatPill}
+            ${ddayPill}
             <button class="btn small" style="font-size:11px;padding:3px 8px;" data-edit-todo="${t.id}" title="수정">✏️</button> <button class="btn small danger" style="font-size:11px;padding:3px 8px;" data-del-todo="${t.id}" title="삭제">✕</button>
           </div>
         </div>`;
@@ -2055,9 +2083,7 @@ function renderHome(){
   el.querySelectorAll('[data-todo-id]').forEach(cb=>cb.addEventListener('change', e=>{
     const t=myTodos().find(x=>x.id===cb.dataset.todoId);
     if(!t) return;
-    if(cb.checked && !t.done) spawnNextTodoOccurrence(t);
-    t.done=cb.checked;
-    t.doneDate = cb.checked ? todayStr() : '';
+    setTodoDoneOn(t, homeDate, cb.checked);
     queueSave(); renderHome();
   }));
   el.querySelectorAll('[data-edit-todo]').forEach(btn=>btn.onclick=()=>openTodoEditModal(btn.dataset.editTodo));
