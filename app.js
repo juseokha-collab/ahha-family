@@ -2997,15 +2997,15 @@ function renderHealth(){
       </div>
       <div class="grid2" style="margin-top:0;">
         <span class="meta" style="font-size:11px;">${escapeHtml(dietLine2)}</span>
-        <label class="meta" style="font-size:11px;">총칼로리 (kcal)</label>
+        ${!isMobileViewport()?`<label class="meta" style="font-size:11px;">총칼로리 (kcal)</label>`:''}
       </div>
       <div class="grid2" style="margin-top:6px;">
         <div class="field">${weightShowingEdit
           ? `<input type="number" step="0.1" id="hWeight" placeholder="체중 (kg)" value="${rec.weight||''}">`
           : `<div class="row" style="align-items:center;gap:6px;"><span style="font-size:13px;">${rec.weight}kg</span><button type="button" class="icon-btn" id="hWeightEditBtn" title="수정">✏️</button></div>`}</div>
-        <div class="field">${caloriesShowingEdit
+        ${!isMobileViewport()?`<div class="field">${caloriesShowingEdit
           ? `<input type="number" step="10" id="hCalories" value="${rec.calories||''}">`
-          : `<div class="row" style="align-items:center;gap:6px;"><span style="font-size:13px;">${rec.calories}kcal</span><button type="button" class="icon-btn" id="hCaloriesEditBtn" title="수정">✏️</button></div>`}</div>
+          : `<div class="row" style="align-items:center;gap:6px;"><span style="font-size:13px;">${rec.calories}kcal</span><button type="button" class="icon-btn" id="hCaloriesEditBtn" title="수정">✏️</button></div>`}</div>`:''}
       </div>
       <div class="grid2" style="margin-top:10px;">
         <div class="field">
@@ -3239,7 +3239,7 @@ function renderHealth(){
     if(weightShowingEdit) save('weight', document.getElementById('hWeight').value?Number(document.getElementById('hWeight').value):'');
     if(sleepShowingEdit) recalcSleep();
     if(fastingShowingEdit) recalcFasting();
-    if(caloriesShowingEdit) save('calories', document.getElementById('hCalories').value?Number(document.getElementById('hCalories').value):'');
+    if(caloriesShowingEdit && !isMobileViewport()) save('calories', document.getElementById('hCalories').value?Number(document.getElementById('hCalories').value):'');
     if(symptomShowingEdit) save('symptom', document.getElementById('hSymptom').value);
     if(networkShowingEdit) save('network', document.getElementById('hNetwork').value);
     resetEditingFlags();
