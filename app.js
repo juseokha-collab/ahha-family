@@ -2622,20 +2622,20 @@ let healthPerson = null;
 let weightChartOthers = [];
 let showActivityTrend = false;
 function memberLabel(key){ const m=FAMILY_MEMBERS.find(x=>x.key===key); return m?m.label:key; }
-function calcHourDiff(startHHMM, endHHMM){
+function calcHourDiff(startHHMM, endHHMM, sameDay){
   if(!startHHMM || !endHHMM) return null;
   const [sh,sm]=startHHMM.split(':').map(Number);
   const [eh,em]=endHHMM.split(':').map(Number);
   let startMin=sh*60+sm, endMin=eh*60+em;
-  if(endMin<=startMin) endMin+=24*60;
+  if(!sameDay && endMin<=startMin) endMin+=24*60;
   return Math.round(((endMin-startMin)/60)*10)/10;
 }
-function hourMinDiffLabel(startHHMM, endHHMM){
+function hourMinDiffLabel(startHHMM, endHHMM, sameDay){
   if(!startHHMM || !endHHMM) return '';
   const [sh,sm]=startHHMM.split(':').map(Number);
   const [eh,em]=endHHMM.split(':').map(Number);
   let startMin=sh*60+sm, endMin=eh*60+em;
-  if(endMin<=startMin) endMin+=24*60;
+  if(!sameDay && endMin<=startMin) endMin+=24*60;
   const diff=endMin-startMin;
   return `${pad2(Math.floor(diff/60))}h ${pad2(diff%60)}m`;
 }
@@ -2843,20 +2843,22 @@ function renderHealth(){
       <div class="grid2" style="margin-top:10px;">
         <div class="field">
           <div class="row" style="justify-content:space-between;align-items:center;">
-            <label id="sleepCalcResult">${rec.sleepStart && rec.sleepEnd ? `취침시간 → 기상시간 : ${hourMinDiffLabel(rec.sleepStart, rec.sleepEnd)}` : '취침시간 → 기상시간'}</label>
+            <label id="sleepCalcResult">${rec.sleepStart && rec.sleepEnd ? `취침시간 → 기상시간 : ${hourMinDiffLabel(rec.sleepStart, rec.sleepEnd, rec.sleepStartDay==='today')}` : '취침시간 → 기상시간'}</label>
             <button type="button" class="btn small" id="hSleepNowBtn">기록하기</button>
           </div>
-          <div class="row" style="gap:4px;flex-wrap:nowrap;">
+          <div class="row" style="gap:4px;flex-wrap:wrap;align-items:center;">
+            <button type="button" class="pill" id="hSleepStartDayToggle" style="cursor:pointer;flex-shrink:0;font-size:11px;padding:4px 8px;" title="취침시간이 어제인지 오늘인지 선택">${(rec.sleepStartDay||'yesterday')==='yesterday'?'취침 어제':'취침 오늘'}</button>
             ${timeSelect10Html('hSleepStart', rec.sleepStart||'23:00')}
             ${timeSelect10Html('hSleepEnd', rec.sleepEnd||'07:00')}
           </div>
         </div>
         <div class="field">
           <div class="row" style="justify-content:space-between;align-items:center;">
-            <label id="fastingCalcResult">${rec.lastMeal && rec.firstMeal ? `Last Meal → First Meal : ${hourMinDiffLabel(rec.lastMeal, rec.firstMeal)}` : 'Last Meal → First Meal'}</label>
+            <label id="fastingCalcResult">${rec.lastMeal && rec.firstMeal ? `Last Meal → First Meal : ${hourMinDiffLabel(rec.lastMeal, rec.firstMeal, rec.lastMealDay==='today')}` : 'Last Meal → First Meal'}</label>
             <button type="button" class="btn small" id="hFastingNowBtn">기록하기</button>
           </div>
-          <div class="row" style="gap:4px;flex-wrap:nowrap;">
+          <div class="row" style="gap:4px;flex-wrap:wrap;align-items:center;">
+            <button type="button" class="pill" id="hLastMealDayToggle" style="cursor:pointer;flex-shrink:0;font-size:11px;padding:4px 8px;" title="Last Meal이 어제인지 오늘인지 선택">${(rec.lastMealDay||'yesterday')==='yesterday'?'Last Meal 어제':'Last Meal 오늘'}</button>
             ${timeSelect10Html('hLastMeal', rec.lastMeal||'19:30')}
             ${timeSelect10Html('hFirstMeal', rec.firstMeal||'07:30')}
           </div>
@@ -2976,24 +2978,41 @@ function renderHealth(){
   document.getElementById('hCalories').addEventListener('change',e=>save('calories', e.target.value?Number(e.target.value):''));
   document.getElementById('hSymptom').addEventListener('change',e=>save('symptom', e.target.value));
   document.getElementById('hNetwork').addEventListener('change',e=>save('network', e.target.value));
+  const curDayRec=()=>(state.daily[healthDate] && state.daily[healthDate].health && state.daily[healthDate].health[healthPerson]) || {};
   const recalcSleep=()=>{
     const s=getTimeSelect10Value('hSleepStart'), en=getTimeSelect10Value('hSleepEnd');
+    const sameDay=(curDayRec().sleepStartDay||'yesterday')==='today';
     save('sleepStart', s); save('sleepEnd', en);
-    const hrs=calcHourDiff(s, en);
+    const hrs=calcHourDiff(s, en, sameDay);
     save('sleep', hrs==null?'':hrs);
-    document.getElementById('sleepCalcResult').textContent = hrs!=null ? `취침시간 → 기상시간 : ${hourMinDiffLabel(s, en)}` : '취침시간 → 기상시간';
+    document.getElementById('sleepCalcResult').textContent = hrs!=null ? `취침시간 → 기상시간 : ${hourMinDiffLabel(s, en, sameDay)}` : '취침시간 → 기상시간';
   };
   const recalcFasting=()=>{
     const lm=getTimeSelect10Value('hLastMeal'), fm=getTimeSelect10Value('hFirstMeal');
+    const sameDay=(curDayRec().lastMealDay||'yesterday')==='today';
     save('lastMeal', lm); save('firstMeal', fm);
-    const hrs=calcHourDiff(lm, fm);
+    const hrs=calcHourDiff(lm, fm, sameDay);
     save('fasting', hrs==null?'':hrs);
-    document.getElementById('fastingCalcResult').textContent = hrs!=null ? `Last Meal → First Meal : ${hourMinDiffLabel(lm, fm)}` : 'Last Meal → First Meal';
+    document.getElementById('fastingCalcResult').textContent = hrs!=null ? `Last Meal → First Meal : ${hourMinDiffLabel(lm, fm, sameDay)}` : 'Last Meal → First Meal';
   };
   bindTimeSelect10('hSleepStart', recalcSleep);
   bindTimeSelect10('hSleepEnd', recalcSleep);
   bindTimeSelect10('hLastMeal', recalcFasting);
   bindTimeSelect10('hFirstMeal', recalcFasting);
+  document.getElementById('hSleepStartDayToggle').onclick=(e)=>{
+    const cur=curDayRec().sleepStartDay||'yesterday';
+    const next=cur==='yesterday'?'today':'yesterday';
+    save('sleepStartDay', next);
+    e.target.textContent = next==='yesterday'?'취침 어제':'취침 오늘';
+    recalcSleep();
+  };
+  document.getElementById('hLastMealDayToggle').onclick=(e)=>{
+    const cur=curDayRec().lastMealDay||'yesterday';
+    const next=cur==='yesterday'?'today':'yesterday';
+    save('lastMealDay', next);
+    e.target.textContent = next==='yesterday'?'Last Meal 어제':'Last Meal 오늘';
+    recalcFasting();
+  };
   document.getElementById('hSleepNowBtn').onclick=()=>{
     setTimeSelect10Value('hSleepEnd', nowTimeStr10());
     recalcSleep();
