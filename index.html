@@ -140,8 +140,8 @@ button.iconbtn:hover{color:var(--accent);}
 .cal-cell.today .day-num{color:var(--accent)!important;}
 .cal-holiday{font-size:9px;color:var(--weekend-sun);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .cal-comment{font-size:10px;font-weight:700;color:var(--accent);background:var(--panel);border-radius:4px;padding:1px 4px;width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.cal-evt{font-size:10px;background:var(--panel);border-radius:4px;padding:1px 4px;width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text);}
-.cal-evt.more{color:var(--muted);background:none;padding:0 4px;}
+.cal-evt{display:block;font-size:10px;background:var(--panel);border-radius:4px;padding:1px 4px;width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text);cursor:pointer;}
+.cal-evt.more{color:var(--muted);background:none;padding:0 4px;cursor:default;}
 @media(max-width:600px){.cal-cell{min-height:52px;}.cal-evt{font-size:9px;}}
 .maint-table{width:100%;border-collapse:collapse;font-size:12px;}
 .maint-table th{text-align:left;color:var(--muted);font-weight:600;font-size:11px;padding:6px 8px;border-bottom:1px solid var(--border);white-space:nowrap;}
@@ -289,7 +289,7 @@ button.iconbtn.habit-nav-btn.habit-nav-btn-weekly{color:var(--accent2);}
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-<script src="firebase-config.js?v=20260818c"></script>
-<script src="app.js?v=20260818c"></script>
+<script src="firebase-config.js?v=20260818d"></script>
+<script src="app.js?v=20260818d"></script>
 </body>
 </html>

@@ -2231,7 +2231,7 @@ function renderSchedule(){
     const inMonth = dayNum>=1 && dayNum<=daysInMonth;
     const dayEvents=filtered.filter(s=>scheduleItemOccursOn(s,dateStr)).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
     const holidayName=holidays[dateStr];
-    const shown=dayEvents.slice(0,MAX_SHOWN).map(s=>`<span class="cal-evt">${s.time?escapeHtml(s.time)+' ':''}${escapeHtml(s.title)}</span>`).join('');
+    const shown=dayEvents.slice(0,MAX_SHOWN).map(s=>`<span class="cal-evt" data-item-id="${s.id}"${s.virtual?' data-virtual="1"':''}>${s.time?escapeHtml(s.time)+' ':''}${escapeHtml(s.title)}</span>`).join('');
     const more = dayEvents.length>MAX_SHOWN ? `<span class="cal-evt more">+${dayEvents.length-MAX_SHOWN}개 더</span>` : '';
     const dayEntry=((state.daily[dateStr]||{}).entries||{})[currentAuthorKey()];
     const commentText=dayEntry&&dayEntry.diary?dayEntry.diary:'';
@@ -2306,6 +2306,18 @@ function renderSchedule(){
       return;
     }
     scheduleSel=c.dataset.date; renderSchedule();
+  });
+  el.querySelectorAll('.cal-evt[data-item-id]').forEach(evEl=>{
+    evEl.addEventListener('click', e=>{
+      if(calendarColorPick) return;
+      e.stopPropagation();
+      if(evEl.dataset.virtual==='1'){ showToast('D-day 탭에서 수정할 수 있어요'); return; }
+      const item=state.schedule.find(x=>x.id===evEl.dataset.itemId);
+      if(!item) return;
+      if(!canManageSchedule(item)){ showToast('작성자만 관리할 수 있어요'); return; }
+      const cellDate=evEl.closest('.cal-cell').dataset.date;
+      openScheduleModal(item, null, cellDate);
+    });
   });
   document.getElementById('addSchedBtn').onclick=()=>openScheduleModal();
   el.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>openScheduleModal(state.schedule.find(x=>x.id===b.dataset.edit), null, scheduleSel));
