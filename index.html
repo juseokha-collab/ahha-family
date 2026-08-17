@@ -103,11 +103,12 @@ nav.tabs button.active{background:var(--panel2);color:var(--text);border-color:v
 .pill.d-far{color:var(--good);border-color:var(--good);}
 .empty{color:var(--muted);font-size:13px;text-align:center;padding:24px 0;}
 .mood-row{display:flex;gap:1px;flex-wrap:nowrap;}
-.mood-row button{flex:1;min-width:0;font-size:17px;background:none;border:none;border-radius:6px;width:24px;height:24px;padding:0;}
+.mood-row button{flex:1;min-width:0;background:none;border:none;border-radius:6px;width:24px;height:24px;padding:1px;display:flex;align-items:center;justify-content:center;}
+.mood-row button img{width:100%;height:100%;object-fit:contain;}
 .mood-row button.sel{background:var(--sel-bg);}
 @media(max-width:420px){
   .mood-row{gap:0;}
-  .mood-row button{height:20px;width:20px;font-size:13px;border-radius:5px;}
+  .mood-row button{height:20px;width:20px;border-radius:5px;}
 }
 .datebar{display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:10px;flex-wrap:wrap;}
 .datebar .d{font-size:12px;font-weight:700;white-space:nowrap;}
@@ -284,7 +285,7 @@ button.iconbtn.habit-nav-btn.habit-nav-btn-weekly{color:var(--accent2);}
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-<script src="firebase-config.js?v=20260817u"></script>
-<script src="app.js?v=20260817u"></script>
+<script src="firebase-config.js?v=20260817v"></script>
+<script src="app.js?v=20260817v"></script>
 </body>
 </html>

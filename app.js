@@ -956,7 +956,26 @@ function headerDateHtml(dateStr){
 }
 /* ---------- HOME ---------- */
 let homeDate = todayStr();
-const MOODS=['😊','🥰','🙂','😐','😫','😢','😠','🤒','😴','🥳'];
+const MOODS=[
+  {key:'joy', img:'moods/emo_joy.png', label:'환희'},
+  {key:'heart', img:'moods/emo_heart.png', label:'하트'},
+  {key:'full', img:'moods/emo_full.png', label:'포만감'},
+  {key:'normal', img:'moods/emo_normal.png', label:'보통'},
+  {key:'sleepy', img:'moods/emo_sleepy.png', label:'졸림'},
+  {key:'verysleepy', img:'moods/emo_verysleepy.png', label:'매우졸림'},
+  {key:'sad', img:'moods/emo_sad.png', label:'우울'},
+  {key:'angry', img:'moods/emo_angry.png', label:'화남'}
+];
+function moodByKey(key){ return MOODS.find(m=>m.key===key); }
+function moodBtnHtml(m, selected){
+  return `<button type="button" data-m="${m.key}" class="${selected?'sel':''}" title="${escapeHtml(m.label)}"><img src="${m.img}" alt="${escapeHtml(m.label)}"></button>`;
+}
+function moodIconHtml(key, size){
+  if(!key) return '';
+  const m=moodByKey(key);
+  if(m) return `<img src="${m.img}" alt="${escapeHtml(m.label)}" title="${escapeHtml(m.label)}" style="width:${size||16}px;height:${size||16}px;object-fit:contain;vertical-align:middle;border-radius:4px;">`;
+  return `<span style="font-size:${size||16}px;">${escapeHtml(key)}</span>`;
+}
 let diaryArchiveOpen=false;
 let diaryArchiveIncludeFamily=false;
 let letterViewMode=false;
@@ -1853,7 +1872,7 @@ function renderHome(){
           ${homeDate!==todayStr()?todayPillBtn('homeToday'):''}
         </div>
         <div class="mood-row" id="moodRow" style="flex:1;justify-content:flex-end;min-width:0;overflow-x:auto;">
-          ${MOODS.map(m=>`<button data-m="${m}" class="${mine.mood===m?'sel':''}">${m}</button>`).join('')}
+          ${MOODS.map(m=>moodBtnHtml(m, mine.mood===m.key)).join('')}
         </div>
       </div>
       ${(user && effectiveRole()!=='daughter')?`
@@ -1872,7 +1891,7 @@ function renderHome(){
       </div>`:''}
       <div class="field" style="margin-top:10px;">
         <div class="row" style="justify-content:space-between;align-items:center;">
-          <label style="margin:0;">Comment</label>
+          <label style="margin:0;"><img src="moods/happycomment.png" alt="행복코멘트" style="width:16px;height:16px;object-fit:contain;vertical-align:middle;margin-right:2px;">Comment</label>
           <div class="row" style="gap:8px;">
             <span class="meta" id="diarySaveStatus">${mine.diary?'✓ 저장됨':''}</span>
             ${effectiveRole()!=='daughter'?`<button class="btn small" id="sendLetterBtn" title="쓴 내용을 딸에게 편지로 보내기">✉️ 딸에게</button>`:''}
@@ -2065,7 +2084,7 @@ function diaryArchiveRowsHtml(){
   if(!rows.length) return `<div class="empty">아직 작성된 Comment가 없어요</div>`;
   return rows.map(r=>`
     <div class="list-item" data-jump="${r.date}" style="cursor:pointer;">
-      <div class="content-text" style="flex:1;min-width:0;white-space:normal;word-break:break-word;">${r.date} ${r.mood||''} <span class="pill">${escapeHtml(authorLabel(r,r.key))}</span>${r.diary?' '+escapeHtml(r.diary):''}</div>
+      <div class="content-text" style="flex:1;min-width:0;white-space:normal;word-break:break-word;">${r.date} ${moodIconHtml(r.mood,16)} <span class="pill">${escapeHtml(authorLabel(r,r.key))}</span>${r.diary?' '+escapeHtml(r.diary):''}</div>
       ${r.key===myKey?`<button class="icon-btn" data-edit-diary="${escapeHtml(r.date)}|${escapeHtml(r.key)}" title="수정">✏️</button>`:''}
     </div>`).join('');
 }
@@ -2075,7 +2094,7 @@ function openDiaryEntryEditModal(date, key){
   openModal(`
     <h3>${date} · ${escapeHtml(authorLabel(e,key))} Comment 수정</h3>
     <div class="mood-row" id="editMoodRow">
-      ${MOODS.map(m=>`<button data-m="${m}" class="${e.mood===m?'sel':''}">${m}</button>`).join('')}
+      ${MOODS.map(m=>moodBtnHtml(m, e.mood===m.key)).join('')}
     </div>
     <div class="field" style="margin-top:10px;">
       <label>Comment</label>
@@ -2761,10 +2780,10 @@ function renderHealth(){
     else mealWeekComment='잘 하고 있어요';
   }
   const mealTodayPart = hasAnyMealRecord
-    ? `<div><b>오늘 식단 관리는</b> <b style="color:var(--accent);">${mealScore}점</b> 입니다.</div><div style="margin-top:2px;"><b style="color:var(--accent);font-size:14.5px;">${escapeHtml(mealTodayComment)}</b></div>`
+    ? `<div><b>오늘 식단</b> <b style="color:var(--accent);">${mealScore}점</b></div><div style="margin-top:2px;"><b style="color:var(--accent);font-size:14.5px;">${escapeHtml(mealTodayComment)}</b></div>`
     : `오늘의 식단 <span class="meta" style="font-weight:400;">(오늘 식단을 입력해 볼까 ^^)</span>`;
   const mealWeekPart = (hasAnyMealRecord && weekAvgScore!=null)
-    ? `<div>지난 <b>7일간</b>의 점수 평균은 <b style="color:var(--accent);">${weekAvgScore}점</b> 입니다.</div><div style="margin-top:2px;"><b style="color:var(--accent);font-size:14.5px;">${escapeHtml(mealWeekComment)}</b></div>`
+    ? `<div>지난 <b>7일</b> 평균 <b style="color:var(--accent);">${weekAvgScore}점</b></div><div style="margin-top:2px;"><b style="color:var(--accent);font-size:14.5px;">${escapeHtml(mealWeekComment)}</b></div>`
     : '';
   const el=document.getElementById('tab-health');
   const dLabel = parseDate(healthDate).toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'});
@@ -2837,7 +2856,7 @@ function renderHealth(){
         <button class="btn small primary" id="healthSaveBtn">저장</button>
       </div>
       <div class="grid2">
-        <div class="field"><label>체중 (kg)</label><input type="number" step="0.1" id="hWeight" value="${rec.weight||''}"></div>
+        <div class="field"><label><img src="moods/dieting.png" alt="다이어트중" style="width:16px;height:16px;object-fit:contain;vertical-align:middle;margin-right:2px;">체중 (kg)</label><input type="number" step="0.1" id="hWeight" value="${rec.weight||''}"></div>
         <div class="field"><label>총칼로리 (kcal)</label><input type="number" step="10" id="hCalories" value="${rec.calories||''}"></div>
       </div>
       <div class="grid2" style="margin-top:10px;">
