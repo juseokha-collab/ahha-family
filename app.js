@@ -973,6 +973,7 @@ function moodIconHtml(key, size){
 let diaryArchiveOpen=false;
 let diaryArchiveIncludeFamily=false;
 let letterViewMode=false;
+let diaryEditing=false;
 function lettersRowsHtml(){
   const letters=(state.letters||[]).slice().reverse();
   if(!letters.length) return `<div class="empty">아직 받은 편지가 없어요</div>`;
@@ -1847,6 +1848,7 @@ function renderHome(){
   const entries = day.entries || {};
   const myKey = currentAuthorKey();
   const mine = entries[myKey] || {};
+  const diaryShowingEdit = diaryEditing || !(mine.diary && mine.diary.trim());
   const unreadLetterCount = (state.letters||[]).filter(l=>!l.read).length;
   const el=document.getElementById('tab-home');
   const dLabel = fmtShortDateDow(homeDate);
@@ -1893,7 +1895,9 @@ function renderHome(){
         </div>
         <div class="row" style="align-items:flex-start;gap:6px;margin-top:4px;margin-bottom:6px;">
           <span class="happycomment-icon-wrap" style="position:relative;top:-10px;"><img src="moods/happycomment.png" alt="행복코멘트"></span>
-          <textarea id="diaryInput" placeholder="오늘 하루는 어땠나요?" style="overflow:hidden;flex:1;min-width:0;min-height:85px;">${escapeHtml(mine.diary)}</textarea>
+          ${diaryShowingEdit
+            ? `<textarea id="diaryInput" placeholder="오늘 하루는 어땠나요?" style="overflow:hidden;flex:1;min-width:0;min-height:85px;">${escapeHtml(mine.diary)}</textarea>`
+            : `<div class="row" style="align-items:flex-start;gap:6px;flex:1;min-width:0;"><span style="font-size:13px;flex:1;min-width:0;white-space:pre-wrap;word-break:break-word;">${escapeHtml(mine.diary)}</span><button type="button" class="icon-btn" id="diaryEditBtn" title="수정">✏️</button></div>`}
         </div>
         <div class="row" style="justify-content:space-between;align-items:center;margin-top:8px;">
           <label id="diaryArchiveToggle" style="cursor:pointer;">${diaryArchiveOpen?'▲':'▼'} ${letterViewMode?'편지 모아보기':'Comment 모아보기'}</label>
@@ -1958,9 +1962,9 @@ function renderHome(){
       }).join('') : `<div class="empty">등록된 일정이 없어요</div>`}
     </div>`:''}
   `;
-  document.getElementById('homePrev').onclick=()=>{ homeDate=fmtDate(addDays(parseDate(homeDate),-1)); renderHome(); };
-  document.getElementById('homeNext').onclick=()=>{ homeDate=fmtDate(addDays(parseDate(homeDate),1)); renderHome(); };
-  const tb=document.getElementById('homeToday'); if(tb) tb.onclick=()=>{ homeDate=todayStr(); renderHome(); };
+  document.getElementById('homePrev').onclick=()=>{ homeDate=fmtDate(addDays(parseDate(homeDate),-1)); diaryEditing=false; renderHome(); };
+  document.getElementById('homeNext').onclick=()=>{ homeDate=fmtDate(addDays(parseDate(homeDate),1)); diaryEditing=false; renderHome(); };
+  const tb=document.getElementById('homeToday'); if(tb) tb.onclick=()=>{ homeDate=todayStr(); diaryEditing=false; renderHome(); };
   document.getElementById('moodRow').addEventListener('click', e=>{
     const b=e.target.closest('button[data-m]'); if(!b) return;
     ensureDay(homeDate);
@@ -1972,23 +1976,29 @@ function renderHome(){
     queueSave(); renderHome();
   });
   const diaryInputEl=document.getElementById('diaryInput');
-  const autoResizeDiary=()=>{ diaryInputEl.style.height='auto'; diaryInputEl.style.height=Math.max(diaryInputEl.scrollHeight,85)+'px'; };
-  autoResizeDiary();
-  diaryInputEl.addEventListener('input', ()=>{
-    document.getElementById('diarySaveStatus').textContent='';
+  if(diaryInputEl){
+    const autoResizeDiary=()=>{ diaryInputEl.style.height='auto'; diaryInputEl.style.height=Math.max(diaryInputEl.scrollHeight,85)+'px'; };
     autoResizeDiary();
-  });
+    diaryInputEl.addEventListener('input', ()=>{
+      document.getElementById('diarySaveStatus').textContent='';
+      autoResizeDiary();
+    });
+  }
   document.getElementById('diarySaveBtn').onclick=()=>{
     ensureDay(homeDate);
     const cur=state.daily[homeDate].entries[myKey]||{};
-    cur.diary = document.getElementById('diaryInput').value;
+    if(diaryShowingEdit) cur.diary = document.getElementById('diaryInput').value;
     cur.name = user ? (user.displayName||user.email) : '나';
     cur.updatedAt = Date.now();
     state.daily[homeDate].entries[myKey]=cur;
     queueSave();
+    diaryEditing=false;
+    renderHome();
     const now=new Date();
     document.getElementById('diarySaveStatus').textContent = `✓ 저장됨 (${now.getHours()}:${pad2(now.getMinutes())})`;
   };
+  const diaryEditBtn=document.getElementById('diaryEditBtn');
+  if(diaryEditBtn) diaryEditBtn.onclick=()=>{ diaryEditing=true; renderHome(); };
   document.getElementById('diaryArchiveToggle').onclick=()=>{
     diaryArchiveOpen=!diaryArchiveOpen;
     letterViewMode=false;
@@ -1996,7 +2006,7 @@ function renderHome(){
   };
   const sendLetterBtn=document.getElementById('sendLetterBtn');
   if(sendLetterBtn) sendLetterBtn.onclick=()=>{
-    const text=document.getElementById('diaryInput').value.trim();
+    const text=(diaryShowingEdit ? document.getElementById('diaryInput').value : (mine.diary||'')).trim();
     if(!text){ showToast('내용을 입력해주세요'); return; }
     ensureDay(homeDate);
     const cur=state.daily[homeDate].entries[myKey]||{};
