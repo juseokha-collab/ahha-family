@@ -93,6 +93,11 @@ function dday(dateStr){
   const t=parseDate(dateStr); t.setHours(0,0,0,0);
   return Math.round((t-now)/86400000);
 }
+function ddayRelativeTo(dateStr, refDateStr){
+  const ref=parseDate(refDateStr); ref.setHours(0,0,0,0);
+  const t=parseDate(dateStr); t.setHours(0,0,0,0);
+  return Math.round((t-ref)/86400000);
+}
 function nextOccurrence(dateStr, recurring, refDateStr){
   const d=parseDate(dateStr);
   if(!recurring) return d;
@@ -1321,6 +1326,7 @@ let expenseSortKey=null;
 let incomeSortKey=null;
 function todosForToday(){
   const list=myTodos().filter(t=>{
+    if(t.createdDate && t.createdDate>homeDate) return false;
     if(t.repeat && t.repeat!=='none') return todoOccursOn(t, homeDate);
     return !t.done || (t.doneDate && t.doneDate>=homeDate);
   });
@@ -1957,7 +1963,7 @@ function renderHome(){
         const catLabel=cat ? (cat.name.length>3?cat.name.slice(0,3):cat.name) : '';
         const catPill=cat ? `<span class="pill" style="background:${cat.color};color:rgba(0,0,0,0.5);border:none;" title="${escapeHtml(cat.name)}">${escapeHtml(catLabel)}</span>` : '';
         const repeatPill = isRepeat ? `<span class="pill" title="${TODO_REPEAT_LABELS[t.repeat]} 반복">🔁 반복</span>` : '';
-        const ddayPill = (!isRepeat || t.repeatEndDate) ? (()=>{ const d=dday(isRepeat?t.repeatEndDate:t.dueDate); return `<span class="pill ${ddayPillClass(d)}">${ddayLabel(d)}</span>`; })() : '';
+        const ddayPill = (!isRepeat || t.repeatEndDate) ? (()=>{ const d=ddayRelativeTo(isRepeat?t.repeatEndDate:t.dueDate, homeDate); return `<span class="pill ${ddayPillClass(d)}">${ddayLabel(d)}</span>`; })() : '';
         return `
         <div class="list-item" style="align-items:center;">
           <div class="row" style="flex:1;gap:8px;min-width:0;">
