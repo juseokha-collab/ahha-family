@@ -1362,13 +1362,19 @@ function commitNewTodo(){
   queueSave(); renderHome();
   showToast('할 일이 추가되었어요');
 }
-const TODO_REPEAT_LABELS={none:'반복 안함',daily:'매일',weekly:'매주',monthly:'매월',yearly:'매년'};
+const TODO_REPEAT_LABELS={none:'반복 안함',daily:'매일',weekday:'매일(평일만)',weekly:'매주',monthly:'매월',yearly:'매년'};
 function todoOccursOn(t, dateStr){
   if(!t.repeat || t.repeat==='none') return t.dueDate===dateStr;
   if(dateStr<t.dueDate) return false;
   if(t.repeatEndDate && dateStr>t.repeatEndDate) return false;
   const base=parseDate(t.dueDate), target=parseDate(dateStr);
   if(t.repeat==='daily') return true;
+  if(t.repeat==='weekday'){
+    const dow=target.getDay();
+    if(dow===0||dow===6) return false;
+    const holidays=getHolidaysForViewer(target.getFullYear());
+    return !holidays[dateStr];
+  }
   if(t.repeat==='weekly') return base.getDay()===target.getDay();
   if(t.repeat==='monthly') return base.getDate()===target.getDate();
   if(t.repeat==='yearly') return base.getMonth()===target.getMonth() && base.getDate()===target.getDate();
