@@ -1320,7 +1320,7 @@ let todoSortBy='dueDate';
 let expenseSortKey=null;
 let incomeSortKey=null;
 function todosForToday(){
-  const list=myTodos().filter(t=>t.dueDate>=homeDate);
+  const list=myTodos().filter(t=>!t.done || (t.doneDate && t.doneDate>=homeDate));
   return list.sort((a,b)=>{
     if(todoSortBy==='task') return a.task.localeCompare(b.task);
     if(todoSortBy==='category') return (a.category||'').localeCompare(b.category||'') || a.dueDate.localeCompare(b.dueDate);
@@ -1368,6 +1368,17 @@ function spawnNextTodoOccurrence(t){
   if(!nextDate) return;
   myTodos().push({id:uid(), task:t.task, dueDate:nextDate, dueTime:t.dueTime||'', category:t.category, done:false, doneDate:'', createdDate:todayStr(), repeat:t.repeat});
 }
+function mdLabel(dateStr){
+  const d=parseDate(dateStr);
+  return `${d.getMonth()+1}월 ${d.getDate()}일`;
+}
+function todoHistoryHtml(t){
+  const rows=[`최초 작성 ${mdLabel(t.createdDate||todayStr())}`];
+  (t.editHistory||[]).slice().reverse().forEach(h=>{
+    rows.push(`수정 ${mdLabel(h.date)} ${h.time} 수정 (${h.fields.join(', ')})`);
+  });
+  return `<div class="meta" style="margin-top:10px;">${rows.map(r=>`<div>${escapeHtml(r)}</div>`).join('')}</div>`;
+}
 function openTodoEditModal(id){
   const list=myTodos();
   const t=list.find(x=>x.id===id);
@@ -1413,6 +1424,7 @@ function openTodoEditModal(id){
       <button class="btn" id="mCancel">취소</button>
       <button class="btn primary" id="mSave">저장</button>
     </div>
+    ${todoHistoryHtml(t)}
   `);
   attachDatePicker('mDue');
   document.getElementById('mCancel').onclick=closeModal;
@@ -1422,6 +1434,7 @@ function openTodoEditModal(id){
     el.style.display = el.style.display==='none' ? '' : 'none';
   };
   document.getElementById('mSave').onclick=()=>{
+    const before={task:t.task, dueDate:t.dueDate, dueTime:t.dueTime, category:t.category, repeat:t.repeat, done:t.done};
     t.task=document.getElementById('mTask').value.trim()||t.task;
     t.dueDate=document.getElementById('mDue').value||t.dueDate;
     const h=document.getElementById('mDueHour').value, mi=document.getElementById('mDueMin').value;
@@ -1432,6 +1445,18 @@ function openTodoEditModal(id){
     if(doneNow && !t.done){ t.doneDate=todayStr(); spawnNextTodoOccurrence(t); }
     if(!doneNow) t.doneDate='';
     t.done=doneNow;
+    const changedFields=[];
+    if(before.task!==t.task) changedFields.push('내용');
+    if(before.dueDate!==t.dueDate) changedFields.push('날짜');
+    if(before.dueTime!==t.dueTime) changedFields.push('시간');
+    if(before.category!==t.category) changedFields.push('카테고리');
+    if(before.repeat!==t.repeat) changedFields.push('반복');
+    if(before.done!==t.done) changedFields.push('완료');
+    if(changedFields.length){
+      if(!t.editHistory) t.editHistory=[];
+      const now=new Date();
+      t.editHistory.push({date:todayStr(), time:`${pad2(now.getHours())}:${pad2(now.getMinutes())}`, fields:changedFields});
+    }
     queueSave(); closeModal(); renderHome();
   };
   document.getElementById('mDelete').onclick=()=>{
