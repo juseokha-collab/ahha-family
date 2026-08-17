@@ -360,25 +360,8 @@ function markDeleted(id){
   state.deletedIds.push(id);
 }
 const SB_COLORS={study:'#f5d76e', exercise:'#7ee787'};
-const SEED_DUE_DATE='2026-11-13';
-const SEED_CREATED_DATE='2026-08-08';
-function seedDaughterTodos(){
-  const tasks=[
-    'UCLH - Mandatory Training: Learning Disability & Autism',
-    'UCLH - Mandatory Training: Safeguarding Adults',
-    'UCLH - Mandatory Training: NEWS',
-    'UCLH - Mandatory Training: Equality, Diversity, Human Rights',
-    'UCLH - Mandatory Training: Fire Training eLearning',
-    'UCLH - Mandatory Training: Infection Prevention and Control',
-    'UCLH - Mandatory Training: Safeguarding Children Level 2',
-    'UCLH - Mandatory Training: Understanding Sexual Misconduct',
-    'UCLH - Mandatory Training: Workshop Raising Awareness of Prevent'
-  ];
-  return tasks.map(task=>({id:uid(), task, dueDate:SEED_DUE_DATE, done:true, doneDate:SEED_CREATED_DATE, createdDate:SEED_CREATED_DATE}));
-}
 function migrateTodos(st){
   if(!st.todos) st.todos={};
-  if(!st.todosSeeded){ st.todos.daughter=seedDaughterTodos(); st.todosSeeded=true; }
   if(!st.todos.daughter) st.todos.daughter=[];
   if(!st.todos.dad) st.todos.dad=[];
   if(!st.todos.mom) st.todos.mom=[];
