@@ -2642,7 +2642,15 @@ let healthDate = todayStr();
 let healthPerson = null;
 let weightChartOthers = [];
 let showActivityTrend = false;
+let sleepTimeEditing = false;
+let fastingTimeEditing = false;
 function memberLabel(key){ const m=FAMILY_MEMBERS.find(x=>x.key===key); return m?m.label:key; }
+function timeLabel12(t){
+  if(!t) return '';
+  const [h,m]=t.split(':');
+  const {ampm,h12}=to12Hour(Number(h));
+  return `${ampm} ${h12}:${m}`;
+}
 function calcHourDiff(startHHMM, endHHMM, sameDay){
   if(!startHHMM || !endHHMM) return null;
   const [sh,sm]=startHHMM.split(':').map(Number);
@@ -2760,13 +2768,13 @@ function renderHealth(){
   const rec=(day.health&&day.health[healthPerson])||{};
   const prevWeightEntry=prevWeightEntryBefore(healthPerson, healthDate);
   const todayWeightVal=rec.weight?Number(rec.weight):null;
-  let dietLine1='', dietLine1Emph='', dietLine1Color='', dietLine2='';
+  let dietLine1='', dietLine1Emph='', dietLine1Color='', dietLine2='', dietIcon='moods/saranghae.png';
   if(todayWeightVal==null){
     dietLine1='오늘 몸무게는 얼마일까? 궁금해';
   } else if(prevWeightEntry){
     const diff=Math.round((todayWeightVal-prevWeightEntry.weight)*10)/10;
     if(diff<0){ dietLine1Emph=`와우 ${Math.abs(diff)}kg 빠졌네 ^^`; dietLine1='추카추카!'; dietLine1Color='#4d7fe0'; }
-    else if(diff>0){ dietLine1Emph=`${diff}kg 늘었네 ㅠㅠ.`; dietLine1='괜찮아 다시 화이팅!'; dietLine1Color='var(--bad)'; }
+    else if(diff>0){ dietLine1Emph=`${diff}kg 늘었네 ㅠㅠ.`; dietLine1='괜찮아 다시 화이팅!'; dietLine1Color='var(--bad)'; dietIcon='moods/dieting.png'; }
     else dietLine1='어제와 몸무게가 같아요!';
   }
   if(prevWeightEntry) dietLine2=`지난 몸무게 ${prevWeightEntry.weight}kg`;
@@ -2806,6 +2814,8 @@ function renderHealth(){
     ? `<div>지난 <b>7일</b> 평균 <b style="color:var(--accent);">${weekAvgScore}점</b></div><div style="margin-top:2px;"><b style="color:var(--accent);font-size:14.5px;">${escapeHtml(mealWeekComment)}</b></div>`
     : '';
   const el=document.getElementById('tab-health');
+  const sleepShowingEdit = sleepTimeEditing || !(rec.sleepStart && rec.sleepEnd);
+  const fastingShowingEdit = fastingTimeEditing || !(rec.lastMeal && rec.firstMeal);
   const dLabel = parseDate(healthDate).toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'});
   const dLabelColor = weekdayColor(healthDate);
   const schedList = myHealthSchedList().map(it=>({...it,d:dday(it.date)})).sort((a,b)=>a.d-b.d);
@@ -2879,7 +2889,7 @@ function renderHealth(){
         </div>
       </div>
       <div class="row" style="align-items:center;gap:6px;flex-wrap:nowrap;">
-        <img src="moods/dieting.png" alt="다이어트중" style="width:120px;height:120px;object-fit:contain;flex-shrink:0;">
+        <img src="${dietIcon}" alt="${dietIcon==='moods/dieting.png'?'다이어트중':'사랑해'}" style="width:120px;height:120px;object-fit:contain;flex-shrink:0;">
         <div style="display:flex;flex-direction:column;gap:1px;min-width:0;">
           ${dietLine1Emph?`<span style="font-size:14px;font-weight:700;color:${dietLine1Color};">${escapeHtml(dietLine1Emph)}</span><span style="font-size:12px;font-weight:600;">${escapeHtml(dietLine1)}</span>`:`<span style="font-size:12px;font-weight:600;">${escapeHtml(dietLine1)}</span>`}
         </div>
@@ -2896,24 +2906,34 @@ function renderHealth(){
         <div class="field">
           <div class="row" style="justify-content:space-between;align-items:center;">
             <label id="sleepCalcResult">${rec.sleepStart && rec.sleepEnd ? `취침시간 → 기상시간 : ${hourMinDiffLabel(rec.sleepStart, rec.sleepEnd, rec.sleepStartDay==='today')}` : '취침시간 → 기상시간'}</label>
-            <button type="button" class="btn small" id="hSleepNowBtn">기록하기</button>
+            ${sleepShowingEdit?`<button type="button" class="btn small" id="hSleepNowBtn">기록하기</button>`:''}
           </div>
+          ${sleepShowingEdit?`
           <div class="row" style="gap:4px;flex-wrap:wrap;align-items:center;">
             <button type="button" class="day-toggle-btn" id="hSleepStartDayToggle" title="취침시간이 어제인지 오늘인지 선택">${(rec.sleepStartDay||'yesterday')==='yesterday'?'취침 어제':'취침 오늘'}</button>
             ${timeSelect10Html('hSleepStart', rec.sleepStart||'23:00')}
             ${timeSelect10Html('hSleepEnd', rec.sleepEnd||'07:00')}
-          </div>
+          </div>`:`
+          <div class="row" style="align-items:center;gap:6px;">
+            <span style="font-size:13px;">${(rec.sleepStartDay||'yesterday')==='today'?'오늘':'어제'} ${timeLabel12(rec.sleepStart)} 취침, 오늘 ${timeLabel12(rec.sleepEnd)} 기상</span>
+            <button type="button" class="icon-btn" id="hSleepEditBtn" title="수정">✏️</button>
+          </div>`}
         </div>
         <div class="field">
           <div class="row" style="justify-content:space-between;align-items:center;">
             <label id="fastingCalcResult">${rec.lastMeal && rec.firstMeal ? `Last Meal → First Meal : ${hourMinDiffLabel(rec.lastMeal, rec.firstMeal, rec.lastMealDay==='today')}` : 'Last Meal → First Meal'}</label>
-            <button type="button" class="btn small" id="hFastingNowBtn">기록하기</button>
+            ${fastingShowingEdit?`<button type="button" class="btn small" id="hFastingNowBtn">기록하기</button>`:''}
           </div>
+          ${fastingShowingEdit?`
           <div class="row" style="gap:4px;flex-wrap:wrap;align-items:center;">
             <button type="button" class="day-toggle-btn" id="hLastMealDayToggle" title="Last Meal이 어제인지 오늘인지 선택">${(rec.lastMealDay||'yesterday')==='yesterday'?'Last Meal 어제':'Last Meal 오늘'}</button>
             ${timeSelect10Html('hLastMeal', rec.lastMeal||'19:30')}
             ${timeSelect10Html('hFirstMeal', rec.firstMeal||'07:30')}
-          </div>
+          </div>`:`
+          <div class="row" style="align-items:center;gap:6px;">
+            <span style="font-size:13px;">${(rec.lastMealDay||'yesterday')==='today'?'오늘':'어제'} ${timeLabel12(rec.lastMeal)} Last Meal, 오늘 ${timeLabel12(rec.firstMeal)} First Meal</span>
+            <button type="button" class="icon-btn" id="hFastingEditBtn" title="수정">✏️</button>
+          </div>`}
         </div>
       </div>
       ${showActivityTrend?renderActivityTrendPanel(healthPerson):''}
@@ -3008,9 +3028,9 @@ function renderHealth(){
     pt.addEventListener('mouseenter', ()=>showDtTooltip(pt, pt.dataset.tip));
     pt.addEventListener('mouseleave', hideDtTooltip);
   });
-  document.getElementById('hPrev').onclick=()=>{ healthDate=fmtDate(addDays(parseDate(healthDate),-1)); renderHealth(); };
-  document.getElementById('hNext').onclick=()=>{ healthDate=fmtDate(addDays(parseDate(healthDate),1)); renderHealth(); };
-  const tb=document.getElementById('hToday'); if(tb) tb.onclick=()=>{ healthDate=todayStr(); renderHealth(); };
+  document.getElementById('hPrev').onclick=()=>{ healthDate=fmtDate(addDays(parseDate(healthDate),-1)); sleepTimeEditing=false; fastingTimeEditing=false; renderHealth(); };
+  document.getElementById('hNext').onclick=()=>{ healthDate=fmtDate(addDays(parseDate(healthDate),1)); sleepTimeEditing=false; fastingTimeEditing=false; renderHealth(); };
+  const tb=document.getElementById('hToday'); if(tb) tb.onclick=()=>{ healthDate=todayStr(); sleepTimeEditing=false; fastingTimeEditing=false; renderHealth(); };
   const save=(k,v)=>{
     ensureDay(healthDate);
     if(!state.daily[healthDate].health) state.daily[healthDate].health={};
@@ -3051,30 +3071,42 @@ function renderHealth(){
   bindTimeSelect10('hSleepEnd', recalcSleep);
   bindTimeSelect10('hLastMeal', recalcFasting);
   bindTimeSelect10('hFirstMeal', recalcFasting);
-  document.getElementById('hSleepStartDayToggle').onclick=(e)=>{
+  const sleepStartDayToggleBtn=document.getElementById('hSleepStartDayToggle');
+  if(sleepStartDayToggleBtn) sleepStartDayToggleBtn.onclick=(e)=>{
     const cur=curDayRec().sleepStartDay||'yesterday';
     const next=cur==='yesterday'?'today':'yesterday';
     save('sleepStartDay', next);
     e.target.textContent = next==='yesterday'?'취침 어제':'취침 오늘';
     recalcSleep();
   };
-  document.getElementById('hLastMealDayToggle').onclick=(e)=>{
+  const lastMealDayToggleBtn=document.getElementById('hLastMealDayToggle');
+  if(lastMealDayToggleBtn) lastMealDayToggleBtn.onclick=(e)=>{
     const cur=curDayRec().lastMealDay||'yesterday';
     const next=cur==='yesterday'?'today':'yesterday';
     save('lastMealDay', next);
     e.target.textContent = next==='yesterday'?'Last Meal 어제':'Last Meal 오늘';
     recalcFasting();
   };
-  document.getElementById('hSleepNowBtn').onclick=()=>{
+  const sleepNowBtn=document.getElementById('hSleepNowBtn');
+  if(sleepNowBtn) sleepNowBtn.onclick=()=>{
     setTimeSelect10Value('hSleepEnd', nowTimeStr10());
     recalcSleep();
+    sleepTimeEditing=false;
+    renderHealth();
     document.getElementById('healthSaveStatus').textContent='✓ 저장됨';
   };
-  document.getElementById('hFastingNowBtn').onclick=()=>{
+  const fastingNowBtn=document.getElementById('hFastingNowBtn');
+  if(fastingNowBtn) fastingNowBtn.onclick=()=>{
     setTimeSelect10Value('hFirstMeal', nowTimeStr10());
     recalcFasting();
+    fastingTimeEditing=false;
+    renderHealth();
     document.getElementById('healthSaveStatus').textContent='✓ 저장됨';
   };
+  const sleepEditBtn=document.getElementById('hSleepEditBtn');
+  if(sleepEditBtn) sleepEditBtn.onclick=()=>{ sleepTimeEditing=true; renderHealth(); };
+  const fastingEditBtn=document.getElementById('hFastingEditBtn');
+  if(fastingEditBtn) fastingEditBtn.onclick=()=>{ fastingTimeEditing=true; renderHealth(); };
   const hSymptomEl=document.getElementById('hSymptom');
   const autoResize=()=>{ hSymptomEl.style.height='auto'; hSymptomEl.style.height=hSymptomEl.scrollHeight+'px'; };
   autoResize();
@@ -3093,11 +3125,14 @@ function renderHealth(){
   };
   document.getElementById('healthSaveBtn').onclick=()=>{
     save('weight', document.getElementById('hWeight').value?Number(document.getElementById('hWeight').value):'');
-    recalcSleep();
-    recalcFasting();
+    if(sleepShowingEdit) recalcSleep();
+    if(fastingShowingEdit) recalcFasting();
     save('calories', document.getElementById('hCalories').value?Number(document.getElementById('hCalories').value):'');
     save('symptom', document.getElementById('hSymptom').value);
     save('network', document.getElementById('hNetwork').value);
+    sleepTimeEditing=false;
+    fastingTimeEditing=false;
+    renderHealth();
     const now=new Date();
     document.getElementById('healthSaveStatus').textContent = `✓ 저장됨 (${now.getHours()}:${pad2(now.getMinutes())})`;
   };
