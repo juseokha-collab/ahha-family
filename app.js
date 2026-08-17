@@ -2847,7 +2847,7 @@ function renderHealth(){
             <button type="button" class="btn small" id="hSleepNowBtn">기록하기</button>
           </div>
           <div class="row" style="gap:4px;flex-wrap:wrap;align-items:center;">
-            <button type="button" class="pill" id="hSleepStartDayToggle" style="cursor:pointer;flex-shrink:0;font-size:11px;padding:4px 8px;" title="취침시간이 어제인지 오늘인지 선택">${(rec.sleepStartDay||'yesterday')==='yesterday'?'취침 어제':'취침 오늘'}</button>
+            <button type="button" class="day-toggle-btn" id="hSleepStartDayToggle" title="취침시간이 어제인지 오늘인지 선택">${(rec.sleepStartDay||'yesterday')==='yesterday'?'취침 어제':'취침 오늘'}</button>
             ${timeSelect10Html('hSleepStart', rec.sleepStart||'23:00')}
             ${timeSelect10Html('hSleepEnd', rec.sleepEnd||'07:00')}
           </div>
@@ -2858,7 +2858,7 @@ function renderHealth(){
             <button type="button" class="btn small" id="hFastingNowBtn">기록하기</button>
           </div>
           <div class="row" style="gap:4px;flex-wrap:wrap;align-items:center;">
-            <button type="button" class="pill" id="hLastMealDayToggle" style="cursor:pointer;flex-shrink:0;font-size:11px;padding:4px 8px;" title="Last Meal이 어제인지 오늘인지 선택">${(rec.lastMealDay||'yesterday')==='yesterday'?'Last Meal 어제':'Last Meal 오늘'}</button>
+            <button type="button" class="day-toggle-btn" id="hLastMealDayToggle" title="Last Meal이 어제인지 오늘인지 선택">${(rec.lastMealDay||'yesterday')==='yesterday'?'Last Meal 어제':'Last Meal 오늘'}</button>
             ${timeSelect10Html('hLastMeal', rec.lastMeal||'19:30')}
             ${timeSelect10Html('hFirstMeal', rec.firstMeal||'07:30')}
           </div>
