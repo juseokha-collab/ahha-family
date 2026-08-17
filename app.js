@@ -1891,7 +1891,7 @@ function renderHome(){
       </div>`:''}
       <div class="field" style="margin-top:10px;">
         <div class="row" style="justify-content:space-between;align-items:center;">
-          <label style="margin:0;"><img src="moods/happycomment.png" alt="행복코멘트" style="width:16px;height:16px;object-fit:contain;vertical-align:middle;margin-right:2px;">Comment</label>
+          <label style="margin:0;display:flex;align-items:center;gap:4px;"><img src="moods/happycomment.png" alt="행복코멘트" style="width:50px;height:50px;object-fit:contain;">Comment</label>
           <div class="row" style="gap:8px;">
             <span class="meta" id="diarySaveStatus">${mine.diary?'✓ 저장됨':''}</span>
             ${effectiveRole()!=='daughter'?`<button class="btn small" id="sendLetterBtn" title="쓴 내용을 딸에게 편지로 보내기">✉️ 딸에게</button>`:''}
@@ -2856,7 +2856,7 @@ function renderHealth(){
         <button class="btn small primary" id="healthSaveBtn">저장</button>
       </div>
       <div class="grid2">
-        <div class="field"><label><img src="moods/dieting.png" alt="다이어트중" style="width:16px;height:16px;object-fit:contain;vertical-align:middle;margin-right:2px;">체중 (kg)</label><input type="number" step="0.1" id="hWeight" value="${rec.weight||''}"></div>
+        <div class="field"><label style="display:flex;align-items:center;gap:4px;"><img src="moods/dieting.png" alt="다이어트중" style="width:50px;height:50px;object-fit:contain;">체중 (kg)</label><input type="number" step="0.1" id="hWeight" value="${rec.weight||''}"></div>
         <div class="field"><label>총칼로리 (kcal)</label><input type="number" step="10" id="hCalories" value="${rec.calories||''}"></div>
       </div>
       <div class="grid2" style="margin-top:10px;">
