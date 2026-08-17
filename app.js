@@ -889,6 +889,7 @@ function getVisibleTabs(){
       {key:'schedule',label:'📅',title:'Calendar'},
       {key:'study',label:'📚',title:'Learning'},
       {key:'health',label:'🏃',title:'Activity'},
+      {key:'events',label:'⏳',title:'D-day'},
       {key:'budget',label:'💰',title:'Account'}
     ];
   }
@@ -1576,9 +1577,12 @@ function openTodoCategoryEditModal(idx){
     queueSave(); closeModal(); openTodoCategoryManageModal();
   };
 }
-const EVENT_CATEGORY_ICONS={'싸강쥐':'moods/ssagangjwi.png'};
+const EVENT_CATEGORY_ICONS={'싸강쥐':'moods/ssagangjwi.png','딸':'moods/emo_heart.png'};
 function eventCategories(){
   if(!state.eventCategories) state.eventCategories=[{name:'세금', color:SCHED_COLORS[0]}];
+  if(!state.eventCategories.some(c=>c.name==='딸')){
+    state.eventCategories.push({name:'딸', color:nextUnusedColor(state.eventCategories.map(c=>c.color))});
+  }
   return state.eventCategories;
 }
 function eventCategoryOf(ev){ return ev.category || (ev.isTax?'세금':''); }
@@ -4532,7 +4536,8 @@ function openMaintModal(existing){
 function renderEvents(){
   const el=document.getElementById('tab-events');
   if(dedupeEventCategoryColors()) queueSave();
-  const withD = state.events.map(ev=>({...ev, d: ddayFromDate(eventOccurrence(ev)), occDate: fmtDate(eventOccurrence(ev))}));
+  const visibleEvents = state.events.filter(ev=>!(ev.hiddenFromDaughter && effectiveRole()==='daughter'));
+  const withD = visibleEvents.map(ev=>({...ev, d: ddayFromDate(eventOccurrence(ev)), occDate: fmtDate(eventOccurrence(ev))}));
   const upcoming = withD.filter(e=>e.d>=0).sort((a,b)=>a.d-b.d);
   const past = withD.filter(e=>e.d<0).sort((a,b)=>b.d-a.d);
   const row = ev => {
@@ -4572,7 +4577,8 @@ function renderEvents(){
   });
 }
 function openEventModal(existing){
-  const ev=existing||{id:null,name:'',date:todayStr(),recurring:true,recurringMonthly:false,memo:'',lunar:false,lunarYear:new Date().getFullYear(),lunarMonth:'',lunarDay:'',lunarLeap:false,hiddenFromDaughter:false,category:''};
+  const isDaughter = effectiveRole()==='daughter';
+  const ev=existing||{id:null,name:'',date:todayStr(),recurring:true,recurringMonthly:false,memo:'',lunar:false,lunarYear:new Date().getFullYear(),lunarMonth:'',lunarDay:'',lunarLeap:false,hiddenFromDaughter:false,category:isDaughter?'딸':''};
   const effectiveCat=eventCategoryOf(ev);
   openModal(`
     <h3>${existing?'D-day 수정':'D-day 추가'}</h3>
@@ -4580,11 +4586,12 @@ function openEventModal(existing){
     <div class="row" style="gap:6px;margin:6px 0;">
       <label class="pill" style="cursor:pointer;"><input type="checkbox" id="mLunar" ${ev.lunar?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">음력 날짜</label>
     </div>
+    ${isDaughter?'':`
     <div class="row" style="gap:6px;margin:6px 0;flex-wrap:wrap;align-items:center;">
       <label class="pill" style="cursor:pointer;"><input type="radio" name="mEventCat" value="" ${!effectiveCat?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">없음</label>
       ${eventCategories().map(c=>`<label class="pill" style="cursor:pointer;"><input type="radio" name="mEventCat" value="${escapeHtml(c.name)}" ${effectiveCat===c.name?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">${escapeHtml(c.name)}</label>`).join('')}
       <button type="button" class="link-btn" id="manageEventCatBtn">카테고리 관리</button>
-    </div>
+    </div>`}
     <div class="field" id="solarDateWrap" style="${ev.lunar?'display:none':''}">
       <label>날짜</label><input type="text" readonly class="date-input" placeholder="YYYY-MM-DD" id="mDate" value="${ev.date}">
     </div>
@@ -4603,7 +4610,7 @@ function openEventModal(existing){
       <label class="pill" style="cursor:pointer;"><input type="checkbox" id="mRecurringMonthly" ${ev.recurringMonthly?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">매월 반복</label>
     </div>
     <div class="meta" id="monthlyRepeatInfo" style="margin:-2px 0 6px;${ev.recurringMonthly?'':'display:none'}">${nthWeekdayLabel(ev.lunar?fmtDate(lunar2solar(ev.lunarYear,ev.lunarMonth,ev.lunarDay,ev.lunarLeap)||new Date()):ev.date)}마다 반복돼요</div>
-    <label class="pill" style="cursor:pointer;display:inline-block;margin:6px 0;"><input type="checkbox" id="mHideDaughter" ${ev.hiddenFromDaughter?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">딸에게 비공개</label>
+    ${isDaughter?'':`<label class="pill" style="cursor:pointer;display:inline-block;margin:6px 0;"><input type="checkbox" id="mHideDaughter" ${ev.hiddenFromDaughter?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">딸에게 비공개</label>`}
     <div class="field"><label>메모</label><input id="mMemo" value="${escapeHtml(ev.memo)}"></div>
     <div class="modal-actions"><button class="btn" id="mCancel">취소</button><button class="btn primary" id="mSave">저장</button></div>
   `);
@@ -4623,7 +4630,8 @@ function openEventModal(existing){
     document.getElementById('solarDateWrap').style.display = e.target.checked ? 'none' : '';
     document.getElementById('lunarDateWrap').style.display = e.target.checked ? '' : 'none';
   });
-  document.getElementById('manageEventCatBtn').onclick=()=>openEventCategoryManageModal();
+  const manageEventCatBtn=document.getElementById('manageEventCatBtn');
+  if(manageEventCatBtn) manageEventCatBtn.onclick=()=>openEventCategoryManageModal();
   mRecurringEl.addEventListener('change', ()=>{ if(mRecurringEl.checked){ mRecurringMonthlyEl.checked=false; updateMonthlyInfo(); } });
   mRecurringMonthlyEl.addEventListener('change', ()=>{ if(mRecurringMonthlyEl.checked){ mRecurringEl.checked=false; } updateMonthlyInfo(); });
   document.getElementById('mDate').addEventListener('change', updateMonthlyInfo);
@@ -4644,9 +4652,10 @@ function openEventModal(existing){
       date=document.getElementById('mDate').value;
       if(!name||!date){ showToast('이름과 날짜를 입력해주세요'); return; }
     }
-    const category=(document.querySelector('input[name="mEventCat"]:checked')||{}).value||'';
+    const category=isDaughter?'딸':((document.querySelector('input[name="mEventCat"]:checked')||{}).value||'');
     const scheduleChanged = !ev.id || ev.date!==date || !!ev.recurring!==mRecurringEl.checked || !!ev.recurringMonthly!==mRecurringMonthlyEl.checked || !!ev.lunar!==isLunar;
-    const rec={id:ev.id||uid(),name,date,lunar:isLunar,lunarYear,lunarMonth,lunarDay,lunarLeap,recurring:mRecurringEl.checked,recurringMonthly:mRecurringMonthlyEl.checked,hiddenFromDaughter:document.getElementById('mHideDaughter').checked,category,memo:document.getElementById('mMemo').value,pendingOccurrence:scheduleChanged?'':ev.pendingOccurrence,completedOccurrence:scheduleChanged?'':ev.completedOccurrence};
+    const hideDaughterEl=document.getElementById('mHideDaughter');
+    const rec={id:ev.id||uid(),name,date,lunar:isLunar,lunarYear,lunarMonth,lunarDay,lunarLeap,recurring:mRecurringEl.checked,recurringMonthly:mRecurringMonthlyEl.checked,hiddenFromDaughter:hideDaughterEl?hideDaughterEl.checked:false,category,memo:document.getElementById('mMemo').value,pendingOccurrence:scheduleChanged?'':ev.pendingOccurrence,completedOccurrence:scheduleChanged?'':ev.completedOccurrence};
     if(ev.id){ const idx=state.events.findIndex(x=>x.id===ev.id); state.events[idx]=rec; }
     else state.events.push(rec);
     queueSave(); closeModal(); renderEvents(); renderHome(); renderSchedule();
