@@ -1898,7 +1898,7 @@ function renderHome(){
           </div>
         </div>
         <div class="row" style="align-items:flex-start;gap:6px;margin-top:4px;margin-bottom:6px;">
-          <span class="happycomment-icon-wrap" style="position:relative;top:-5px;"><img src="moods/happycomment.png" alt="행복코멘트"></span>
+          <span class="happycomment-icon-wrap" style="position:relative;top:-10px;"><img src="moods/happycomment.png" alt="행복코멘트"></span>
           <textarea id="diaryInput" placeholder="오늘 하루는 어땠나요?" style="overflow:hidden;flex:1;min-width:0;min-height:85px;">${escapeHtml(mine.diary)}</textarea>
         </div>
         <div class="row" style="justify-content:space-between;align-items:center;margin-top:8px;">
@@ -2878,7 +2878,7 @@ function renderHealth(){
           <button class="btn small primary" id="healthSaveBtn">저장</button>
         </div>
       </div>
-      <div class="row" style="align-items:flex-end;gap:6px;flex-wrap:nowrap;">
+      <div class="row" style="align-items:center;gap:6px;flex-wrap:nowrap;">
         <img src="moods/dieting.png" alt="다이어트중" style="width:120px;height:120px;object-fit:contain;flex-shrink:0;">
         <div style="display:flex;flex-direction:column;gap:1px;min-width:0;">
           ${dietLine1Emph?`<span style="font-size:14px;font-weight:700;color:${dietLine1Color};">${escapeHtml(dietLine1Emph)}</span><span style="font-size:12px;font-weight:600;">${escapeHtml(dietLine1)}</span>`:`<span style="font-size:12px;font-weight:600;">${escapeHtml(dietLine1)}</span>`}
