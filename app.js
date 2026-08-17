@@ -2867,17 +2867,20 @@ function renderHealth(){
       </div>
     </div>
     <div class="card">
-      <div class="datebar"><button class="iconbtn" id="hPrev">‹</button><div class="d" style="${dLabelColor?'color:'+dLabelColor+';':''}">${dLabel}</div><button class="iconbtn" id="hNext">›</button>
-        ${healthDate!==todayStr()?todayPillBtn('hToday'):''}
-      </div>
-      <div class="row" style="justify-content:flex-end;align-items:center;gap:8px;margin-bottom:8px;">
-        <span class="meta" id="healthSaveStatus">${(rec.weight||rec.sleep||rec.fasting||rec.calories)?'✓ 저장됨':''}</span>
-        <button class="icon-btn" id="toggleActivityTrendBtn" title="추이 그래프">📈</button>
-        <button class="btn small primary" id="healthSaveBtn">저장</button>
+      <div style="display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:8px;margin-bottom:8px;">
+        <div></div>
+        <div class="datebar" style="margin-bottom:0;"><button class="iconbtn" id="hPrev">‹</button><div class="d" style="${dLabelColor?'color:'+dLabelColor+';':''}">${dLabel}</div><button class="iconbtn" id="hNext">›</button>
+          ${healthDate!==todayStr()?todayPillBtn('hToday'):''}
+        </div>
+        <div class="row" style="justify-content:flex-end;align-items:center;gap:8px;">
+          <span class="meta" id="healthSaveStatus">${(rec.weight||rec.sleep||rec.fasting||rec.calories)?'✓ 저장됨':''}</span>
+          <button class="icon-btn" id="toggleActivityTrendBtn" title="추이 그래프">📈</button>
+          <button class="btn small primary" id="healthSaveBtn">저장</button>
+        </div>
       </div>
       <div class="grid2" style="align-items:flex-start;">
         <div class="field">
-          <div class="row" style="align-items:flex-end;gap:6px;">
+          <div class="row" style="align-items:center;gap:6px;">
             <img src="moods/dieting.png" alt="다이어트중" style="width:100px;height:100px;object-fit:contain;flex-shrink:0;">
             <div style="display:flex;flex-direction:column;gap:1px;min-width:0;">
               <span style="font-size:12px;font-weight:600;">${dietLine1Emph?`<span style="font-size:14px;font-weight:700;color:${dietLine1Color};">${escapeHtml(dietLine1Emph)}</span>${escapeHtml(dietLine1)}`:escapeHtml(dietLine1)}</span>
