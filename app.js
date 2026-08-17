@@ -2450,18 +2450,32 @@ function openScheduleModal(existing, prefill, occurDate){
   const targetOccurDate = occurDate||s.date;
   const existingOverride = wasRepeating && s.colorOverrides && s.colorOverrides[targetOccurDate];
   let selectedColor = (existingOverride && existingOverride.bgColor!==undefined) ? existingOverride.bgColor : (s.bgColor||null);
+  let mTimeSet = !!s.time;
+  let mEndTimeSet = !!s.endTime;
   openModal(`
     <div class="row" style="justify-content:space-between;align-items:center;padding-right:30px;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
       <h3 style="margin:0;">${existing?'일정 수정':'일정 추가'}</h3>
       <div class="row" style="gap:6px;">
-        ${ownerOptions.map(o=>`<label class="pill" style="cursor:pointer;"><input type="radio" name="mOwner" value="${o.key}" ${(s.owner||'common')===o.key?'checked':''} style="margin-right:4px;">${scheduleFilterLabel(o.key)}</label>`).join('')}
+        ${ownerOptions.map(o=>`<label class="pill" style="cursor:pointer;"><input type="radio" name="mOwner" value="${o.key}" ${(s.owner||'common')===o.key?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">${scheduleFilterLabel(o.key)}</label>`).join('')}
       </div>
     </div>
     <div class="field" style="flex-direction:row;align-items:center;gap:8px;margin-bottom:22px;"><label style="flex-shrink:0;">일정색상</label>${renderColorSwatches(selectedColor, 'modal')}</div>
     <div class="field"><label>날짜</label><input type="text" readonly class="date-input" placeholder="YYYY-MM-DD" id="mDate" value="${s.date}"></div>
     <div class="grid2">
-      <div class="field"><label>시작 시간 (선택)</label><input type="time" step="600" id="mTime" value="${s.time||''}"></div>
-      <div class="field"><label>종료 시간 (선택)</label><input type="time" step="600" id="mEndTime" value="${s.endTime||''}"></div>
+      <div class="field">
+        <div class="row" style="justify-content:space-between;align-items:center;">
+          <label style="margin:0;">시작 시간 (선택)</label>
+          <button type="button" class="link-btn" id="mTimeToggle">${mTimeSet?'지우기':'+ 추가'}</button>
+        </div>
+        <div id="mTimeWrap" style="display:${mTimeSet?'':'none'};margin-top:4px;">${timeSelect10Html('mTime', s.time||'09:00')}</div>
+      </div>
+      <div class="field">
+        <div class="row" style="justify-content:space-between;align-items:center;">
+          <label style="margin:0;">종료 시간 (선택)</label>
+          <button type="button" class="link-btn" id="mEndTimeToggle">${mEndTimeSet?'지우기':'+ 추가'}</button>
+        </div>
+        <div id="mEndTimeWrap" style="display:${mEndTimeSet?'':'none'};margin-top:4px;">${timeSelect10Html('mEndTime', s.endTime||'10:00')}</div>
+      </div>
     </div>
     <div class="field"><label>제목</label><input id="mTitle" value="${escapeHtml(s.title)}"></div>
     <div class="field"><label>인맥 (쉼표로 구분, 예: 홍길동, 김철수)</label><input id="mContacts" value="${escapeHtml(s.contacts)}"></div>
@@ -2469,7 +2483,7 @@ function openScheduleModal(existing, prefill, occurDate){
     <div id="repeatOptions" style="display:${curRepeat!=='none'?'':'none'};margin-top:10px;padding-top:10px;border-top:1px solid var(--border);">
       <div class="field"><label>반복</label>
         <div class="row" style="gap:6px;">
-          ${['none','weekday','daily','weekly','yearly'].map(r=>`<label class="pill" style="cursor:pointer;"><input type="radio" name="mRepeat" value="${r}" ${curRepeat===r?'checked':''} style="margin-right:4px;">${REPEAT_LABELS[r]}</label>`).join('')}
+          ${['none','weekday','daily','weekly','yearly'].map(r=>`<label class="pill" style="cursor:pointer;"><input type="radio" name="mRepeat" value="${r}" ${curRepeat===r?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">${REPEAT_LABELS[r]}</label>`).join('')}
         </div>
       </div>
       <div class="field"><label>반복 기한 (선택, 비우면 계속 반복)</label><input type="text" readonly class="date-input" id="mRepeatUntil" value="${s.repeatUntil||''}"></div>
@@ -2486,9 +2500,27 @@ function openScheduleModal(existing, prefill, occurDate){
   document.getElementById('mCancel').onclick=closeModal;
   attachDatePicker('mDate');
   attachDatePicker('mRepeatUntil');
-  document.getElementById('mTime').addEventListener('change', e=>{
-    if(e.target.value) document.getElementById('mEndTime').value=addOneHour(e.target.value);
+  bindTimeSelect10('mTime', ()=>{
+    if(mEndTimeSet){
+      setTimeSelect10Value('mEndTime', addOneHour(getTimeSelect10Value('mTime')));
+    }
   });
+  document.getElementById('mTimeToggle').onclick=()=>{
+    mTimeSet=!mTimeSet;
+    document.getElementById('mTimeWrap').style.display=mTimeSet?'':'none';
+    document.getElementById('mTimeToggle').textContent=mTimeSet?'지우기':'+ 추가';
+    if(mTimeSet && !mEndTimeSet){
+      mEndTimeSet=true;
+      document.getElementById('mEndTimeWrap').style.display='';
+      document.getElementById('mEndTimeToggle').textContent='지우기';
+      setTimeSelect10Value('mEndTime', addOneHour(getTimeSelect10Value('mTime')));
+    }
+  };
+  document.getElementById('mEndTimeToggle').onclick=()=>{
+    mEndTimeSet=!mEndTimeSet;
+    document.getElementById('mEndTimeWrap').style.display=mEndTimeSet?'':'none';
+    document.getElementById('mEndTimeToggle').textContent=mEndTimeSet?'지우기':'+ 추가';
+  };
   document.getElementById('repeatToggleBtn').onclick=()=>{
     const el=document.getElementById('repeatOptions');
     el.style.display = el.style.display==='none' ? '' : 'none';
@@ -2515,7 +2547,7 @@ function openScheduleModal(existing, prefill, occurDate){
       colorOverrides={...(s.colorOverrides||{})};
       colorOverrides[targetOccurDate]={...(colorOverrides[targetOccurDate]||{}), bgColor:selectedColor};
     }
-    const rec={id:s.id||uid(),date,time:document.getElementById('mTime').value,endTime:document.getElementById('mEndTime').value,title,contacts:document.getElementById('mContacts').value,memo:document.getElementById('mMemo').value,owner,repeat,repeatUntil,color:s.color||null,bgColor,colorOverrides,createdBy:s.createdBy||currentAuthorKey()};
+    const rec={id:s.id||uid(),date,time:mTimeSet?getTimeSelect10Value('mTime'):'',endTime:mEndTimeSet?getTimeSelect10Value('mEndTime'):'',title,contacts:document.getElementById('mContacts').value,memo:document.getElementById('mMemo').value,owner,repeat,repeatUntil,color:s.color||null,bgColor,colorOverrides,createdBy:s.createdBy||currentAuthorKey()};
     if(s.id){ const idx=state.schedule.findIndex(x=>x.id===s.id); state.schedule[idx]=rec; }
     else state.schedule.push(rec);
     scheduleSel=date;
