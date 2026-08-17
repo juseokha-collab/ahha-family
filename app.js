@@ -1897,7 +1897,7 @@ function renderHome(){
             <button class="btn small primary" id="diarySaveBtn">저장</button>
           </div>
         </div>
-        <div class="row" style="align-items:flex-start;gap:6px;margin-top:4px;">
+        <div class="row" style="align-items:flex-start;gap:6px;margin-top:4px;margin-bottom:6px;">
           <span class="happycomment-icon-wrap"><img src="moods/happycomment.png" alt="행복코멘트"></span>
           <textarea id="diaryInput" placeholder="오늘 하루는 어땠나요?" style="overflow:hidden;flex:1;min-width:0;min-height:85px;">${escapeHtml(mine.diary)}</textarea>
         </div>
@@ -2765,8 +2765,8 @@ function renderHealth(){
     dietLine1='오늘 몸무게는 얼마일까? 궁금해';
   } else if(prevWeightEntry){
     const diff=Math.round((todayWeightVal-prevWeightEntry.weight)*10)/10;
-    if(diff<0){ dietLine1Emph=`와우 ${Math.abs(diff)}kg 빠졌네 ^^`; dietLine1=' 추카추카!'; dietLine1Color='#4d7fe0'; }
-    else if(diff>0){ dietLine1Emph=`${diff}kg 늘었네 ㅠㅠ.`; dietLine1=' 괜찮아 다시 화이팅!'; dietLine1Color='var(--bad)'; }
+    if(diff<0){ dietLine1Emph=`와우 ${Math.abs(diff)}kg 빠졌네 ^^`; dietLine1='추카추카!'; dietLine1Color='#4d7fe0'; }
+    else if(diff>0){ dietLine1Emph=`${diff}kg 늘었네 ㅠㅠ.`; dietLine1='괜찮아 다시 화이팅!'; dietLine1Color='var(--bad)'; }
     else dietLine1='어제와 몸무게가 같아요!';
   }
   if(prevWeightEntry) dietLine2=`지난 몸무게 ${prevWeightEntry.weight}kg`;
@@ -2878,11 +2878,13 @@ function renderHealth(){
           <button class="btn small primary" id="healthSaveBtn">저장</button>
         </div>
       </div>
-      <div class="row" style="align-items:center;gap:6px;">
-        <img src="moods/dieting.png" alt="다이어트중" style="width:110px;height:110px;object-fit:contain;flex-shrink:0;">
-        <span style="font-size:12px;font-weight:600;min-width:0;">${dietLine1Emph?`<span style="font-size:14px;font-weight:700;color:${dietLine1Color};">${escapeHtml(dietLine1Emph)}</span>${escapeHtml(dietLine1)}`:escapeHtml(dietLine1)}</span>
+      <div class="row" style="align-items:flex-end;gap:6px;">
+        <img src="moods/dieting.png" alt="다이어트중" style="width:120px;height:120px;object-fit:contain;flex-shrink:0;">
+        <div style="display:flex;flex-direction:column;gap:1px;min-width:0;">
+          ${dietLine1Emph?`<span style="font-size:14px;font-weight:700;color:${dietLine1Color};">${escapeHtml(dietLine1Emph)}</span><span style="font-size:12px;font-weight:600;">${escapeHtml(dietLine1)}</span>`:`<span style="font-size:12px;font-weight:600;">${escapeHtml(dietLine1)}</span>`}
+        </div>
       </div>
-      <div class="grid2" style="margin-top:2px;">
+      <div class="grid2" style="margin-top:0;">
         <span class="meta" style="font-size:11px;">${escapeHtml(dietLine2)}</span>
         <label class="meta" style="font-size:11px;">총칼로리 (kcal)</label>
       </div>
