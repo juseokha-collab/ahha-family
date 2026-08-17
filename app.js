@@ -1899,7 +1899,7 @@ function renderHome(){
         </div>
         <div class="row" style="align-items:flex-start;gap:6px;margin-top:4px;">
           <span class="happycomment-icon-wrap"><img src="moods/happycomment.png" alt="행복코멘트"></span>
-          <textarea id="diaryInput" placeholder="오늘 하루는 어땠나요?" style="overflow:hidden;flex:1;min-width:0;min-height:100px;">${escapeHtml(mine.diary)}</textarea>
+          <textarea id="diaryInput" placeholder="오늘 하루는 어땠나요?" style="overflow:hidden;flex:1;min-width:0;min-height:85px;">${escapeHtml(mine.diary)}</textarea>
         </div>
         <div class="row" style="justify-content:space-between;align-items:center;margin-top:8px;">
           <label id="diaryArchiveToggle" style="cursor:pointer;">${diaryArchiveOpen?'▲':'▼'} ${letterViewMode?'편지 모아보기':'Comment 모아보기'}</label>
@@ -1978,7 +1978,7 @@ function renderHome(){
     queueSave(); renderHome();
   });
   const diaryInputEl=document.getElementById('diaryInput');
-  const autoResizeDiary=()=>{ diaryInputEl.style.height='auto'; diaryInputEl.style.height=Math.max(diaryInputEl.scrollHeight,100)+'px'; };
+  const autoResizeDiary=()=>{ diaryInputEl.style.height='auto'; diaryInputEl.style.height=Math.max(diaryInputEl.scrollHeight,85)+'px'; };
   autoResizeDiary();
   diaryInputEl.addEventListener('input', ()=>{
     document.getElementById('diarySaveStatus').textContent='';
@@ -2878,27 +2878,17 @@ function renderHealth(){
           <button class="btn small primary" id="healthSaveBtn">저장</button>
         </div>
       </div>
-      <div class="grid2" style="align-items:flex-start;">
-        <div class="field">
-          <div class="row" style="align-items:center;gap:6px;">
-            <img src="moods/dieting.png" alt="다이어트중" style="width:100px;height:100px;object-fit:contain;flex-shrink:0;">
-            <div style="display:flex;flex-direction:column;gap:1px;min-width:0;">
-              <span style="font-size:12px;font-weight:600;">${dietLine1Emph?`<span style="font-size:14px;font-weight:700;color:${dietLine1Color};">${escapeHtml(dietLine1Emph)}</span>${escapeHtml(dietLine1)}`:escapeHtml(dietLine1)}</span>
-              <span class="meta" style="font-size:11px;">${escapeHtml(dietLine2)}</span>
-            </div>
-          </div>
-          <input type="number" step="0.1" id="hWeight" placeholder="체중 (kg)" value="${rec.weight||''}" style="margin-top:6px;">
-        </div>
-        <div class="field">
-          <div class="row" style="align-items:flex-end;gap:6px;">
-            <span style="width:100px;height:100px;flex-shrink:0;visibility:hidden;"></span>
-            <div style="display:flex;flex-direction:column;gap:1px;min-width:0;">
-              <span style="font-size:12px;font-weight:600;visibility:hidden;">placeholder</span>
-              <label class="meta" style="font-size:11px;">총칼로리 (kcal)</label>
-            </div>
-          </div>
-          <input type="number" step="10" id="hCalories" value="${rec.calories||''}" style="margin-top:6px;">
-        </div>
+      <div class="row" style="align-items:center;gap:6px;">
+        <img src="moods/dieting.png" alt="다이어트중" style="width:110px;height:110px;object-fit:contain;flex-shrink:0;">
+        <span style="font-size:12px;font-weight:600;min-width:0;">${dietLine1Emph?`<span style="font-size:14px;font-weight:700;color:${dietLine1Color};">${escapeHtml(dietLine1Emph)}</span>${escapeHtml(dietLine1)}`:escapeHtml(dietLine1)}</span>
+      </div>
+      <div class="grid2" style="margin-top:2px;">
+        <span class="meta" style="font-size:11px;">${escapeHtml(dietLine2)}</span>
+        <label class="meta" style="font-size:11px;">총칼로리 (kcal)</label>
+      </div>
+      <div class="grid2" style="margin-top:6px;">
+        <div class="field"><input type="number" step="0.1" id="hWeight" placeholder="체중 (kg)" value="${rec.weight||''}"></div>
+        <div class="field"><input type="number" step="10" id="hCalories" value="${rec.calories||''}"></div>
       </div>
       <div class="grid2" style="margin-top:10px;">
         <div class="field">
