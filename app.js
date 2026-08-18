@@ -2346,9 +2346,10 @@ function renderSchedule(){
     ? `${weekStartObj.getMonth()+1}/${weekStartObj.getDate()}~${weekEndObj.getDate()}`
     : `${weekStartObj.getMonth()+1}/${weekStartObj.getDate()}~${weekEndObj.getMonth()+1}/${weekEndObj.getDate()}`;
   const weekDates = Array.from({length:7},(_,i)=>fmtDate(addDays(weekStartObj,i)));
-  const weekItems = weekDates.flatMap(d=>
-    filtered.filter(s=>scheduleItemOccursOn(s,d)).sort((a,b)=>(a.time||'').localeCompare(b.time||'')).map(s=>({...s, ...resolveItemColors(s,d), occurDate:d}))
-  );
+  const weekGroups = weekDates.map(d=>({
+    date: d,
+    items: filtered.filter(s=>scheduleItemOccursOn(s,d)).sort((a,b)=>(a.time||'').localeCompare(b.time||'')).map(s=>({...s, ...resolveItemColors(s,d), occurDate:d}))
+  })).filter(g=>g.items.length>0);
   el.innerHTML=`
     <div class="card">
       <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:4px;gap:10px;">
@@ -2368,16 +2369,28 @@ function renderSchedule(){
     </div>
     <div class="card">
       <div class="row" style="justify-content:space-between;margin-bottom:14px;"><h3 style="margin:0;">이번주<span style="font-size:12px;font-weight:400;">(${weekLabel})</span> 일정</h3><button class="btn primary small" id="addSchedBtn">+ 일정 추가</button></div>
-      ${weekItems.length? weekItems.map(s=>{
-        const canManage = !s.virtual && canManageSchedule(s);
-        const badge = authorBadge(s.createdBy);
-        const showOwnerPill = s.owner==='common' || s.owner!==effectiveRole();
-        const dObj=parseDate(s.occurDate);
+      ${weekGroups.length? weekGroups.map(g=>{
+        const dObj=parseDate(g.date);
         const dateLabel=`${dObj.getMonth()+1}/${dObj.getDate()}(${WEEKDAY_KO[dObj.getDay()]})`;
+        const isPastDay = g.date<todayS;
         return `
-        <div class="list-item sched-item"${s.bgColor?` style="background:${s.bgColor};"`:''}>
-          <div><div style="font-size:14px;"><span class="meta" style="font-size:11px;">${dateLabel}</span> ${timeRangeLabel(s)?escapeHtml(timeRangeLabel(s))+' ':''}${badge}${escapeHtml(s.title)} ${showOwnerPill?`<span class="pill">${ownerLabel(s.owner)}</span>`:''}</div>${s.memo?`<div class="content-text" style="font-size:12.5px;">${escapeHtml(s.memo)}</div>`:''}</div>
-          <div class="row">${s.virtual? `<span class="meta">D-day 탭에서 수정</span>` : (canManage?`<button class="btn small" style="font-size:11px;padding:3px 8px;" data-edit="${s.id}" data-occur-date="${s.occurDate}" title="수정">✏️</button> <button class="btn small danger" style="font-size:11px;padding:3px 8px;" data-del="${s.id}" data-occur-date="${s.occurDate}" title="삭제">✕</button>`:`<span class="meta">작성자만 관리 가능</span>`)}</div>
+        <div class="list-item sched-item" style="flex-direction:column;align-items:stretch;gap:6px;${isPastDay?'opacity:0.45;':''}">
+          ${g.items.map((s,idx)=>{
+            const canManage = !s.virtual && canManageSchedule(s);
+            const badge = authorBadge(s.createdBy);
+            const showOwnerPill = s.owner==='common' || s.owner!==effectiveRole();
+            const memoInline = (s.virtual && s.memo) ? ` <span style="opacity:0.55;font-size:12.5px;">${escapeHtml(s.memo)}</span>` : '';
+            const memoBlock = (!s.virtual && s.memo) ? `<div class="content-text" style="font-size:12.5px;">${escapeHtml(s.memo)}</div>` : '';
+            return `
+            <div class="row" style="align-items:center;gap:6px;${s.bgColor?`background:${s.bgColor};border-radius:6px;padding:2px 4px;`:''}">
+              <span style="width:52px;flex-shrink:0;font-size:11px;color:var(--muted);">${idx===0?dateLabel:''}</span>
+              <div style="flex:1;min-width:0;">
+                <div style="font-size:14px;">${timeRangeLabel(s)?escapeHtml(timeRangeLabel(s))+' ':''}${badge}${escapeHtml(s.title)} ${showOwnerPill?`<span class="pill">${ownerLabel(s.owner)}</span>`:''}${memoInline}</div>
+                ${memoBlock}
+              </div>
+              <div class="row" style="flex-shrink:0;">${s.virtual? `<span class="meta" style="white-space:nowrap;">D-day 탭에서 수정</span>` : (canManage?`<button class="btn small" style="font-size:11px;padding:3px 8px;" data-edit="${s.id}" data-occur-date="${s.occurDate}" title="수정">✏️</button> <button class="btn small danger" style="font-size:11px;padding:3px 8px;" data-del="${s.id}" data-occur-date="${s.occurDate}" title="삭제">✕</button>`:`<span class="meta">작성자만 관리 가능</span>`)}</div>
+            </div>`;
+          }).join('')}
         </div>`;
       }).join('') : `<div class="empty">일정이 없어요</div>`}
     </div>
