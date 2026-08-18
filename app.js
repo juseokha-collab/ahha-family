@@ -367,7 +367,8 @@ function defaultState(){
     monthNotes:{},
     letters:[],
     daughterActivity:[],
-    momActivity:[]
+    momActivity:[],
+    shoppingList:[]
   };
 }
 function markDeleted(id){
@@ -743,6 +744,7 @@ function mergeStates(localState, cloudState){
   merged.letters=mergeById(localState.letters, cloudState.letters, deletedSet);
   merged.daughterActivity=mergeById(localState.daughterActivity, cloudState.daughterActivity, deletedSet);
   merged.momActivity=mergeById(localState.momActivity, cloudState.momActivity, deletedSet);
+  merged.shoppingList=mergeById(localState.shoppingList, cloudState.shoppingList, deletedSet);
   return merged;
 }
 function initAuth(){
@@ -2333,6 +2335,116 @@ function bindMonthNoteInput(inp, ym){
 function bindMonthNotesEvents(el, ym){
   el.querySelectorAll('[data-month-note-idx]').forEach(inp=>bindMonthNoteInput(inp, ym));
 }
+let shoppingDraftRows=[{category:'',items:''},{category:'',items:''}];
+function shoppingDraftRowHtml(idx, row){
+  return `<div class="row" data-shop-draft-row="${idx}" style="gap:6px;align-items:center;margin-top:4px;flex-wrap:wrap;">
+    <input data-shop-draft-cat="${idx}" value="${escapeHtml(row.category)}" placeholder="카테고리 (예: 생필품)" style="width:110px;flex-shrink:0;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:13px;">
+    <input data-shop-draft-items="${idx}" value="${escapeHtml(row.items)}" placeholder="품목을 콤마로 구분해서 입력 (예: 휴지, 샴푸)" style="flex:1;min-width:160px;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:13px;">
+    <button class="btn small primary" data-shop-draft-save="${idx}" style="flex-shrink:0;">저장</button>
+  </div>`;
+}
+function shoppingGroupHtml(g){
+  return `
+  <div class="list-item" style="align-items:flex-start;flex-direction:column;gap:6px;">
+    <div class="row" style="justify-content:space-between;align-items:center;width:100%;">
+      <span style="font-size:14px;font-weight:600;">${escapeHtml(g.category)}</span>
+      <button class="icon-btn" data-shop-group-edit="${g.id}" title="수정">✏️</button>
+    </div>
+    <div class="row" style="gap:12px;flex-wrap:wrap;">
+      ${g.items.map(it=>`<label class="row" style="cursor:pointer;align-items:center;gap:4px;${it.done?'opacity:0.5;text-decoration:line-through;':''}"><input type="checkbox" data-shop-item-toggle="${g.id}|${it.id}" ${it.done?'checked':''} style="flex-shrink:0;">${escapeHtml(it.name)}</label>`).join('')}
+    </div>
+  </div>`;
+}
+function shoppingListHtml(){
+  const list=state.shoppingList||[];
+  return `
+  <div class="card">
+    <h3 style="margin:0;">🛒 사야할 물품</h3>
+    ${list.map(g=>shoppingGroupHtml(g)).join('')}
+    <div id="shoppingDraftRows" style="margin-top:8px;">${shoppingDraftRows.map((r,i)=>shoppingDraftRowHtml(i,r)).join('')}</div>
+  </div>`;
+}
+function commitShoppingDraft(idx){
+  const row=shoppingDraftRows[idx];
+  if(!row) return;
+  const category=(row.category||'').trim();
+  const itemNames=(row.items||'').split(',').map(s=>s.trim()).filter(Boolean);
+  if(!category || !itemNames.length){ showToast('카테고리와 품목을 입력해주세요'); return; }
+  if(!state.shoppingList) state.shoppingList=[];
+  const existingGroup=state.shoppingList.find(g=>g.category===category);
+  if(existingGroup){
+    itemNames.forEach(name=>{ if(!existingGroup.items.some(it=>it.name===name)) existingGroup.items.push({id:uid(), name, done:false}); });
+  } else {
+    state.shoppingList.push({id:uid(), category, items:itemNames.map(name=>({id:uid(), name, done:false})), createdDate:todayStr()});
+  }
+  shoppingDraftRows.splice(idx,1);
+  if(shoppingDraftRows.length<2){ shoppingDraftRows.push({category:'',items:''}); }
+  queueSave(); renderBudget();
+}
+function openShoppingGroupEditModal(id){
+  const g=(state.shoppingList||[]).find(x=>x.id===id);
+  if(!g) return;
+  openModal(`
+    <h3>사야할 물품 수정</h3>
+    <div class="field"><label>카테고리</label><input id="mShopCat" value="${escapeHtml(g.category)}"></div>
+    <div class="field" style="margin-top:10px;"><label>품목 (콤마로 구분)</label><input id="mShopItems" value="${escapeHtml(g.items.map(it=>it.name).join(', '))}"></div>
+    <div class="modal-actions">
+      <button class="btn danger" id="mDelete">삭제</button>
+      <button class="btn" id="mCancel">취소</button>
+      <button class="btn primary" id="mSave">저장</button>
+    </div>
+  `);
+  document.getElementById('mCancel').onclick=closeModal;
+  document.getElementById('mSave').onclick=()=>{
+    const category=document.getElementById('mShopCat').value.trim();
+    const itemNames=document.getElementById('mShopItems').value.split(',').map(s=>s.trim()).filter(Boolean);
+    if(!category || !itemNames.length){ showToast('카테고리와 품목을 입력해주세요'); return; }
+    g.category=category;
+    const oldItems=g.items;
+    g.items=itemNames.map(name=>{
+      const existing=oldItems.find(it=>it.name===name);
+      return existing || {id:uid(), name, done:false};
+    });
+    queueSave(); closeModal(); renderBudget();
+  };
+  document.getElementById('mDelete').onclick=()=>{
+    if(!confirm('이 카테고리를 삭제할까요?')) return;
+    state.shoppingList=state.shoppingList.filter(x=>x.id!==id);
+    markDeleted(id);
+    queueSave(); closeModal(); renderBudget();
+  };
+}
+function bindShoppingDraftRow(el, idx){
+  const catEl=el.querySelector(`[data-shop-draft-cat="${idx}"]`);
+  const itemsEl=el.querySelector(`[data-shop-draft-items="${idx}"]`);
+  const saveBtn=el.querySelector(`[data-shop-draft-save="${idx}"]`);
+  const maybeGrow=()=>{
+    const wrap=document.getElementById('shoppingDraftRows');
+    if(!wrap) return;
+    const rowCount=wrap.querySelectorAll('[data-shop-draft-row]').length;
+    if(idx===rowCount-1 && (shoppingDraftRows[idx].category.trim()!=='' || shoppingDraftRows[idx].items.trim()!=='')){
+      shoppingDraftRows.push({category:'', items:''});
+      wrap.insertAdjacentHTML('beforeend', shoppingDraftRowHtml(idx+1, shoppingDraftRows[idx+1]));
+      bindShoppingDraftRow(el, idx+1);
+    }
+  };
+  if(catEl) catEl.addEventListener('input', ()=>{ shoppingDraftRows[idx].category=catEl.value; maybeGrow(); });
+  if(itemsEl) itemsEl.addEventListener('input', ()=>{ shoppingDraftRows[idx].items=itemsEl.value; maybeGrow(); });
+  if(saveBtn) saveBtn.onclick=()=>commitShoppingDraft(idx);
+}
+function bindShoppingListEvents(el){
+  shoppingDraftRows.forEach((row,idx)=>bindShoppingDraftRow(el, idx));
+  el.querySelectorAll('[data-shop-item-toggle]').forEach(cb=>cb.addEventListener('change', e=>{
+    const [gid,iid]=cb.dataset.shopItemToggle.split('|');
+    const g=(state.shoppingList||[]).find(x=>x.id===gid);
+    if(!g) return;
+    const it=g.items.find(x=>x.id===iid);
+    if(!it) return;
+    it.done=cb.checked;
+    queueSave(); renderBudget();
+  }));
+  el.querySelectorAll('[data-shop-group-edit]').forEach(b=>b.onclick=()=>openShoppingGroupEditModal(b.dataset.shopGroupEdit));
+}
 function renderSchedule(){
   const el=document.getElementById('tab-schedule');
   const y=scheduleMonth.getFullYear(), m=scheduleMonth.getMonth();
@@ -3877,6 +3989,7 @@ function renderBudget(){
       </div>
     </div>
     ${isDaughter?renderIncomeEstimateCard():''}
+    ${shoppingListHtml()}
     <div class="card">
       <div class="row" style="justify-content:space-between;"><h3 style="margin:0;">💰 수입 내역</h3>
         <div class="row"><button class="btn small" id="manageIncCatBtn">카테고리 관리</button><button class="btn primary small" id="addIncomeBtn">+ 수입 추가</button></div>
@@ -3965,6 +4078,7 @@ function renderBudget(){
   document.getElementById('manageCatBtn').onclick=()=>openCategoryManageModal();
   document.getElementById('addIncomeBtn').onclick=()=>openIncomeModal();
   document.getElementById('manageIncCatBtn').onclick=()=>openIncomeCategoryManageModal();
+  bindShoppingListEvents(el);
   el.querySelectorAll('[data-sort-key]').forEach(th=>th.onclick=()=>{
     const k=th.dataset.sortKey;
     expenseSortKey = (expenseSortKey===k) ? null : k;
