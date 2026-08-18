@@ -1042,53 +1042,42 @@ const DT_START_MIN=480; // 08:00
 const DT_END_MIN=1080;  // 18:00
 const DT_STEP=60;
 const DT_ROWS=(DT_END_MIN-DT_START_MIN)/DT_STEP+1; // 11
-function minsToIdx(mins){
-  if(mins<DT_START_MIN) return -1;
-  if(mins>=DT_START_MIN+DT_ROWS*DT_STEP) return DT_ROWS;
-  return Math.floor((mins-DT_START_MIN)/DT_STEP);
-}
-function computeDayLayoutFromItems(items){
-  const mainStart={};
-  const skip=new Set();
-  function findCoveringStart(idx){
-    for(const key of Object.keys(mainStart)){
-      const s=Number(key);
-      if(idx>=s && idx<s+mainStart[key].span) return s;
-    }
-    return null;
-  }
-  function addBlock(it, startIdx, endIdx){
-    if(endIdx<=startIdx) endIdx=startIdx+1;
-    endIdx=Math.min(DT_ROWS+1, endIdx);
-    const covering=findCoveringStart(startIdx);
-    const targetStart = covering!==null ? covering : startIdx;
-    if(!mainStart[targetStart]) mainStart[targetStart]={items:[],span:1};
-    mainStart[targetStart].items.push(it);
-    const span=endIdx-targetStart;
-    if(span>mainStart[targetStart].span) mainStart[targetStart].span=span;
-  }
+const DT_HOUR_PX=30;
+const DT_PROP_SPAN_MIN=DT_ROWS*DT_STEP; // 660 (08:00~19:00)
+const DT_PROP_HEIGHT=DT_ROWS*DT_HOUR_PX;
+function dtPropTop(min){ return (min-DT_START_MIN)/DT_PROP_SPAN_MIN*DT_PROP_HEIGHT; }
+function classifyDayItems(items){
+  const before=[], after=[], prop=[];
   items.forEach(it=>{
-    if(!it.time){ addBlock(it, -1, 0); return; }
+    if(!it.time){ before.push(it); return; }
     const [h,mi]=it.time.split(':').map(Number);
-    const startMins=h*60+mi;
-    const startIdx=minsToIdx(startMins);
-    let endIdx;
+    const startMin=h*60+mi;
+    let endMin;
     if(it.endTime){
       const [eh,emi]=it.endTime.split(':').map(Number);
-      const endMins=eh*60+emi;
-      endIdx=minsToIdx(Math.max(endMins-1, startMins))+1;
+      endMin=eh*60+emi;
+      if(endMin<=startMin) endMin=startMin+30;
     } else {
-      endIdx=startIdx+1;
+      endMin=startMin+30;
     }
-    addBlock(it, startIdx, endIdx);
+    if(startMin<DT_START_MIN){ before.push(it); return; }
+    if(startMin>=DT_START_MIN+DT_PROP_SPAN_MIN){ after.push(it); return; }
+    prop.push({it, startMin, endMin:Math.min(endMin, DT_START_MIN+DT_PROP_SPAN_MIN)});
   });
-  Object.entries(mainStart).forEach(([idx,val])=>{
-    const s=Number(idx);
-    for(let r=s+1;r<s+val.span;r++) skip.add(r);
-  });
-  return {mainStart, skip};
+  return {before, after, prop};
 }
-function computeDayLayout(dateStr){ return computeDayLayoutFromItems(myVisibleScheduleItems(dateStr)); }
+function packOverlaps(prop){
+  const sorted=[...prop].sort((a,b)=>a.startMin-b.startMin || a.endMin-b.endMin);
+  const colEnds=[];
+  const placed=sorted.map(p=>{
+    let col=colEnds.findIndex(end=>end<=p.startMin);
+    if(col===-1){ col=colEnds.length; colEnds.push(p.endMin); }
+    else colEnds[col]=p.endMin;
+    return {...p, col};
+  });
+  const totalCols=colEnds.length||1;
+  return placed.map(p=>({...p, totalCols}));
+}
 const ROLE_EMOJI={dad:'🍷',mom:'💐',daughter:'🍼'};
 const ROLE_BADGE_COLOR={dad:'#4d7fe0',mom:'#e0538f',daughter:'#9a5be0'};
 function authorRoleOf(key){
@@ -1101,14 +1090,27 @@ function authorBadge(key){
   if(!role) return '';
   return `<span class="author-badge" style="background:#fff;border:1px solid rgba(0,0,0,0.15);">${ROLE_EMOJI[role]}</span>`;
 }
-function dtChip(it){
+function dtChip(it, extraStyle, dayDate){
   const isVirtual = typeof it.id==='string' && it.id.startsWith('evt-');
   const memoAttr = it.memo ? ` data-memo="${escapeHtml(it.memo)}"` : '';
-  if(isVirtual) return `<div class="dt-evt${it.ddayCommon?' dt-evt-dday-common':''}" data-virtual="1"${memoAttr}>${escapeHtml(it.title)}</div>`;
+  const dateAttr = dayDate ? ` data-add-date="${dayDate}"` : '';
+  const extra=extraStyle||'';
+  if(isVirtual) return `<div class="dt-evt${it.ddayCommon?' dt-evt-dday-common':''}"${extra?` style="${extra}"`:''} data-virtual="1"${memoAttr}${dateAttr}>${escapeHtml(it.title)}</div>`;
   const badge = authorBadge(it.createdBy);
-  const commonCls = (!it.color && it.owner==='common') ? ' dt-evt-common' : '';
-  const colorAttr = it.color ? ` style="background:${it.color};color:#181820;"` : '';
-  return `<div class="dt-evt${commonCls}" draggable="true" data-item-id="${it.id}"${memoAttr}${colorAttr}>${badge}${timeRangeLabel(it)?escapeHtml(timeRangeLabel(it))+' ':''}${escapeHtml(it.title)}</div>`;
+  const bg = it.color || it.bgColor;
+  const commonCls = (!bg && it.owner==='common') ? ' dt-evt-common' : '';
+  const colorStyle = bg ? `background:${bg};color:#181820;` : '';
+  const styleAttr = (colorStyle||extra) ? ` style="${colorStyle}${extra}"` : '';
+  return `<div class="dt-evt${commonCls}" draggable="true" data-item-id="${it.id}"${memoAttr}${dateAttr}${styleAttr}>${badge}${timeRangeLabel(it)?escapeHtml(timeRangeLabel(it))+' ':''}${escapeHtml(it.title)}</div>`;
+}
+function dtPropChipHtml(p, dayDate){
+  const top=dtPropTop(p.startMin);
+  const rawH=dtPropTop(p.endMin)-top;
+  const height=Math.max(18, rawH);
+  const widthPct=100/p.totalCols;
+  const gapPx=3;
+  const style=`position:absolute;box-sizing:border-box;top:${(top+1).toFixed(1)}px;height:${(height-2).toFixed(1)}px;left:calc(${(widthPct*p.col).toFixed(2)}% + ${gapPx/2}px);width:calc(${widthPct.toFixed(2)}% - ${gapPx}px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;z-index:1;`;
+  return dtChip(p.it, style, dayDate);
 }
 let dtTooltipEl=null;
 function showDtTooltip(target, text){
@@ -1133,13 +1135,6 @@ function hideDtTooltip(){
 function dtHl(hhmm){
   const h=Number(hhmm.split(':')[0]);
   return [9,12,15,18,21,0].includes(h) ? `<span class="dt-hl">${hhmm}</span>` : hhmm;
-}
-function unifiedRowMeta(idx){
-  if(idx===-1) return {label:`<div>${dtHl('08:00')}</div><div>이전</div>`, isEdge:true, addTime:'07:00'};
-  if(idx===DT_ROWS) return {label:`<div>${dtHl('18:00')}</div><div>이후</div>`, isEdge:true, addTime:'19:00'};
-  const totalMin=DT_START_MIN+idx*DT_STEP;
-  const t=pad2(Math.floor(totalMin/60))+':'+pad2(totalMin%60);
-  return {label:dtHl(t), isEdge:false, addTime:t};
 }
 let showCommonOnHome=false;
 let showDaughterOnHome=false;
@@ -1174,52 +1169,59 @@ function myHomeVisibleScheduleItems(dateStr){
   });
   return visible.filter(it=>scheduleItemOccursOn(it,dateStr)).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
 }
+function dtTimeColHtml(showNowMarker, nowMinutes){
+  const hourLabels=Array.from({length:DT_ROWS},(_,i)=>{
+    const min=DT_START_MIN+i*DT_STEP;
+    const hhmm=pad2(Math.floor(min/60))+':00';
+    return `<span class="dtp-timelabel" style="top:${i*DT_HOUR_PX}px;">${dtHl(hhmm)}</span>`;
+  }).join('');
+  const nowInProp=showNowMarker && nowMinutes>=DT_START_MIN && nowMinutes<DT_START_MIN+DT_PROP_SPAN_MIN;
+  const nowArrow=nowInProp?`<span style="position:absolute;left:0;top:${dtPropTop(nowMinutes).toFixed(1)}px;transform:translateY(-50%);color:#e5383b;font-size:10px;">▶</span>`:'';
+  const nowBefore=showNowMarker && nowMinutes<DT_START_MIN ? `<span style="color:#e5383b;">▶</span> ` : '';
+  const nowAfter=showNowMarker && nowMinutes>=DT_START_MIN+DT_PROP_SPAN_MIN ? `<span style="color:#e5383b;">▶</span> ` : '';
+  return `
+    <div class="dtp-timecol">
+      <div class="dtp-head"></div>
+      <div class="dtp-edge">${nowBefore}<div>${dtHl('08:00')}</div><div>이전</div></div>
+      <div class="dtp-prop" style="height:${DT_PROP_HEIGHT}px;">${hourLabels}${nowArrow}</div>
+      <div class="dtp-edge">${nowAfter}<div>${dtHl('18:00')}</div><div>이후</div></div>
+      <div class="dtp-edge" style="font-weight:700;">D-day</div>
+    </div>`;
+}
+function dtDayColInnerHtml(d, items){
+  const {before, after, prop}=classifyDayItems(items);
+  const packed=packOverlaps(prop);
+  const hourBands=Array.from({length:DT_ROWS},(_,i)=>{
+    const min=DT_START_MIN+i*DT_STEP;
+    const hhmm=pad2(Math.floor(min/60))+':'+pad2(min%60);
+    return `<div class="dt-cell dtp-hourband" style="top:${i*DT_HOUR_PX}px;height:${DT_HOUR_PX}px;" data-add-date="${d}" data-add-time="${hhmm}"></div>`;
+  }).join('');
+  const propChips=packed.map(p=>dtPropChipHtml(p, d)).join('');
+  const beforeHtml=`<div class="dt-cell dtp-edge" data-add-date="${d}" data-add-time="07:00">${before.map(it=>dtChip(it)).join('')}</div>`;
+  const afterHtml=`<div class="dt-cell dtp-edge" data-add-date="${d}" data-add-time="19:00">${after.map(it=>dtChip(it)).join('')}</div>`;
+  return `${beforeHtml}<div class="dtp-prop" style="height:${DT_PROP_HEIGHT}px;">${hourBands}${propChips}</div>${afterHtml}`;
+}
 function renderDayTimelines(){
   const dayCount=multiDayCount();
   const dayOffset=Math.floor((dayCount-1)/2);
   const days=Array.from({length:dayCount},(_,n)=>fmtDate(addDays(parseDate(homeDate), n-dayOffset)));
-  const layouts=days.map(d=>computeDayLayoutFromItems(myHomeVisibleScheduleItems(d).filter(it=>!String(it.id).startsWith('evt-'))));
-  const indices=[-1].concat(Array.from({length:DT_ROWS},(_,i)=>i)).concat([DT_ROWS]);
+  const itemsByDay=days.map(d=>myHomeVisibleScheduleItems(d).filter(it=>!String(it.id).startsWith('evt-')));
   const nowInfo=nowInfoForRole(effectiveRole());
   const showNowMarker=days.includes(nowInfo.dateStr);
-  const nowIdx = nowInfo.hour>=19 ? DT_ROWS : (nowInfo.hour>=8 ? nowInfo.hour-8 : -1);
-  let rows='';
-  indices.forEach(idx=>{
-    const meta=unifiedRowMeta(idx);
-    const cells=days.map((d,di)=>{
-      const layout=layouts[di];
-      const gap = di>0 ? '<td class="dt-gap"></td>' : '';
-      if(layout.skip.has(idx)) return gap;
-      const cell=layout.mainStart[idx];
-      const edgeClass=meta.isEdge?' dt-edge':'';
-      if(cell){
-        const cellColor=(cell.items.find(it=>it.bgColor)||{}).bgColor;
-        const colorAttr=cellColor?` style="background:${cellColor};"`:'';
-        return gap+`<td class="dt-cell filled${edgeClass}" rowspan="${cell.span}" data-add-date="${d}" data-add-time="${meta.addTime}"${colorAttr}>${cell.items.map(dtChip).join('')}</td>`;
-      }
-      return gap+`<td class="dt-cell${edgeClass}" data-add-date="${d}" data-add-time="${meta.addTime}"></td>`;
-    }).join('');
-    const nowMarker=(showNowMarker && idx===nowIdx) ? `<span style="color:#e5383b;">▶</span> ` : '';
-    rows += `<tr class="${meta.isEdge?'dt-edge-row':''}"><td class="dt-time-col">${nowMarker}${meta.label}</td>${cells}</tr>`;
-  });
+  const nowMinutes=nowInfo.hour*60;
   const ddayRole=effectiveRole();
-  const ddayCells=days.map((d,i)=>{
-    const gap = i>0 ? '<td class="dt-gap"></td>' : '';
+  const timeColHtml=dtTimeColHtml(showNowMarker, nowMinutes);
+  const dayColsHtml=days.map((d,i)=>{
+    const isFirst=i===0, isLast=i===days.length-1;
+    const dateText=headerDateHtml(d);
+    const prevBtn=isFirst?`<button class="iconbtn" id="dtPrevBtn" style="font-size:13px;width:20px;height:20px;flex-shrink:0;">◀</button>`:'';
+    const nextBtn=isLast?`<button class="iconbtn" id="dtNextBtn" style="font-size:13px;width:20px;height:20px;flex-shrink:0;">▶</button>`:'';
+    const justify=isFirst?'flex-start':isLast?'flex-end':'center';
+    const headHtml=`<div class="dtp-head row" style="justify-content:${justify};flex-wrap:nowrap;gap:4px;">${prevBtn}${dateText}${nextBtn}</div>`;
     const evs=state.events.filter(ev=>!(ev.hiddenFromDaughter && ddayRole==='daughter') && fmtDate(eventOccurrence(ev))===d)
       .map(ev=>({id:'evt-dday-'+ev.id, title:ev.name, memo:ev.memo, ddayCommon:ddayRole!=='daughter'}));
-    if(!evs.length) return gap+`<td class="dt-cell"></td>`;
-    return gap+`<td class="dt-cell filled">${evs.map(dtChip).join('')}</td>`;
-  }).join('');
-  rows += `<tr class="dt-edge-row"><td class="dt-time-col" style="font-weight:700;">D-day</td>${ddayCells}</tr>`;
-  const headCells = days.map((d,i)=>{
-    const gap = i>0 ? '<th class="dt-gap"></th>' : '';
-    const isFirst = i===0;
-    const isLast = i===days.length-1;
-    const dateText = headerDateHtml(d);
-    const prevBtn = isFirst ? `<button class="iconbtn" id="dtPrevBtn" style="font-size:13px;width:20px;height:20px;flex-shrink:0;">◀</button>` : '';
-    const nextBtn = isLast ? `<button class="iconbtn" id="dtNextBtn" style="font-size:13px;width:20px;height:20px;flex-shrink:0;">▶</button>` : '';
-    const justify = isFirst ? 'flex-start' : isLast ? 'flex-end' : 'center';
-    return gap+`<th><div class="row" style="justify-content:${justify};flex-wrap:nowrap;gap:4px;">${prevBtn}${dateText}${nextBtn}</div></th>`;
+    const ddayHtml=`<div class="dt-cell dtp-edge">${evs.map(ev=>dtChip(ev)).join('')}</div>`;
+    return `${i>0?'<div class="dtp-gap"></div>':''}<div class="dtp-daycol">${headHtml}${dtDayColInnerHtml(d, itemsByDay[i])}${ddayHtml}</div>`;
   }).join('');
   const role=effectiveRole();
   return `
@@ -1236,10 +1238,7 @@ function renderDayTimelines(){
       </div>
       ${scheduleColorPick?`<div class="meta" style="margin-bottom:6px;">🎨 색상을 적용할 일정을 클릭하세요</div>`:''}
       <div style="overflow-x:auto;">
-        <table class="dt-table">
-          <thead><tr><th class="dt-time-col"></th>${headCells}</tr></thead>
-          <tbody>${rows}</tbody>
-        </table>
+        <div class="dtp-wrap">${timeColHtml}${dayColsHtml}</div>
       </div>
     </div>
   `;
@@ -1312,7 +1311,7 @@ function bindDayTimelineEvents(){
       const item=state.schedule.find(x=>x.id===chip.dataset.itemId);
       if(!item) return;
       const cell=chip.closest('.dt-cell');
-      const occurDate=cell?cell.dataset.addDate:null;
+      const occurDate=chip.dataset.addDate || (cell?cell.dataset.addDate:null);
       if(scheduleColorPick){
         const isRepeating = item.repeat && item.repeat!=='none';
         if(isRepeating && occurDate){
