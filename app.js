@@ -2260,8 +2260,14 @@ function monthDdayHtml(y, m){
     .sort((a,b)=>a.occDateStr.localeCompare(b.occDateStr));
   return `
   <div class="field" id="monthDdayField" style="margin-top:14px;">
-    <label style="font-size:13px;font-weight:700;">⏳ ${m+1}월 D-Day${inMonth.length?'':` <span class="meta" style="font-weight:400;">이번달은 D-day 일정이 없어요~~</span>`}</label>
-    ${inMonth.length?`<div style="margin-top:4px;">${inMonth.map((x,i)=>`<div class="row" style="gap:6px;align-items:center;flex-wrap:nowrap;"><span style="width:20px;flex-shrink:0;text-align:right;color:var(--muted);font-size:12px;">${i+1}.</span><span style="font-size:12px;">${Number(x.occDateStr.slice(8,10))}일 ${escapeHtml(x.ev.name)}</span></div>`).join('')}</div>`:''}
+    <div class="row" style="align-items:center;gap:10px;flex-wrap:wrap;">
+      <label style="font-size:13px;font-weight:700;margin:0;flex-shrink:0;">⏳ ${m+1}월 D-Day</label>
+      ${inMonth.length?inMonth.map(x=>{
+        const d=dday(x.occDateStr);
+        const isPast=d<0;
+        return `<span class="row" style="gap:4px;align-items:center;flex-wrap:nowrap;flex-shrink:0;${isPast?'opacity:0.45;':''}"><span class="pill ${ddayPillClass(d)}" style="font-size:11px;">${ddayLabel(d)}</span><span style="font-size:12px;white-space:nowrap;">${Number(x.occDateStr.slice(8,10))}일 ${escapeHtml(x.ev.name)}</span></span>`;
+      }).join('') : `<span class="meta" style="font-weight:400;">이번달은 D-day 일정이 없어요~~</span>`}
+    </div>
   </div>`;
 }
 function monthNotesHtml(ym){
