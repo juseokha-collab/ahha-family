@@ -4010,7 +4010,7 @@ function renderBudget(){
                 <td style="text-align:left;padding:5px 3px 5px 0;font-size:12px;white-space:nowrap;">${b.date.slice(5)}</td>
                 <td style="text-align:left;padding:5px 3px 5px 0;font-size:12px;"><span class="pill">${escapeHtml(b.category)}</span></td>
                 <td style="text-align:right;padding:5px 6px 5px 1px;font-size:12px;white-space:nowrap;">${fmtCurrency(b.amount,b.currency||'KRW')}</td>
-                <td style="text-align:left;padding:5px 4px 5px 24px;font-size:12px;">${escapeHtml(b.memo)}</td>
+                <td style="text-align:left;padding:5px 4px 5px 24px;font-size:12px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(b.memo)}">${escapeHtml(b.memo)}</td>
                 <td style="text-align:right;padding:5px 0 5px 18px;white-space:nowrap;"><button class="btn small" style="font-size:11px;padding:3px 8px;" data-edit-inc="${b.id}" title="수정">✏️</button> <button class="btn small danger" style="font-size:11px;padding:3px 8px;" data-del-inc="${b.id}" title="삭제">✕</button></td>
               </tr>`).join('')}
           </tbody>
@@ -4051,7 +4051,7 @@ function renderBudget(){
                 <td style="text-align:left;padding:5px 3px 5px 0;font-size:12px;white-space:nowrap;">${b.date.slice(5)}</td>
                 <td style="text-align:left;padding:5px 3px 5px 0;font-size:12px;"><span class="pill">${escapeHtml(b.category)}</span></td>
                 <td style="text-align:right;padding:5px 6px 5px 1px;font-size:12px;white-space:nowrap;">${fmtCurrency(b.amount,b.currency||'KRW')}</td>
-                <td style="text-align:left;padding:5px 4px 5px 24px;font-size:12px;">${escapeHtml(b.memo)}</td>
+                <td style="text-align:left;padding:5px 4px 5px 24px;font-size:12px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(b.memo)}">${escapeHtml(b.memo)}</td>
                 <td style="text-align:right;padding:5px 0 5px 18px;white-space:nowrap;"><button class="btn small" style="font-size:11px;padding:3px 8px;" data-edit="${b.id}" title="수정">✏️</button> <button class="btn small danger" style="font-size:11px;padding:3px 8px;" data-del="${b.id}" title="삭제">✕</button></td>
               </tr>`).join('')}
           </tbody>
