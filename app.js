@@ -2338,28 +2338,26 @@ function bindMonthNotesEvents(el, ym){
 let shoppingDraftRows=[{category:'',items:''},{category:'',items:''}];
 function shoppingDraftRowHtml(idx, row){
   return `<div class="row" data-shop-draft-row="${idx}" style="gap:6px;align-items:center;margin-top:4px;flex-wrap:wrap;">
-    <input data-shop-draft-cat="${idx}" value="${escapeHtml(row.category)}" placeholder="카테고리 (예: 생필품)" style="width:110px;flex-shrink:0;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:13px;">
+    <input data-shop-draft-cat="${idx}" value="${escapeHtml(row.category)}" placeholder="카테고리 (예: 생필품)" style="width:160px;flex-shrink:0;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:13px;">
     <input data-shop-draft-items="${idx}" value="${escapeHtml(row.items)}" placeholder="품목을 콤마로 구분해서 입력 (예: 휴지, 샴푸)" style="flex:1;min-width:160px;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:13px;">
     <button class="btn small primary" data-shop-draft-save="${idx}" style="flex-shrink:0;">저장</button>
   </div>`;
 }
 function shoppingGroupHtml(g){
   return `
-  <div class="list-item" style="align-items:flex-start;flex-direction:column;gap:6px;">
-    <div class="row" style="justify-content:space-between;align-items:center;width:100%;">
-      <span style="font-size:14px;font-weight:600;">${escapeHtml(g.category)}</span>
-      <button class="icon-btn" data-shop-group-edit="${g.id}" title="수정">✏️</button>
+  <div class="list-item" style="align-items:center;flex-wrap:wrap;gap:8px;padding-left:26px;">
+    <span style="font-size:14px;font-weight:600;flex-shrink:0;">${escapeHtml(g.category)}</span>
+    <div class="row" style="gap:12px;flex-wrap:wrap;flex:1;min-width:0;">
+      ${g.items.map(it=>`<label class="row" style="cursor:pointer;align-items:center;gap:4px;font-size:12px;${it.done?'opacity:0.5;text-decoration:line-through;':''}"><input type="checkbox" data-shop-item-toggle="${g.id}|${it.id}" ${it.done?'checked':''} style="flex-shrink:0;">${escapeHtml(it.name)}</label>`).join('')}
     </div>
-    <div class="row" style="gap:12px;flex-wrap:wrap;">
-      ${g.items.map(it=>`<label class="row" style="cursor:pointer;align-items:center;gap:4px;${it.done?'opacity:0.5;text-decoration:line-through;':''}"><input type="checkbox" data-shop-item-toggle="${g.id}|${it.id}" ${it.done?'checked':''} style="flex-shrink:0;">${escapeHtml(it.name)}</label>`).join('')}
-    </div>
+    <button class="icon-btn" data-shop-group-edit="${g.id}" title="수정">✏️</button>
   </div>`;
 }
 function shoppingListHtml(){
   const list=state.shoppingList||[];
   return `
   <div class="card">
-    <h3 style="margin:0;">🛒 사야할 물품</h3>
+    <h3 style="margin:0;">🛒 사야 할 물품</h3>
     ${list.map(g=>shoppingGroupHtml(g)).join('')}
     <div id="shoppingDraftRows" style="margin-top:8px;">${shoppingDraftRows.map((r,i)=>shoppingDraftRowHtml(i,r)).join('')}</div>
   </div>`;
