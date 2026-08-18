@@ -362,7 +362,7 @@ function defaultState(){
     calendarDayColors:{},
     todoCategories:{},
     deletedIds:[],
-    habits:{daily:[], weekly:[]},
+    habits:{dad:{daily:[],weekly:[]}, daughter:{daily:[],weekly:[]}},
     habitLog:{},
     monthNotes:{},
     letters:[],
@@ -487,6 +487,16 @@ function migrateEventCategories(st){
   }
   return st;
 }
+function migrateHabitsByRole(st){
+  if(st.habits && (Array.isArray(st.habits.daily) || Array.isArray(st.habits.weekly))){
+    const old={daily:st.habits.daily||[], weekly:st.habits.weekly||[]};
+    st.habits={ daughter: old, dad: {daily:[],weekly:[]} };
+  }
+  if(!st.habits) st.habits={};
+  if(!st.habits.dad) st.habits.dad={daily:[],weekly:[]};
+  if(!st.habits.daughter) st.habits.daughter={daily:[],weekly:[]};
+  return st;
+}
 function loadLocal(){
   try{
     const raw=localStorage.getItem(LS_KEY);
@@ -494,7 +504,7 @@ function loadLocal(){
       const parsed=JSON.parse(raw);
       const base=defaultState();
       base.vehicle=Object.assign(base.vehicle, parsed.vehicle||{});
-      return migrateEventCategories(migrateCalendarDayColors(resetWeeklyPaymentDataOnce(migrateBudgetOwnership(migrateTodos(migrateVehicle(migrateDaily(Object.assign(base, parsed, {vehicle:base.vehicle}))))))));
+      return migrateHabitsByRole(migrateEventCategories(migrateCalendarDayColors(resetWeeklyPaymentDataOnce(migrateBudgetOwnership(migrateTodos(migrateVehicle(migrateDaily(Object.assign(base, parsed, {vehicle:base.vehicle})))))))));
     }
   }catch(e){}
   return defaultState();
@@ -720,9 +730,13 @@ function mergeStates(localState, cloudState){
   merged.calendarDayColors=mergeKeyedColorMaps(localState.calendarDayColors, cloudState.calendarDayColors);
   merged.todoCategories=mergeTodoCategories(localState.todoCategories, cloudState.todoCategories);
   merged.eventCategoriesByRole=mergeKeyedCategoryLists(localState.eventCategoriesByRole, cloudState.eventCategoriesByRole);
+  const mergeHabitsRole=(localRole, cloudRole)=>({
+    daily: mergeById(localRole&&localRole.daily, cloudRole&&cloudRole.daily, deletedSet),
+    weekly: mergeById(localRole&&localRole.weekly, cloudRole&&cloudRole.weekly, deletedSet)
+  });
   merged.habits={
-    daily: mergeById(localState.habits&&localState.habits.daily, cloudState.habits&&cloudState.habits.daily, deletedSet),
-    weekly: mergeById(localState.habits&&localState.habits.weekly, cloudState.habits&&cloudState.habits.weekly, deletedSet)
+    dad: mergeHabitsRole(localState.habits&&localState.habits.dad, cloudState.habits&&cloudState.habits.dad),
+    daughter: mergeHabitsRole(localState.habits&&localState.habits.daughter, cloudState.habits&&cloudState.habits.daughter)
   };
   merged.habitLog=mergeHabitLog(localState.habitLog, cloudState.habitLog);
   merged.monthNotes=mergeKeyedColorMaps(localState.monthNotes, cloudState.monthNotes);
@@ -746,7 +760,7 @@ function initAuth(){
           const data=doc.data();
           const base=defaultState();
           base.vehicle=Object.assign(base.vehicle, data.vehicle||{});
-          const cloudState=migrateEventCategories(migrateCalendarDayColors(resetWeeklyPaymentDataOnce(migrateBudgetOwnership(migrateTodos(migrateVehicle(migrateDaily(Object.assign(base, data, {vehicle:base.vehicle}))))))));
+          const cloudState=migrateHabitsByRole(migrateEventCategories(migrateCalendarDayColors(resetWeeklyPaymentDataOnce(migrateBudgetOwnership(migrateTodos(migrateVehicle(migrateDaily(Object.assign(base, data, {vehicle:base.vehicle})))))))));
           state=mergeStates(localState, cloudState);
           await familyDocRef().set(state);
         } else {
@@ -1684,9 +1698,11 @@ function weekStartOf(dateStr){
   return fmtDate(addDays(d, diff));
 }
 function myHabits(type){
-  if(!state.habits) state.habits={daily:[],weekly:[]};
-  if(!state.habits[type]) state.habits[type]=[];
-  return state.habits[type];
+  const role=effectiveRole()||'dad';
+  if(!state.habits) state.habits={};
+  if(!state.habits[role]) state.habits[role]={daily:[],weekly:[]};
+  if(!state.habits[role][type]) state.habits[role][type]=[];
+  return state.habits[role][type];
 }
 function habitLogFor(id){
   if(!state.habitLog) state.habitLog={};
@@ -1833,7 +1849,7 @@ function moveHabit(type, id, dir){
   const swapIdx=idx+dir;
   if(swapIdx<0 || swapIdx>=habits.length) return;
   [habits[idx], habits[swapIdx]] = [habits[swapIdx], habits[idx]];
-  queueSave(); renderHome();
+  queueSave(); renderHome(); renderSchedule();
 }
 function openHabitEditModal(type, id){
   const habits=myHabits(type);
@@ -1869,7 +1885,7 @@ function openHabitEditModal(type, id){
     const icon=document.getElementById('mHabitIcon').value.trim()||'⭐';
     if(h){ h.name=name; h.icon=icon; }
     else { habits.push({id:uid(), name, icon, createdDate:todayStr()}); }
-    queueSave(); closeModal(); renderHome();
+    queueSave(); closeModal(); renderHome(); renderSchedule();
   };
   const delBtn=document.getElementById('mDelete');
   if(delBtn) delBtn.onclick=()=>{
@@ -1878,7 +1894,7 @@ function openHabitEditModal(type, id){
     if(idx>=0) habits.splice(idx,1);
     markDeleted(id);
     if(state.habitLog) delete state.habitLog[id];
-    queueSave(); closeModal(); renderHome();
+    queueSave(); closeModal(); renderHome(); renderSchedule();
   };
 }
 function bindHabitEvents(el){
@@ -1888,7 +1904,7 @@ function bindHabitEvents(el){
     const log=habitLogFor(b.dataset.habitToggle);
     const k=b.dataset.habitKey;
     if(log[k]) delete log[k]; else log[k]=true;
-    queueSave(); renderHome();
+    queueSave(); renderHome(); renderSchedule();
   });
   el.querySelectorAll('[data-habit-move-up]').forEach(b=>b.onclick=()=>moveHabit(b.dataset.habitType, b.dataset.habitMoveUp, -1));
   el.querySelectorAll('[data-habit-move-down]').forEach(b=>b.onclick=()=>moveHabit(b.dataset.habitType, b.dataset.habitMoveDown, 1));
@@ -1896,7 +1912,7 @@ function bindHabitEvents(el){
     const type=b.dataset.habitPrev;
     const n = type==='daily'?7:49;
     habitAnchor[type]=fmtDate(addDays(parseDate(habitAnchor[type]||todayStr()), -n));
-    renderHome();
+    renderHome(); renderSchedule();
   });
   el.querySelectorAll('[data-habit-next]').forEach(b=>b.onclick=()=>{
     const type=b.dataset.habitNext;
@@ -1907,7 +1923,7 @@ function bindHabitEvents(el){
     } else {
       habitAnchor[type] = next>todayStr() ? todayStr() : next;
     }
-    renderHome();
+    renderHome(); renderSchedule();
   });
 }
 function renderHome(){
@@ -2025,7 +2041,7 @@ function renderHome(){
       </div>
     </div>
 
-    ${effectiveRole()==='daughter'?habitSectionHtml('daily','Daily Habits','🎯')+habitSectionHtml('weekly','Weekly Habits','📅'):''}
+    ${(effectiveRole()==='daughter'||effectiveRole()==='dad')?habitSectionHtml('daily','Daily Habits','🎯'):''}
 
     ${achievementLogHtml()}
 
@@ -2147,7 +2163,7 @@ function renderHome(){
   }
   const newTodoSaveBtn=document.getElementById('newTodoSaveBtn');
   if(newTodoSaveBtn) newTodoSaveBtn.onclick=commitNewTodo;
-  if(effectiveRole()==='daughter') bindHabitEvents(el);
+  if(effectiveRole()==='daughter'||effectiveRole()==='dad') bindHabitEvents(el);
   bindDayTimelineEvents();
 }
 function diaryArchiveRowsHtml(){
@@ -2336,7 +2352,7 @@ function renderSchedule(){
     const dayColor=myDayColors[dateStr]||defaultDayBg;
     const colorAttr=dayColor?` style="background:${dayColor};"`:'';
     grid += `<div class="cal-cell ${inMonth?'':'other'} ${dateStr===todayS?'today':''} ${dateStr===scheduleSel?'sel':''} ${holidayName?'holiday':''}" data-date="${dateStr}"${colorAttr}>
-      <div class="day-row"><span class="day-num">${dateObj.getDate()}</span>${(effectiveRole()==='daughter'&&dayHabitsFullyDone(dateStr))?achievementRingSvg(12):''}${holidayName?`<span class="cal-holiday">${escapeHtml(holidayName)}</span>`:''}</div>${commentHtml}${shown}${more}
+      <div class="day-row"><span class="day-num">${dateObj.getDate()}</span>${((effectiveRole()==='daughter'||effectiveRole()==='dad')&&dayHabitsFullyDone(dateStr))?achievementRingSvg(12):''}${holidayName?`<span class="cal-holiday">${escapeHtml(holidayName)}</span>`:''}</div>${commentHtml}${shown}${more}
     </div>`;
   }
   const selDateObj=parseDate(scheduleSel);
@@ -2367,6 +2383,7 @@ function renderSchedule(){
       ${monthNotesHtml(`${y}-${pad2(m+1)}`)}
       ${monthDdayHtml(y, m)}
     </div>
+    ${(myRole==='daughter'||myRole==='dad')?habitSectionHtml('weekly','Weekly Habits','📅'):''}
     <div class="card">
       <div class="row" style="justify-content:space-between;margin-bottom:14px;"><h3 style="margin:0;">이번주<span style="font-size:12px;font-weight:400;">(${weekLabel})</span> 일정</h3><button class="btn primary small" id="addSchedBtn">+ 일정 추가</button></div>
       ${weekGroups.length? weekGroups.map(g=>{
@@ -2447,6 +2464,7 @@ function renderSchedule(){
     if(!item) return;
     confirmDeleteScheduleItem(item, b.dataset.occurDate||scheduleSel);
   });
+  if(myRole==='daughter'||myRole==='dad') bindHabitEvents(el);
 }
 function confirmDeleteScheduleItem(item, occurDate){
   const isRepeating = item.repeat && item.repeat!=='none';
