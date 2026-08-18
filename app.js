@@ -1808,7 +1808,7 @@ function habitRowHtml(h, type, anchorDate, idx, total){
   return `
   <div class="habit-row">
     <div class="habit-row-head">
-      <span class="habit-icon">${escapeHtml(h.icon||'⭐')}</span>
+      <span class="habit-icon"${h.color?` style="background:${h.color};border-radius:50%;padding:2px;box-shadow:0 0 0 2px ${h.color};"`:''}>${escapeHtml(h.icon||'⭐')}</span>
       <span class="habit-row-name">${escapeHtml(h.name)}</span>
       <button class="icon-btn" data-habit-edit="${h.id}" data-habit-type="${type}" title="수정">✏️</button>
       <span class="meta habit-row-streak">(⚡ ${streak}${unit} 연속 · 🔥 최고 ${best}${unit})</span>
@@ -1855,6 +1855,7 @@ function openHabitEditModal(type, id){
   const habits=myHabits(type);
   const h = id ? habits.find(x=>x.id===id) : null;
   let selectedIcon = h ? (h.icon||HABIT_ICONS[0]) : HABIT_ICONS[0];
+  let selectedColor = h ? (h.color||null) : null;
   openModal(`
     <h3>${h?'습관 수정':'습관 추가'} (${type==='daily'?'Daily':'Weekly'})</h3>
     <div class="field"><label>이름</label><input id="mHabitName" value="${h?escapeHtml(h.name):''}" placeholder="예: 일찍 자기"></div>
@@ -1864,6 +1865,13 @@ function openHabitEditModal(type, id){
       </div>
       <div class="meta" style="margin-top:8px;">원하는 이모지가 없으면 아래에 직접 입력하거나 붙여넣으세요</div>
       <input id="mHabitIcon" value="${escapeHtml(selectedIcon)}" placeholder="이모지 직접 입력" style="margin-top:4px;width:60px;text-align:center;font-size:18px;">
+    </div>
+    <div class="field" style="margin-top:10px;">
+      <div class="row" style="justify-content:space-between;align-items:center;">
+        <label style="margin:0;">강조 색상 (선택, 눈에 띄게)</label>
+        <button type="button" class="link-btn" id="mHabitColorClear">지우기</button>
+      </div>
+      ${renderColorSwatches(selectedColor, 'habitcolor')}
     </div>
     <div class="modal-actions">
       ${h?`<button class="btn danger" id="mDelete">삭제</button>`:''}
@@ -1879,12 +1887,24 @@ function openHabitEditModal(type, id){
       document.querySelectorAll('.habit-icon-pick').forEach(b=>b.classList.toggle('sel', b.dataset.icon===selectedIcon));
     };
   });
+  document.querySelectorAll('[data-swatch-group="habitcolor"] .color-swatch').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      selectedColor = (selectedColor===btn.dataset.color) ? null : btn.dataset.color;
+      document.querySelectorAll('[data-swatch-group="habitcolor"] .color-swatch').forEach(b=>{
+        b.style.border = (b.dataset.color===selectedColor) ? '3px solid var(--text)' : '2px solid transparent';
+      });
+    });
+  });
+  document.getElementById('mHabitColorClear').onclick=()=>{
+    selectedColor=null;
+    document.querySelectorAll('[data-swatch-group="habitcolor"] .color-swatch').forEach(b=>{ b.style.border='2px solid transparent'; });
+  };
   document.getElementById('mSave').onclick=()=>{
     const name=document.getElementById('mHabitName').value.trim();
     if(!name){ showToast('이름을 입력해주세요'); return; }
     const icon=document.getElementById('mHabitIcon').value.trim()||'⭐';
-    if(h){ h.name=name; h.icon=icon; }
-    else { habits.push({id:uid(), name, icon, createdDate:todayStr()}); }
+    if(h){ h.name=name; h.icon=icon; h.color=selectedColor; }
+    else { habits.push({id:uid(), name, icon, color:selectedColor, createdDate:todayStr()}); }
     queueSave(); closeModal(); renderHome(); renderSchedule();
   };
   const delBtn=document.getElementById('mDelete');
