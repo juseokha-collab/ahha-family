@@ -2385,7 +2385,7 @@ function renderSchedule(){
     </div>
     ${(myRole==='daughter'||myRole==='dad')?habitSectionHtml('weekly','Weekly Habits','📅'):''}
     <div class="card">
-      <div class="row" style="justify-content:space-between;margin-bottom:14px;"><h3 style="margin:0;">이번주<span style="font-size:12px;font-weight:400;">(${weekLabel})</span> 일정</h3><button class="btn primary small" id="addSchedBtn">+ 일정 추가</button></div>
+      <div class="row" style="justify-content:space-between;margin-bottom:14px;"><h3 style="margin:0;">주차별<span style="font-size:12px;font-weight:400;">(${weekLabel})</span> 일정</h3><button class="btn primary small" id="addSchedBtn">+ 일정 추가</button></div>
       ${weekGroups.length? weekGroups.map(g=>{
         const dObj=parseDate(g.date);
         const dateLabel=`${dObj.getMonth()+1}/${dObj.getDate()}(${WEEKDAY_KO[dObj.getDay()]})`;
