@@ -2248,6 +2248,22 @@ function monthNoteRowHtml(idx, value){
     <input data-month-note-idx="${idx}" value="${escapeHtml(value)}" placeholder="일정 메모 입력" style="flex:1;min-width:0;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:13px;">
   </div>`;
 }
+function monthDdayHtml(y, m){
+  const monthStartStr=fmtDate(new Date(y,m,1)), monthEndStr=fmtDate(new Date(y,m+1,0));
+  const role=effectiveRole();
+  const scoped = role==='daughter' ? state.events.filter(ev=>ev.ownerRole==='daughter') : state.events;
+  const inMonth = scoped.map(ev=>{
+    const isRecurring = ev.recurring || ev.recurringMonthly;
+    const occDateStr = isRecurring ? computeEventOccurrenceBase(ev, monthStartStr) : ev.date;
+    return {ev, occDateStr};
+  }).filter(x=>x.occDateStr>=monthStartStr && x.occDateStr<=monthEndStr)
+    .sort((a,b)=>a.occDateStr.localeCompare(b.occDateStr));
+  return `
+  <div class="field" id="monthDdayField" style="margin-top:14px;">
+    <label>⏳ ${m+1}월 D-Day${inMonth.length?'':` <span class="meta" style="font-weight:400;">이번달은 D-day 일정이 없어요~~</span>`}</label>
+    ${inMonth.length?`<div style="font-size:13px;">${inMonth.map((x,i)=>`<div>${i+1}. ${Number(x.occDateStr.slice(8,10))}일 ${escapeHtml(x.ev.name)}</div>`).join('')}</div>`:''}
+  </div>`;
+}
 function monthNotesHtml(ym){
   const notes=myMonthNotes(ym);
   const lines=(notes.length && notes[notes.length-1].trim()!=='') ? notes.concat(['']) : (notes.length?notes:['']);
@@ -2333,6 +2349,7 @@ function renderSchedule(){
       </div>
       <div class="cal-grid" style="margin-top:10px;">${['일','월','화','수','목','금','토'].map(d=>`<div class="cal-head">${d}</div>`).join('')}${grid}</div>
       ${monthNotesHtml(`${y}-${pad2(m+1)}`)}
+      ${monthDdayHtml(y, m)}
     </div>
     <div class="card">
       <div class="row" style="justify-content:space-between;margin-bottom:14px;"><h3 style="margin:0;">${weekdayColor(scheduleSel)?`<span style="color:${weekdayColor(scheduleSel)};">${scheduleSel}</span>`:scheduleSel} 일정${holidays[scheduleSel]?` <span class="pill">${escapeHtml(holidays[scheduleSel])}</span>`:''}</h3><button class="btn primary small" id="addSchedBtn">+ 일정 추가</button></div>
