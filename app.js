@@ -958,7 +958,7 @@ function headerDateHtml(dateStr){
   const holidayName=holidays[dateStr];
   const dateHtml = color ? `<span style="color:${color};">${fmtShortDateDow(dateStr)}</span>` : fmtShortDateDow(dateStr);
   const badgeText = holidayName || (isToday ? 'Today' : '');
-  if(badgeText) return `<div style="line-height:1.4;"><div><span style="display:inline-block;background:#000;color:#fff;border-radius:999px;padding:1px 8px;font-size:10px;font-weight:700;white-space:nowrap;">${escapeHtml(badgeText)}</span></div><div>${dateHtml}</div></div>`;
+  if(badgeText) return `<div style="line-height:1.4;"><div><span style="display:inline-block;background:#000;color:#fff;border-radius:999px;padding:1px 8px;font-size:12px;font-weight:700;white-space:nowrap;">${escapeHtml(badgeText)}</span></div><div>${dateHtml}</div></div>`;
   return dateHtml;
 }
 /* ---------- HOME ---------- */
@@ -2260,8 +2260,8 @@ function monthDdayHtml(y, m){
     .sort((a,b)=>a.occDateStr.localeCompare(b.occDateStr));
   return `
   <div class="field" id="monthDdayField" style="margin-top:14px;">
-    <label>⏳ ${m+1}월 D-Day${inMonth.length?'':` <span class="meta" style="font-weight:400;">이번달은 D-day 일정이 없어요~~</span>`}</label>
-    ${inMonth.length?`<div style="font-size:13px;">${inMonth.map((x,i)=>`<div>${i+1}. ${Number(x.occDateStr.slice(8,10))}일 ${escapeHtml(x.ev.name)}</div>`).join('')}</div>`:''}
+    <label style="font-size:13px;font-weight:700;">⏳ ${m+1}월 D-Day${inMonth.length?'':` <span class="meta" style="font-weight:400;">이번달은 D-day 일정이 없어요~~</span>`}</label>
+    ${inMonth.length?`<div style="margin-top:4px;">${inMonth.map((x,i)=>`<div class="row" style="gap:6px;align-items:center;flex-wrap:nowrap;"><span style="width:20px;flex-shrink:0;text-align:right;color:var(--muted);font-size:12px;">${i+1}.</span><span style="font-size:12px;">${Number(x.occDateStr.slice(8,10))}일 ${escapeHtml(x.ev.name)}</span></div>`).join('')}</div>`:''}
   </div>`;
 }
 function monthNotesHtml(ym){
@@ -2269,7 +2269,7 @@ function monthNotesHtml(ym){
   const lines=(notes.length && notes[notes.length-1].trim()!=='') ? notes.concat(['']) : (notes.length?notes:['']);
   return `
   <div class="field" id="monthNotesField" style="margin-top:14px;">
-    <label>📌 주요일정 메모</label>
+    <label style="font-size:13px;font-weight:700;">📌 주요일정 메모</label>
     <div id="monthNotesList">${lines.map((v,i)=>monthNoteRowHtml(i,v)).join('')}</div>
   </div>`;
 }
@@ -3794,8 +3794,8 @@ function renderBudget(){
           ${exchangeRecords.length?`<div style="margin-top:8px;">${exchangeRecords.map(r=>`
             <div class="row" style="align-items:center;gap:4px;flex-wrap:nowrap;margin-top:4px;">
               <span class="l" style="white-space:nowrap;">${r.date.slice(5)} ${(r.krw||0).toLocaleString()}원 환전 (+£${Number(r.gbp||0).toFixed(2)})</span>
-              <button type="button" class="btn small" style="font-size:10px;padding:1px 4px;flex-shrink:0;" data-edit-exchange="${r.id}" title="수정">✏️</button>
-              <button type="button" class="btn small danger" style="font-size:10px;padding:1px 4px;flex-shrink:0;" data-del-exchange="${r.id}" title="삭제">✕</button>
+              <button type="button" class="btn small" style="font-size:12px;padding:1px 4px;flex-shrink:0;" data-edit-exchange="${r.id}" title="수정">✏️</button>
+              <button type="button" class="btn small danger" style="font-size:12px;padding:1px 4px;flex-shrink:0;" data-del-exchange="${r.id}" title="삭제">✕</button>
             </div>`).join('')}</div>` : ''}
         </div>
         <div class="stat" style="text-align:left;">
