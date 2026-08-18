@@ -1050,13 +1050,22 @@ function minsToIdx(mins){
 function computeDayLayoutFromItems(items){
   const mainStart={};
   const skip=new Set();
+  function findCoveringStart(idx){
+    for(const key of Object.keys(mainStart)){
+      const s=Number(key);
+      if(idx>=s && idx<s+mainStart[key].span) return s;
+    }
+    return null;
+  }
   function addBlock(it, startIdx, endIdx){
     if(endIdx<=startIdx) endIdx=startIdx+1;
     endIdx=Math.min(DT_ROWS+1, endIdx);
-    if(!mainStart[startIdx]) mainStart[startIdx]={items:[],span:1};
-    mainStart[startIdx].items.push(it);
-    const span=endIdx-startIdx;
-    if(span>mainStart[startIdx].span) mainStart[startIdx].span=span;
+    const covering=findCoveringStart(startIdx);
+    const targetStart = covering!==null ? covering : startIdx;
+    if(!mainStart[targetStart]) mainStart[targetStart]={items:[],span:1};
+    mainStart[targetStart].items.push(it);
+    const span=endIdx-targetStart;
+    if(span>mainStart[targetStart].span) mainStart[targetStart].span=span;
   }
   items.forEach(it=>{
     if(!it.time){ addBlock(it, -1, 0); return; }
