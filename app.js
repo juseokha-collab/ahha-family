@@ -1560,7 +1560,7 @@ function openTodoCategoryEditModal(idx){
   const existing = idx!=null ? cats[idx] : null;
   let selectedColor = existing ? existing.color : SCHED_COLORS[0];
   openModal(`
-    <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:14px;">
+    <div class="row" style="justify-content:space-between;align-items:center;padding-right:30px;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
       <h3 style="margin:0;">${existing?'카테고리 수정':'카테고리 추가'}</h3>
       ${renderColorSwatches(selectedColor, 'todocat')}
     </div>
@@ -1644,7 +1644,7 @@ function openEventCategoryEditModal(idx){
   const existing = idx!=null ? cats[idx] : null;
   let selectedColor = existing ? existing.color : nextUnusedColor(cats.map(c=>c.color));
   openModal(`
-    <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:14px;">
+    <div class="row" style="justify-content:space-between;align-items:center;padding-right:30px;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
       <h3 style="margin:0;">${existing?'카테고리 수정':'카테고리 추가'}</h3>
       ${renderColorSwatches(selectedColor, 'eventcat')}
     </div>
@@ -2568,6 +2568,7 @@ function openScheduleModal(existing, prefill, occurDate){
     const owner=(document.querySelector('input[name="mOwner"]:checked')||{}).value || 'common';
     const repeat=(document.querySelector('input[name="mRepeat"]:checked')||{}).value || 'none';
     const repeatUntil=document.getElementById('mRepeatUntil').value;
+    if(repeat==='none' && repeatUntil){ showToast('반복 기한만 있고 반복 주기가 "안함"이라 반복되지 않아요. 반복 주기를 선택해주세요'); return; }
     let bgColor=selectedColor;
     let colorOverrides=s.colorOverrides;
     if(wasRepeating){
