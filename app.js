@@ -1092,16 +1092,20 @@ function authorBadge(key){
 }
 function dtChip(it, extraStyle, dayDate){
   const isVirtual = typeof it.id==='string' && it.id.startsWith('evt-');
-  const memoAttr = it.memo ? ` data-memo="${escapeHtml(it.memo)}"` : '';
   const dateAttr = dayDate ? ` data-add-date="${dayDate}"` : '';
   const extra=extraStyle||'';
-  if(isVirtual) return `<div class="dt-evt${it.ddayCommon?' dt-evt-dday-common':''}"${extra?` style="${extra}"`:''} data-virtual="1"${memoAttr}${dateAttr}>${escapeHtml(it.title)}</div>`;
+  if(isVirtual){
+    const fullText = it.memo ? `${it.title} · ${it.memo}` : it.title;
+    return `<div class="dt-evt${it.ddayCommon?' dt-evt-dday-common':''}"${extra?` style="${extra}"`:''} data-virtual="1" data-full="${escapeHtml(fullText)}"${dateAttr}>${escapeHtml(it.title)}</div>`;
+  }
   const badge = authorBadge(it.createdBy);
   const bg = it.color || it.bgColor;
   const commonCls = (!bg && it.owner==='common') ? ' dt-evt-common' : '';
   const colorStyle = bg ? `background:${bg};color:#181820;` : '';
   const styleAttr = (colorStyle||extra) ? ` style="${colorStyle}${extra}"` : '';
-  return `<div class="dt-evt${commonCls}" draggable="true" data-item-id="${it.id}"${memoAttr}${dateAttr}${styleAttr}>${badge}${timeRangeLabel(it)?escapeHtml(timeRangeLabel(it))+' ':''}${escapeHtml(it.title)}</div>`;
+  const timeLabel = timeRangeLabel(it);
+  const fullText = `${timeLabel?timeLabel+' ':''}${it.title}${it.memo?' · '+it.memo:''}`;
+  return `<div class="dt-evt${commonCls}" draggable="true" data-item-id="${it.id}" data-full="${escapeHtml(fullText)}"${dateAttr}${styleAttr}>${badge}${timeLabel?escapeHtml(timeLabel)+' ':''}${escapeHtml(it.title)}</div>`;
 }
 function dtPropChipHtml(p, dayDate){
   const top=dtPropTop(p.startMin);
@@ -1347,8 +1351,8 @@ function bindDayTimelineEvents(){
       showToast('D-day 탭에서 수정할 수 있어요');
     });
   });
-  el.querySelectorAll('.dt-evt[data-memo]').forEach(chip=>{
-    chip.addEventListener('mouseenter', ()=>showDtTooltip(chip, chip.dataset.memo));
+  el.querySelectorAll('.dt-evt[data-full]').forEach(chip=>{
+    chip.addEventListener('mouseenter', ()=>showDtTooltip(chip, chip.dataset.full));
     chip.addEventListener('mouseleave', hideDtTooltip);
   });
 }
