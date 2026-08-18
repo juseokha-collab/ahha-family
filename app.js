@@ -2015,7 +2015,7 @@ function renderHome(){
           <span class="happycomment-icon-wrap" style="position:relative;top:-10px;"><img src="moods/happycomment.png" alt="행복코멘트"></span>
           ${diaryShowingEdit
             ? `<textarea id="diaryInput" placeholder="오늘 하루는 어땠나요?" style="overflow:hidden;flex:1;min-width:0;min-height:85px;">${escapeHtml(mine.diary)}</textarea>`
-            : `<div class="row" style="align-items:flex-start;gap:6px;flex:1;min-width:0;"><span style="font-size:13px;flex:1;min-width:0;white-space:pre-wrap;word-break:break-word;">${escapeHtml(mine.diary)}</span><button type="button" class="icon-btn" id="diaryEditBtn" title="수정">✏️</button></div>`}
+            : `<div class="row" style="align-items:flex-start;gap:6px;flex:1;min-width:0;flex-wrap:nowrap;"><span style="font-size:13px;min-width:0;white-space:pre-wrap;word-break:break-word;">${escapeHtml(mine.diary)}</span><button type="button" class="icon-btn" style="flex-shrink:0;" id="diaryEditBtn" title="수정">✏️</button></div>`}
         </div>
         <div class="row" style="justify-content:space-between;align-items:center;margin-top:8px;">
           <label id="diaryArchiveToggle" style="cursor:pointer;">${diaryArchiveOpen?'▲':'▼'} ${letterViewMode?'편지 모아보기':'Comment 모아보기'}</label>
@@ -2582,6 +2582,11 @@ function renderSchedule(){
       return;
     }
     scheduleSel=c.dataset.date; renderSchedule();
+  });
+  el.querySelector('.cal-grid').addEventListener('dblclick', e=>{
+    const c=e.target.closest('.cal-cell'); if(!c) return;
+    if(e.target.closest('.cal-evt')) return;
+    openScheduleModal(null, {date:c.dataset.date});
   });
   el.querySelectorAll('.cal-evt[data-item-id]').forEach(evEl=>{
     evEl.addEventListener('click', e=>{
