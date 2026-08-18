@@ -2337,10 +2337,10 @@ function bindMonthNotesEvents(el, ym){
 }
 let shoppingDraftRows=[{category:'',items:''},{category:'',items:''}];
 function shoppingDraftRowHtml(idx, row){
-  return `<div class="row" data-shop-draft-row="${idx}" style="gap:6px;align-items:center;margin-top:4px;flex-wrap:wrap;">
-    <input data-shop-draft-cat="${idx}" value="${escapeHtml(row.category)}" placeholder="카테고리 (예: 생필품)" style="width:160px;flex-shrink:0;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:13px;">
-    <input data-shop-draft-items="${idx}" value="${escapeHtml(row.items)}" placeholder="품목을 콤마로 구분해서 입력 (예: 휴지, 샴푸)" style="flex:1;min-width:160px;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:13px;">
-    <button class="btn small primary" data-shop-draft-save="${idx}" style="flex-shrink:0;">저장</button>
+  return `<div class="row shop-draft-row" data-shop-draft-row="${idx}" style="gap:6px;align-items:center;margin-top:4px;flex-wrap:wrap;">
+    <input class="shop-draft-cat" data-shop-draft-cat="${idx}" value="${escapeHtml(row.category)}" placeholder="카테고리 (예: 생필품)" style="width:160px;flex-shrink:0;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:13px;">
+    <input class="shop-draft-items" data-shop-draft-items="${idx}" value="${escapeHtml(row.items)}" placeholder="품목을 콤마로 구분해서 입력 (예: 휴지, 샴푸)" style="flex:1;min-width:160px;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:13px;">
+    <button class="btn small primary shop-draft-save" data-shop-draft-save="${idx}" style="flex-shrink:0;">저장</button>
   </div>`;
 }
 function shoppingGroupHtml(g){
