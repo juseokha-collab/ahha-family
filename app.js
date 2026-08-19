@@ -952,8 +952,9 @@ function todayPillBtn(id){
 const SCHED_COLORS=['rgba(255,173,173,0.55)','rgba(255,214,165,0.55)','rgba(202,255,191,0.55)','rgba(160,196,255,0.55)','rgba(189,178,255,0.55)'];
 let scheduleColorPick=null;
 let calendarColorPick=null;
-function renderColorSwatches(selectedColor, groupId){
-  return `<div class="row" style="gap:6px;" data-swatch-group="${groupId}">${SCHED_COLORS.map(c=>`<button type="button" class="color-swatch" data-color="${c}" style="width:20px;height:20px;border-radius:50%;background:${c};border:${selectedColor===c?'3px solid var(--text)':'2px solid transparent'};cursor:pointer;padding:0;box-shadow:0 0 0 1px rgba(0,0,0,0.15);"></button>`).join('')}</div>`;
+function renderColorSwatches(selectedColor, groupId, includeDefault){
+  const defaultBtn = includeDefault ? `<button type="button" class="color-swatch" data-color="__default__" title="기본색으로 되돌리기" style="width:20px;height:20px;border-radius:50%;background:var(--panel);border:${selectedColor==='__default__'?'3px solid var(--text)':'2px solid rgba(128,128,128,0.4)'};cursor:pointer;padding:0;box-shadow:0 0 0 1px rgba(0,0,0,0.15);display:flex;align-items:center;justify-content:center;font-size:11px;line-height:1;color:var(--muted);">✕</button>` : '';
+  return `<div class="row" style="gap:6px;" data-swatch-group="${groupId}">${defaultBtn}${SCHED_COLORS.map(c=>`<button type="button" class="color-swatch" data-color="${c}" style="width:20px;height:20px;border-radius:50%;background:${c};border:${selectedColor===c?'3px solid var(--text)':'2px solid transparent'};cursor:pointer;padding:0;box-shadow:0 0 0 1px rgba(0,0,0,0.15);"></button>`).join('')}</div>`;
 }
 function fmtShortDateDow(dateStr){
   const d=parseDate(dateStr);
@@ -2562,7 +2563,7 @@ function renderSchedule(){
   el.innerHTML=`
     <div class="card">
       <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:4px;gap:10px;">
-        ${renderColorSwatches(calendarColorPick, 'cal-paint')}
+        ${renderColorSwatches(calendarColorPick, 'cal-paint', true)}
         <label class="pill" style="cursor:pointer;"><input type="checkbox" id="showCommonToggleSchedule" ${showCommonOnHome?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">가족공통</label>
       </div>
       ${calendarColorPick?`<div class="meta" style="margin-bottom:6px;">🎨 색상을 적용할 날짜를 클릭하세요</div>`:''}
@@ -2626,10 +2627,8 @@ function renderSchedule(){
     if(calendarColorPick){
       if(!state.calendarDayColors) state.calendarDayColors={};
       if(!state.calendarDayColors[myKeyCal]) state.calendarDayColors[myKeyCal]={};
-      const curColor=state.calendarDayColors[myKeyCal][c.dataset.date];
-      if(curColor===calendarColorPick){
+      if(calendarColorPick==='__default__'){
         delete state.calendarDayColors[myKeyCal][c.dataset.date];
-        calendarColorPick=null;
       } else {
         state.calendarDayColors[myKeyCal][c.dataset.date]=calendarColorPick;
       }
