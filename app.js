@@ -1068,15 +1068,12 @@ function classifyDayItems(items){
 }
 function packOverlaps(prop){
   const sorted=[...prop].sort((a,b)=>a.startMin-b.startMin || a.endMin-b.endMin);
-  const colEnds=[];
-  const placed=sorted.map(p=>{
-    let col=colEnds.findIndex(end=>end<=p.startMin);
-    if(col===-1){ col=colEnds.length; colEnds.push(p.endMin); }
-    else colEnds[col]=p.endMin;
-    return {...p, col};
+  const placed=[];
+  return sorted.map((p,idx)=>{
+    const overlay=placed.some(q=>p.startMin<q.endMin && p.endMin>q.startMin);
+    placed.push(p);
+    return {...p, overlay, z:idx+1};
   });
-  const totalCols=colEnds.length||1;
-  return placed.map(p=>({...p, totalCols}));
 }
 const ROLE_EMOJI={dad:'🍷',mom:'💐',daughter:'🍼'};
 const ROLE_BADGE_COLOR={dad:'#4d7fe0',mom:'#e0538f',daughter:'#9a5be0'};
@@ -1111,9 +1108,9 @@ function dtPropChipHtml(p, dayDate){
   const top=dtPropTop(p.startMin);
   const rawH=dtPropTop(p.endMin)-top;
   const height=Math.max(18, rawH);
-  const widthPct=100/p.totalCols;
-  const gapPx=3;
-  const style=`position:absolute;box-sizing:border-box;top:${(top+1).toFixed(1)}px;height:${(height-2).toFixed(1)}px;left:calc(${(widthPct*p.col).toFixed(2)}% + ${gapPx/2}px);width:calc(${widthPct.toFixed(2)}% - ${gapPx}px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;z-index:1;`;
+  const leftStyle = p.overlay ? 'left:50%;width:50%;' : 'left:0;width:100%;';
+  const shadow = p.overlay ? 'box-shadow:-2px 1px 6px rgba(0,0,0,0.3);' : '';
+  const style=`position:absolute;box-sizing:border-box;top:${(top+1).toFixed(1)}px;height:${(height-2).toFixed(1)}px;${leftStyle}overflow:hidden;text-overflow:ellipsis;white-space:nowrap;z-index:${p.z};${shadow}`;
   return dtChip(p.it, style, dayDate);
 }
 let dtTooltipEl=null;
@@ -1723,6 +1720,13 @@ function habitLogFor(id){
   if(!state.habitLog[id]) state.habitLog[id]={};
   return state.habitLog[id];
 }
+function habitCountAt(id, key){
+  const v=habitLogFor(id)[key];
+  if(v===true) return 1;
+  return Number(v)||0;
+}
+function habitTargetCount(h){ return (h && h.targetCount) || 1; }
+function habitDoneAt(h, key){ return habitCountAt(h.id, key)>=habitTargetCount(h); }
 function habitPeriodKeys(type, anchorDate, count){
   const keys=[];
   if(type==='daily'){
@@ -1739,20 +1743,21 @@ function fmtShortDateSlashDow(dateStr){
   const dow=['일','월','화','수','목','금','토'][d.getDay()];
   return `${d.getMonth()+1}/${d.getDate()}(${dow})`;
 }
-function habitStreak(id, type){
-  const log=habitLogFor(id);
+function habitStreak(id, type, targetCount){
+  const target=targetCount||1;
   let streak=0;
   let cursor = type==='daily' ? todayStr() : weekStartOf(todayStr());
   const step = type==='daily' ? -1 : -7;
-  while(log[cursor]){
+  while(habitCountAt(id,cursor)>=target){
     streak++;
     cursor=fmtDate(addDays(parseDate(cursor), step));
   }
   return streak;
 }
-function habitBestStreak(id, type){
+function habitBestStreak(id, type, targetCount){
+  const target=targetCount||1;
   const log=habitLogFor(id);
-  const keys=Object.keys(log).filter(k=>log[k]).sort();
+  const keys=Object.keys(log).filter(k=>habitCountAt(id,k)>=target).sort();
   if(!keys.length) return 0;
   const step=type==='daily'?1:7;
   let best=1, cur=1;
@@ -1782,9 +1787,9 @@ function dayHabitsFullyDone(dateStr){
   const daily=myHabits('daily');
   const weekly=myHabits('weekly');
   if(!daily.length || !weekly.length) return false;
-  const dailyDone = daily.every(h=>!!habitLogFor(h.id)[dateStr]);
+  const dailyDone = daily.every(h=>habitDoneAt(h,dateStr));
   const wk=weekStartOf(dateStr);
-  const weeklyDone = weekly.every(h=>!!habitLogFor(h.id)[wk]);
+  const weeklyDone = weekly.every(h=>habitDoneAt(h,wk));
   return dailyDone && weeklyDone;
 }
 function habitRingStripHtml(habits, type, anchorDate){
@@ -1793,7 +1798,7 @@ function habitRingStripHtml(habits, type, anchorDate){
   const todayKey = type==='daily' ? todayStr() : weekStartOf(todayStr());
   return `<div class="habit-ring-strip">
     ${periods.map(k=>{
-      const done=habits.filter(h=>habitLogFor(h.id)[k]).length;
+      const done=habits.filter(h=>habitDoneAt(h,k)).length;
       const isCurrent = k===todayKey;
       const labelDate = type==='daily' ? k : fmtDate(addDays(parseDate(k),6));
       const label = type==='daily' ? fmtShortDateSlashDow(labelDate) : fmtSlashMD(labelDate.slice(5));
@@ -1805,25 +1810,28 @@ function habitRingStripHtml(habits, type, anchorDate){
 }
 function habitRowHtml(h, type, anchorDate, idx, total){
   const periods=habitPeriodKeys(type, anchorDate, 7);
-  const log=habitLogFor(h.id);
-  const streak=habitStreak(h.id,type);
-  const best=habitBestStreak(h.id,type);
+  const target=habitTargetCount(h);
+  const streak=habitStreak(h.id,type,target);
+  const best=habitBestStreak(h.id,type,target);
   const todayKey = type==='daily'?todayStr():weekStartOf(todayStr());
   const unit = type==='daily'?'일':'주';
   const cells=periods.map(k=>{
     const isFuture = k>todayKey;
     const colCls = k===todayKey ? ' habit-col-current' : '';
     if(isFuture) return `<div class="habit-cell-col${colCls}"><span class="habit-cell habit-future">○</span></div>`;
-    const done=!!log[k];
+    const count=habitCountAt(h.id,k);
+    const done=count>=target;
     const checkColor = type==='weekly' ? 'var(--accent2)' : 'var(--good)';
-    const mark = done ? `<span style="color:${checkColor};font-weight:800;font-size:15px;">✓</span>` : '❌';
-    return `<div class="habit-cell-col${colCls}"><button type="button" class="habit-cell ${done?'habit-done':'habit-undone'} ${type==='weekly'?'habit-weekly':''}" data-habit-toggle="${h.id}" data-habit-key="${k}" title="${k}">${mark}</button></div>`;
+    const mark = target>1
+      ? `<span style="color:${done?checkColor:'var(--muted)'};font-weight:800;font-size:12px;">${count}/${target}</span>`
+      : (done ? `<span style="color:${checkColor};font-weight:800;font-size:15px;">✓</span>` : '❌');
+    return `<div class="habit-cell-col${colCls}"><button type="button" class="habit-cell ${done?'habit-done':'habit-undone'} ${type==='weekly'?'habit-weekly':''}" data-habit-toggle="${h.id}" data-habit-type="${type}" data-habit-key="${k}" title="${k}: ${count}/${target}">${mark}</button></div>`;
   }).join('');
   return `
   <div class="habit-row">
     <div class="habit-row-head">
       <span class="habit-icon"${h.color?` style="background:${h.color};border-radius:50%;padding:2px;box-shadow:0 0 0 2px ${h.color};"`:''}>${escapeHtml(h.icon||'⭐')}</span>
-      <span class="habit-row-name">${escapeHtml(h.name)}</span>
+      <span class="habit-row-name">${escapeHtml(h.name)}${target>1?` <span class="meta">(주 ${target}회)</span>`:''}</span>
       <button class="icon-btn" data-habit-edit="${h.id}" data-habit-type="${type}" title="수정">✏️</button>
       <span class="meta habit-row-streak">(⚡ ${streak}${unit} 연속 · 🔥 최고 ${best}${unit})</span>
     </div>
@@ -1873,6 +1881,7 @@ function openHabitEditModal(type, id){
   openModal(`
     <h3>${h?'습관 수정':'습관 추가'} (${type==='daily'?'Daily':'Weekly'})</h3>
     <div class="field"><label>이름</label><input id="mHabitName" value="${h?escapeHtml(h.name):''}" placeholder="예: 일찍 자기"></div>
+    ${type==='weekly'?`<div class="field" style="margin-top:10px;"><label>주 몇회</label><input type="number" id="mHabitTarget" min="1" max="14" value="${h?(h.targetCount||1):1}" style="width:70px;"></div>`:''}
     <div class="field" style="margin-top:10px;"><label>아이콘</label>
       <div class="row" style="gap:6px;flex-wrap:wrap;">
         ${HABIT_ICONS.map(ic=>`<button type="button" class="habit-icon-pick ${ic===selectedIcon?'sel':''}" data-icon="${ic}">${ic}</button>`).join('')}
@@ -1917,8 +1926,10 @@ function openHabitEditModal(type, id){
     const name=document.getElementById('mHabitName').value.trim();
     if(!name){ showToast('이름을 입력해주세요'); return; }
     const icon=document.getElementById('mHabitIcon').value.trim()||'⭐';
-    if(h){ h.name=name; h.icon=icon; h.color=selectedColor; }
-    else { habits.push({id:uid(), name, icon, color:selectedColor, createdDate:todayStr()}); }
+    const targetEl=document.getElementById('mHabitTarget');
+    const targetCount=type==='weekly' ? Math.max(1, Number(targetEl&&targetEl.value)||1) : 1;
+    if(h){ h.name=name; h.icon=icon; h.color=selectedColor; h.targetCount=targetCount; }
+    else { habits.push({id:uid(), name, icon, color:selectedColor, targetCount, createdDate:todayStr()}); }
     queueSave(); closeModal(); renderHome(); renderSchedule();
   };
   const delBtn=document.getElementById('mDelete');
@@ -1935,9 +1946,13 @@ function bindHabitEvents(el){
   el.querySelectorAll('[data-habit-add]').forEach(b=>b.onclick=()=>openHabitEditModal(b.dataset.habitAdd, null));
   el.querySelectorAll('[data-habit-edit]').forEach(b=>b.onclick=()=>openHabitEditModal(b.dataset.habitType, b.dataset.habitEdit));
   el.querySelectorAll('[data-habit-toggle]').forEach(b=>b.onclick=()=>{
-    const log=habitLogFor(b.dataset.habitToggle);
-    const k=b.dataset.habitKey;
-    if(log[k]) delete log[k]; else log[k]=true;
+    const id=b.dataset.habitToggle, type=b.dataset.habitType||'daily', k=b.dataset.habitKey;
+    const h=myHabits(type).find(x=>x.id===id);
+    const target=habitTargetCount(h);
+    const log=habitLogFor(id);
+    const cur=habitCountAt(id,k);
+    const next=(cur+1)>target ? 0 : cur+1;
+    if(next===0) delete log[k]; else log[k]=next;
     queueSave(); renderHome(); renderSchedule();
   });
   el.querySelectorAll('[data-habit-move-up]').forEach(b=>b.onclick=()=>moveHabit(b.dataset.habitType, b.dataset.habitMoveUp, -1));
