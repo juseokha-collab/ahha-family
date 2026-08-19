@@ -1066,13 +1066,48 @@ function classifyDayItems(items){
   });
   return {before, after, prop};
 }
+const DT_OWNER_PRIORITY={daughter:0, mom:1, dad:2, common:3};
+function scheduleCreationOrder(it){
+  const idx=state.schedule.findIndex(x=>x.id===it.id);
+  return idx>=0?idx:9999;
+}
 function packOverlaps(prop){
-  const sorted=[...prop].sort((a,b)=>a.startMin-b.startMin || a.endMin-b.endMin);
-  const placed=[];
-  return sorted.map((p,idx)=>{
-    const overlay=placed.some(q=>p.startMin<q.endMin && p.endMin>q.startMin);
-    placed.push(p);
-    return {...p, overlay, z:idx+1};
+  if(!prop.length) return [];
+  const order=[...prop].sort((a,b)=>{
+    const ra=DT_OWNER_PRIORITY[a.it.owner]!==undefined?DT_OWNER_PRIORITY[a.it.owner]:4;
+    const rb=DT_OWNER_PRIORITY[b.it.owner]!==undefined?DT_OWNER_PRIORITY[b.it.owner]:4;
+    if(ra!==rb) return ra-rb;
+    return scheduleCreationOrder(a.it)-scheduleCreationOrder(b.it);
+  });
+  const overlaps=(a,b)=>a.startMin<b.endMin && a.endMin>b.startMin;
+  const n=order.length;
+  const depths=new Array(n).fill(1);
+  for(let i=0;i<n;i++){
+    let maxPrev=0;
+    for(let j=0;j<i;j++){
+      if(overlaps(order[i], order[j])) maxPrev=Math.max(maxPrev, depths[j]);
+    }
+    depths[i]=maxPrev+1;
+  }
+  const parent=order.map((_,i)=>i);
+  function find(x){ while(parent[x]!==x){ parent[x]=parent[parent[x]]; x=parent[x]; } return x; }
+  function union(a,b){ const ra=find(a), rb=find(b); if(ra!==rb) parent[ra]=rb; }
+  for(let i=0;i<n;i++){
+    for(let j=i+1;j<n;j++){
+      if(overlaps(order[i], order[j])) union(i,j);
+    }
+  }
+  const clusterMaxDepth={};
+  order.forEach((p,i)=>{
+    const root=find(i);
+    clusterMaxDepth[root]=Math.max(clusterMaxDepth[root]||0, depths[i]);
+  });
+  return order.map((p,i)=>{
+    const root=find(i);
+    const N=clusterMaxDepth[root];
+    const k=depths[i];
+    const widthPct = N>0 ? (N-k+1)/N*100 : 100;
+    return {...p, overlay:k>1, widthPct, z:k};
   });
 }
 const ROLE_EMOJI={dad:'🍷',mom:'💐',daughter:'🍼'};
@@ -1108,7 +1143,7 @@ function dtPropChipHtml(p, dayDate){
   const top=dtPropTop(p.startMin);
   const rawH=dtPropTop(p.endMin)-top;
   const height=Math.max(18, rawH);
-  const leftStyle = p.overlay ? 'left:50%;width:50%;' : 'left:0;width:100%;';
+  const leftStyle = p.overlay ? `left:${(100-p.widthPct).toFixed(2)}%;width:${p.widthPct.toFixed(2)}%;` : 'left:0;width:100%;';
   const shadow = p.overlay ? 'box-shadow:-2px 1px 6px rgba(0,0,0,0.3);' : '';
   const style=`position:absolute;box-sizing:border-box;top:${(top+1).toFixed(1)}px;height:${(height-2).toFixed(1)}px;${leftStyle}overflow:hidden;text-overflow:ellipsis;white-space:nowrap;z-index:${p.z};${shadow}`;
   return dtChip(p.it, style, dayDate);
@@ -1798,13 +1833,14 @@ function habitRingStripHtml(habits, type, anchorDate){
   const todayKey = type==='daily' ? todayStr() : weekStartOf(todayStr());
   return `<div class="habit-ring-strip">
     ${periods.map(k=>{
-      const done=habits.filter(h=>habitDoneAt(h,k)).length;
+      const done=habits.reduce((sum,h)=>sum+Math.min(1, habitCountAt(h.id,k)/habitTargetCount(h)), 0);
+      const doneLabel = Number.isInteger(done) ? done : done.toFixed(1);
       const isCurrent = k===todayKey;
       const labelDate = type==='daily' ? k : fmtDate(addDays(parseDate(k),6));
       const label = type==='daily' ? fmtShortDateSlashDow(labelDate) : fmtSlashMD(labelDate.slice(5));
       const wc=weekdayColor(labelDate);
       const badgeText = type==='daily' ? 'Today' : 'This Week';
-      return `<div class="habit-ring-col${isCurrent?' habit-col-current':''}" title="${done}/${total}"><div class="habit-today-slot">${isCurrent?`<span class="habit-today-badge">${badgeText}</span>`:''}</div>${habitMiniRingSvg(done,total,type)}<div class="habit-ring-date" style="${wc?'color:'+wc+';':''}">${label}</div></div>`;
+      return `<div class="habit-ring-col${isCurrent?' habit-col-current':''}" title="${doneLabel}/${total}"><div class="habit-today-slot">${isCurrent?`<span class="habit-today-badge">${badgeText}</span>`:''}</div>${habitMiniRingSvg(done,total,type)}<div class="habit-ring-date" style="${wc?'color:'+wc+';':''}">${label}</div></div>`;
     }).join('')}
   </div>`;
 }
@@ -1822,9 +1858,9 @@ function habitRowHtml(h, type, anchorDate, idx, total){
     const count=habitCountAt(h.id,k);
     const done=count>=target;
     const checkColor = type==='weekly' ? 'var(--accent2)' : 'var(--good)';
-    const mark = target>1
-      ? `<span style="color:${done?checkColor:'var(--muted)'};font-weight:800;font-size:12px;">${count}/${target}</span>`
-      : (done ? `<span style="color:${checkColor};font-weight:800;font-size:15px;">✓</span>` : '❌');
+    const mark = done
+      ? `<span style="color:${checkColor};font-weight:800;font-size:15px;">✓</span>`
+      : (target>1 ? `<span style="color:var(--muted);font-weight:800;font-size:12px;">${count}/${target}</span>` : '❌');
     return `<div class="habit-cell-col${colCls}"><button type="button" class="habit-cell ${done?'habit-done':'habit-undone'} ${type==='weekly'?'habit-weekly':''}" data-habit-toggle="${h.id}" data-habit-type="${type}" data-habit-key="${k}" title="${k}: ${count}/${target}">${mark}</button></div>`;
   }).join('');
   return `
