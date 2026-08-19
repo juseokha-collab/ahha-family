@@ -809,13 +809,14 @@ function renderAuthArea(){
 }
 
 /* ---------- modal / toast ---------- */
-function openModal(html){
+function openModal(html, opts){
   document.getElementById('modalBody').innerHTML=html;
   const modalEl=document.querySelector('.modal-bg .modal');
   modalEl.style.position='';
   modalEl.style.left='';
   modalEl.style.top='';
   modalEl.style.margin='';
+  modalEl.style.maxWidth=(opts&&opts.maxWidth)?opts.maxWidth:'';
   modalEl.scrollTop=0;
   document.getElementById('modalBg').classList.add('show');
 }
@@ -2869,10 +2870,13 @@ const MEAL_AMOUNTS=['쫌쫌따리','알잘딱','쫌많이','레전드'];
 const MEAL_ICONS={아침:'☀️',점심:'🌤️',저녁:'🌙',간식:'🍰'};
 const MEAL_FAST_TEXT={아침:'단식했어요',점심:'단식했어요',저녁:'단식했어요',간식:'참았어요'};
 const MEAL_AMOUNT_POINTS={'쫌쫌따리':20,'알잘딱':10,'쫌많이':-10,'레전드':-30};
+const NIGHT_SNACK_AMOUNT_POINTS={'쫌많이':-20,'레전드':-40};
 function mealAmountPoints(mealType, amount){
+  if(mealType==='야식') return (amount in NIGHT_SNACK_AMOUNT_POINTS) ? NIGHT_SNACK_AMOUNT_POINTS[amount] : (MEAL_AMOUNT_POINTS[amount]||0);
   const base=MEAL_AMOUNT_POINTS[amount]||0;
   return mealType==='저녁' ? Math.round(base*1.5) : base;
 }
+const MEAL_SCORE_TYPES=MEAL_TYPES.concat(['야식']);
 const MEAL_AMOUNT_IMAGES={'쫌쫌따리':'amounts/jjomjjomttari.png','알잘딱':'amounts/aljaldak.png','쫌많이':'amounts/jjommanhi.png','레전드':'amounts/legend.png'};
 const MEAL_AMOUNT_IMAGE_STYLE={
   '쫌쫌따리':{x:50, y:15, scale:1.0},
@@ -2883,7 +2887,7 @@ const MEAL_AMOUNT_IMAGE_STYLE={
 const MEAL_FAST_POINTS=10;
 function mealScoreForEntries(entries){
   let sum=0, any=false;
-  MEAL_TYPES.forEach(t=>{
+  MEAL_SCORE_TYPES.forEach(t=>{
     const m=entries.find(x=>x.mealType===t);
     if(m && m.content){ sum+=mealAmountPoints(t, m.amount); any=true; }
     else if(m && m.fasted){ sum+=MEAL_FAST_POINTS; any=true; }
@@ -2953,7 +2957,7 @@ function openMealEditModal(dateStr, id){
     <h3>식단 기록 수정 (${dateStr.slice(5)})</h3>
     <div class="field"><label>식사 종류</label>
       <div class="row" style="gap:6px;">
-        ${MEAL_TYPES.map(t=>`<label class="pill" style="cursor:pointer;"><input type="radio" name="mMealType" value="${t}" ${m.mealType===t?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">${t}</label>`).join('')}
+        ${MEAL_SCORE_TYPES.map(t=>`<label class="pill" style="cursor:pointer;"><input type="radio" name="mMealType" value="${t}" ${m.mealType===t?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">${t}</label>`).join('')}
       </div>
     </div>
     <div class="field"><label>내용</label><input id="mMealContent" value="${escapeHtml(m.content)}"></div>
@@ -2993,18 +2997,69 @@ function dinnerNudgeText(){
   const prevRec=(state.daily[prevDate] && state.daily[prevDate].health && state.daily[prevDate].health[healthPerson]) || {};
   return (rec.weight && prevRec.weight && Number(rec.weight)>Number(prevRec.weight)) ? '오늘 저녁은 살찌니까 간단하게 ^^' : '';
 }
+function mealAmountPillsHtml(scoreType, amountName, selectedAmount){
+  return `<div class="row" style="gap:6px;flex-wrap:nowrap;overflow-x:auto;">
+    ${MEAL_AMOUNTS.map(a=>{ const p=mealAmountPoints(scoreType,a); return `<label class="pill" style="cursor:pointer;white-space:nowrap;"><input type="radio" name="${amountName}" value="${a}" ${selectedAmount===a?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">${a} (${p>0?'+':''}${p}점)</label>`; }).join('')}
+  </div>`;
+}
 function openMealSlotModal(mealType){
   const meals=(state.daily[healthDate] && state.daily[healthDate].health && state.daily[healthDate].health[healthPerson] && state.daily[healthDate].health[healthPerson].meals) || [];
   const existing=meals.find(m=>m.mealType===mealType);
+  if(mealType==='간식'){
+    const nightExisting=meals.find(m=>m.mealType==='야식');
+    openModal(`
+      <h3>${MEAL_ICONS['간식']} 간식 기록</h3>
+      <div class="field"><label>간식</label><textarea id="mSnackContent" placeholder="무엇을 먹었는지">${existing?escapeHtml(existing.content):''}</textarea></div>
+      <div class="field" style="margin-top:6px;">${mealAmountPillsHtml('간식','mSnackAmount', existing?existing.amount:'')}</div>
+      <div class="field" style="margin-top:16px;"><label>야식</label><textarea id="mNightContent" placeholder="무엇을 먹었는지">${nightExisting?escapeHtml(nightExisting.content):''}</textarea></div>
+      <div class="field" style="margin-top:6px;">${mealAmountPillsHtml('야식','mNightAmount', nightExisting?nightExisting.amount:'')}</div>
+      <div class="meta" style="margin-top:6px;">🌙 야식은 쫌많이/레전드 감점이 더 커요</div>
+      <div class="modal-actions">
+        ${(existing||nightExisting)?`<button class="btn danger" id="mDelete">삭제</button>`:''}
+        <button class="btn" id="mCancel">취소</button>
+        <button class="btn primary" id="mSave">저장</button>
+      </div>
+    `, {maxWidth:'560px'});
+    document.getElementById('mCancel').onclick=closeModal;
+    const snackEl=document.getElementById('mSnackContent');
+    const nightEl=document.getElementById('mNightContent');
+    const autoResizeMeal=(el)=>{ el.style.height='auto'; el.style.height=el.scrollHeight+'px'; };
+    [snackEl,nightEl].forEach(el=>{ autoResizeMeal(el); el.addEventListener('input', ()=>autoResizeMeal(el)); });
+    document.getElementById('mSave').onclick=()=>{
+      const snackContent=snackEl.value.trim();
+      const nightContent=nightEl.value.trim();
+      if(!snackContent && !nightContent){ showToast('내용을 입력해주세요'); return; }
+      const snackAmount=(document.querySelector('input[name="mSnackAmount"]:checked')||{}).value||'';
+      const nightAmount=(document.querySelector('input[name="mNightAmount"]:checked')||{}).value||'';
+      if(snackContent){
+        const entry=findOrCreateMealSlot('간식');
+        entry.content=snackContent; entry.amount=snackAmount; entry.fasted=false;
+      } else {
+        state.daily[healthDate].health[healthPerson].meals=state.daily[healthDate].health[healthPerson].meals.filter(x=>x.mealType!=='간식');
+      }
+      if(nightContent){
+        const entry=findOrCreateMealSlot('야식');
+        entry.content=nightContent; entry.amount=nightAmount; entry.fasted=false;
+      } else {
+        state.daily[healthDate].health[healthPerson].meals=state.daily[healthDate].health[healthPerson].meals.filter(x=>x.mealType!=='야식');
+      }
+      queueSave(); closeModal(); renderHealth();
+    };
+    const delBtn=document.getElementById('mDelete');
+    if(delBtn) delBtn.onclick=()=>{
+      if(!confirm('삭제할까요?')) return;
+      state.daily[healthDate].health[healthPerson].meals=meals.filter(x=>x.mealType!=='간식' && x.mealType!=='야식');
+      queueSave(); closeModal(); renderHealth();
+    };
+    return;
+  }
   let selectedAmount=existing?existing.amount:'';
   const placeholder=(mealType==='저녁' && dinnerNudgeText()) ? dinnerNudgeText() : '무엇을 먹었는지';
   openModal(`
     <h3>${MEAL_ICONS[mealType]} ${mealType} 기록</h3>
     <div class="field"><label>무엇을 먹었는지</label><textarea id="mMealContent" placeholder="${escapeHtml(placeholder)}" style="overflow:hidden;">${existing?escapeHtml(existing.content):''}</textarea></div>
     <div class="field" style="margin-top:10px;"><label>먹은 양</label>
-      <div class="row" style="gap:6px;flex-wrap:wrap;">
-        ${MEAL_AMOUNTS.map(a=>{ const p=mealAmountPoints(mealType,a); return `<label class="pill" style="cursor:pointer;"><input type="radio" name="mMealAmount" value="${a}" ${selectedAmount===a?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">${a} (${p>0?'+':''}${p}점)</label>`; }).join('')}
-      </div>
+      ${mealAmountPillsHtml(mealType, 'mMealAmount', selectedAmount)}
       ${mealType==='저녁'?`<div class="meta" style="margin-top:6px;">🌙 저녁 식단은 점수가 1.5배로 가중돼요</div>`:''}
     </div>
     <div class="modal-actions">
@@ -3012,7 +3067,7 @@ function openMealSlotModal(mealType){
       <button class="btn" id="mCancel">취소</button>
       <button class="btn primary" id="mSave">저장</button>
     </div>
-  `);
+  `, {maxWidth:'560px'});
   document.getElementById('mCancel').onclick=closeModal;
   const contentEl=document.getElementById('mMealContent');
   const autoResizeMeal=()=>{ contentEl.style.height='auto'; contentEl.style.height=contentEl.scrollHeight+'px'; };
@@ -3182,17 +3237,11 @@ function renderHealth(){
   if(prevWeightEntry) dietLine2=`지난 몸무게 ${prevWeightEntry.weight}kg`;
   const todaysMealsByType={};
   (rec.meals||[]).forEach(m=>{ todaysMealsByType[m.mealType]=m; });
-  const hasAnyMealRecord = MEAL_TYPES.some(t=>{ const m=todaysMealsByType[t]; return m && (m.content || m.fasted); });
-  const mealScore = 100 + MEAL_TYPES.reduce((sum,t)=>{
-    const m=todaysMealsByType[t];
-    if(m && m.content) return sum + mealAmountPoints(t, m.amount);
-    if(m && m.fasted) return sum + MEAL_FAST_POINTS;
-    return sum;
-  }, 0);
+  const {score:mealScore, any:hasAnyMealRecord} = mealScoreForEntries(rec.meals||[]);
   const mealWindowDates=Array.from({length:7},(_,i)=>fmtDate(addDays(parseDate(healthDate), -(7-i))));
   const mealGroups=mealWindowDates.slice().reverse().map(d=>{
     const dayRec=(state.daily[d] && state.daily[d].health && state.daily[d].health[healthPerson]) || {};
-    const entries=(dayRec.meals||[]).slice().sort((a,b)=>MEAL_TYPES.indexOf(a.mealType)-MEAL_TYPES.indexOf(b.mealType));
+    const entries=(dayRec.meals||[]).slice().sort((a,b)=>MEAL_SCORE_TYPES.indexOf(a.mealType)-MEAL_SCORE_TYPES.indexOf(b.mealType));
     return {date:d, entries};
   });
   const weekValidScores = mealGroups.map(g=>mealScoreForEntries(g.entries)).filter(r=>r.any).map(r=>r.score);
@@ -3369,21 +3418,33 @@ function renderHealth(){
         </div>
         <div class="meal-card-grid">
           ${MEAL_TYPES.map(t=>{
+            const isSnack = t==='간식';
             const m=todaysMealsByType[t];
-            const hasContent = !!(m && m.content);
+            const nightM = isSnack ? todaysMealsByType['야식'] : null;
+            const mHasContent = !!(m && m.content);
+            const nHasContent = !!(nightM && nightM.content);
+            const hasContent = mHasContent || nHasContent;
             const fasted = !!(m && m.fasted);
             const confirmed = hasContent || fasted;
-            const statusText = hasContent ? m.amount : MEAL_FAST_TEXT[t];
-            const points = hasContent ? mealAmountPoints(t, m.amount) : (fasted ? MEAL_FAST_POINTS : null);
+            const statusText = hasContent
+              ? (isSnack ? [mHasContent?`간식 ${m.amount}`:null, nHasContent?`야식 ${nightM.amount}`:null].filter(Boolean).join(' · ') : m.amount)
+              : MEAL_FAST_TEXT[t];
+            const points = hasContent
+              ? (isSnack ? (mHasContent?mealAmountPoints('간식',m.amount):0)+(nHasContent?mealAmountPoints('야식',nightM.amount):0) : mealAmountPoints(t, m.amount))
+              : (fasted ? MEAL_FAST_POINTS : null);
             const pointsHtml = points!=null ? `<span style="color:${points<0?'#ff8080':'#4ade80'};font-weight:700;">${points>0?'+':''}${points}점</span>` : '';
-            const amountImg = hasContent ? MEAL_AMOUNT_IMAGES[m.amount] : null;
-            const imgStyle = hasContent ? (MEAL_AMOUNT_IMAGE_STYLE[m.amount] || {x:50,y:15,scale:1.0}) : null;
+            const previewContent = isSnack
+              ? [mHasContent?m.content:null, nHasContent?nightM.content:null].filter(Boolean).join(' / ')
+              : (hasContent?m.content:'');
+            const amountForImg = isSnack ? (mHasContent?m.amount:(nHasContent?nightM.amount:null)) : (hasContent?m.amount:null);
+            const amountImg = amountForImg ? MEAL_AMOUNT_IMAGES[amountForImg] : null;
+            const imgStyle = amountForImg ? (MEAL_AMOUNT_IMAGE_STYLE[amountForImg] || {x:50,y:15,scale:1.0}) : null;
             const bgImgHtml = amountImg ? `<img src="${amountImg}" class="meal-card-bg" style="object-position:${imgStyle.x}% ${imgStyle.y}%;transform:scale(${imgStyle.scale});"><div class="meal-card-overlay"></div>` : '';
             return `<div class="meal-card${confirmed?' meal-card-done':''}${amountImg?' meal-card-photo':''}">
               ${bgImgHtml}
               <div class="meal-card-top">
                 <span class="meal-card-icon">${MEAL_ICONS[t]}</span>
-                <div class="meal-card-preview${hasContent?'':' empty'}" title="${hasContent?escapeHtml(m.content):''}">${hasContent?escapeHtml(m.content):''}</div>
+                <div class="meal-card-preview${previewContent?'':' empty'}" title="${escapeHtml(previewContent)}">${escapeHtml(previewContent)}</div>
                 <button type="button" class="meal-card-edit" data-meal-add="${t}" title="${t} 기록">✏️</button>
               </div>
               <div class="meal-card-label">${t}</div>
