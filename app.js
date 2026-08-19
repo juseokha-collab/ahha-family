@@ -3697,16 +3697,18 @@ function renderWeightChart(keys, goalProjections){
   const todayX=x(todayIdx);
   const todayLine=`<line x1="${todayX}" y1="${MT}" x2="${todayX}" y2="${MT+plotH}" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="3 2"/>`;
   const seriesSvg=series.map(s=>{
-    let pathD='', dots='', maxIdx=-1, maxVal=-Infinity;
+    let pathD='', dots='', maxIdx=-1, maxVal=-Infinity, minIdx=-1, minVal=Infinity;
     s.pts.forEach((v,i)=>{
       if(v==null) return;
       const px=x(i), py=useBrokenAxis?y(v,s.key):y(v);
       pathD += (pathD?'L':'M')+px+' '+py+' ';
       dots+=`<circle class="wt-point" data-tip="${escapeHtml(s.label)} ${v}kg (${fmtSlashMD(dateList[i].slice(5))})" cx="${px}" cy="${py}" r="4" fill="${s.color}" style="cursor:pointer;"/>`;
       if(v>maxVal){ maxVal=v; maxIdx=i; }
+      if(v<minVal){ minVal=v; minIdx=i; }
     });
     const maxLabel = maxIdx>=0 ? `<text x="${x(maxIdx)}" y="${(useBrokenAxis?y(maxVal,s.key):y(maxVal))-20}" font-size="8" fill="${s.color}" text-anchor="middle"><tspan x="${x(maxIdx)}" dy="0">${fmtSlashMD(dateList[maxIdx].slice(5))}</tspan><tspan x="${x(maxIdx)}" dy="11">${maxVal}kg</tspan></text>` : '';
-    return pathD ? `<path d="${pathD.trim()}" fill="none" stroke="${s.color}" stroke-width="2"/>${dots}${maxLabel}` : '';
+    const minLabel = minIdx>=0 ? `<text x="${x(minIdx)}" y="${(useBrokenAxis?y(minVal,s.key):y(minVal))+18}" font-size="8" fill="${s.color}" text-anchor="middle"><tspan x="${x(minIdx)}" dy="0">${fmtSlashMD(dateList[minIdx].slice(5))}</tspan><tspan x="${x(minIdx)}" dy="11">${minVal}kg</tspan></text>` : '';
+    return pathD ? `<path d="${pathD.trim()}" fill="none" stroke="${s.color}" stroke-width="2"/>${dots}${maxLabel}${minLabel}` : '';
   }).join('');
   const goalSvg=goals.map(g=>{
     let pathD='';
