@@ -1210,7 +1210,8 @@ function dtTimeColHtml(showNowMarker, nowMinutes){
   const hourLabels=Array.from({length:DT_ROWS},(_,i)=>{
     const min=DT_START_MIN+i*DT_STEP;
     const hhmm=pad2(Math.floor(min/60))+':00';
-    return `<span class="dtp-timelabel" style="top:${i*DT_HOUR_PX}px;">${dtHl(hhmm)}</span>`;
+    const style = i===0 ? 'top:2px;transform:none;' : `top:${i*DT_HOUR_PX}px;`;
+    return `<span class="dtp-timelabel" style="${style}">${dtHl(hhmm)}</span>`;
   }).join('');
   const nowInProp=showNowMarker && nowMinutes>=DT_START_MIN && nowMinutes<DT_START_MIN+DT_PROP_SPAN_MIN;
   const nowArrow=nowInProp?`<span style="position:absolute;left:0;top:${dtPropTop(nowMinutes).toFixed(1)}px;transform:translateY(-50%);color:#e5383b;font-size:10px;">▶</span>`:'';
