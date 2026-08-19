@@ -48,6 +48,11 @@ function bindTimeSelect10(id, onChange){
   });
 }
 function fmtDate(d){ return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`; }
+// 활동 로그 시각 표기: 절대시각(ms) → 한국 "MM-DD HH:mm" / 영국 "HH:mm"
+function fmtKorAbs(ms){ const p=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Seoul',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).formatToParts(new Date(ms)); const g=t=>(p.find(x=>x.type===t)||{}).value; return `${g('month')}-${g('day')} ${g('hour')}:${g('minute')}`; }
+function fmtUkAbs(ms){ const p=new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/London',hour:'2-digit',minute:'2-digit',hour12:false}).formatToParts(new Date(ms)); const g=t=>(p.find(x=>x.type===t)||{}).value; return `${g('hour')}:${g('minute')}`; }
+// 구(舊) 기록: "MM-DD HH:mm"을 한국시간(UTC+9)으로 간주해 ms로 (연도=올해)
+function korTsToAbs(ts){ const m=/(\d{2})-(\d{2})\s+(\d{2}):(\d{2})/.exec(ts||''); if(!m) return null; return Date.UTC(new Date().getFullYear(), +m[1]-1, +m[2], +m[3]-9, +m[4]); }
 function fmtSlashMD(mmdd){ const [mm,dd]=mmdd.split('-').map(Number); return `${mm}/${dd}`; }
 function shortDate(s){ const [y,m,d]=s.split('-'); return y.slice(2)+'.'+m+'.'+d; }
 function timeRangeLabel(s){ return s.time ? (s.time + (s.endTime?'~'+s.endTime:'')) : ''; }
@@ -553,6 +558,7 @@ function logRoleActivity(){
   const stateKey = ACTIVITY_STATE_KEYS[myRole];
   if(!stateKey) return;
   const now=new Date();
+  const nowMs=now.getTime();
   const ts=`${pad2(now.getMonth()+1)}-${pad2(now.getDate())} ${pad2(now.getHours())}:${pad2(now.getMinutes())}`;
   const tabName=TAB_LOG_NAMES[activeTab]||activeTab;
   const content=activityContentFor(activeTab);
@@ -560,13 +566,14 @@ function logRoleActivity(){
   if(!state[stateKey]) state[stateKey]=[];
   if(!sessionLoggedRoles[myRole]){
     sessionLoggedRoles[myRole]=true;
-    const entry={id:uid(), startTs:ts, startDesc:desc, endTs:ts, endDesc:desc};
+    const entry={id:uid(), startTs:ts, startDesc:desc, endTs:ts, endDesc:desc, startTsAbs:nowMs, endTsAbs:nowMs};
     currentSessionActivityEntries[myRole]=entry;
     state[stateKey].unshift(entry);
     state[stateKey]=state[stateKey].slice(0,50);
   } else if(currentSessionActivityEntries[myRole]){
     currentSessionActivityEntries[myRole].endTs=ts;
     currentSessionActivityEntries[myRole].endDesc=desc;
+    currentSessionActivityEntries[myRole].endTsAbs=nowMs;
   }
 }
 function activityListHtml(stateKey){
@@ -574,9 +581,14 @@ function activityListHtml(stateKey){
   if(!sorted.length) return `<div class="meta">아직 접속 기록이 없어요</div>`;
   return sorted.map(e=>{
     if(e.startTs===undefined) return `<div class="meta" style="margin-top:2px;">${escapeHtml(e.ts)} ${escapeHtml(e.text)}</div>`;
+    // 앞=한국시간, 뒤=🇬🇧 영국시간. 신규 기록은 절대시각으로 정확히, 구 기록은 저장값(한국시간 간주)
+    const sAbs = (e.startTsAbs!=null) ? e.startTsAbs : korTsToAbs(e.startTs);
+    const korStart = (e.startTsAbs!=null) ? fmtKorAbs(e.startTsAbs) : e.startTs;
+    const korEnd   = (e.endTsAbs!=null)   ? fmtKorAbs(e.endTsAbs)   : e.endTs;
     const sameEnd = e.startTs===e.endTs && e.startDesc===e.endDesc;
-    const endDisplay = e.endTs.slice(0,5)===e.startTs.slice(0,5) ? e.endTs.slice(6) : e.endTs;
-    return `<div class="meta" style="margin-top:2px;">${escapeHtml(e.startTs)} ${escapeHtml(e.startDesc)}${sameEnd?'':` / ${escapeHtml(endDisplay)} ${escapeHtml(e.endDesc)}`}</div>`;
+    const endDisplay = korEnd.slice(0,5)===korStart.slice(0,5) ? korEnd.slice(6) : korEnd;
+    const ukTag = (sAbs!=null) ? ` <span style="opacity:.72;">🇬🇧 ${fmtUkAbs(sAbs)}</span>` : '';
+    return `<div class="meta" style="margin-top:2px;">${escapeHtml(korStart)} ${escapeHtml(e.startDesc)}${sameEnd?'':` / ${escapeHtml(endDisplay)} ${escapeHtml(e.endDesc)}`}${ukTag}</div>`;
   }).join('');
 }
 function saveLocal(){ try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }catch(e){} }
