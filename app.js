@@ -2877,6 +2877,13 @@ function mealAmountPoints(mealType, amount){
   return mealType==='저녁' ? Math.round(base*1.5) : base;
 }
 const MEAL_SCORE_TYPES=MEAL_TYPES.concat(['야식']);
+const DRINK_TYPES=['아침','점심','저녁'];
+const DRINK_POINTS_PER_HALF_BOTTLE=-10;
+function mealDrinkPoints(bottles){
+  const n=Number(bottles)||0;
+  if(n<=0) return 0;
+  return Math.round(n/0.5)*DRINK_POINTS_PER_HALF_BOTTLE;
+}
 const MEAL_AMOUNT_IMAGES={'쫌쫌따리':'amounts/jjomjjomttari.png','알잘딱':'amounts/aljaldak.png','쫌많이':'amounts/jjommanhi.png','레전드':'amounts/legend.png'};
 const MEAL_AMOUNT_IMAGE_STYLE={
   '쫌쫌따리':{x:50, y:15, scale:1.0},
@@ -2891,6 +2898,9 @@ function mealScoreForEntries(entries){
     const m=entries.find(x=>x.mealType===t);
     if(m && m.content){ sum+=mealAmountPoints(t, m.amount); any=true; }
     else if(m && m.fasted){ sum+=MEAL_FAST_POINTS; any=true; }
+  });
+  entries.forEach(m=>{
+    if(m.drinkBottles){ sum+=mealDrinkPoints(m.drinkBottles); any=true; }
   });
   return {score:100+sum, any};
 }
@@ -2923,11 +2933,14 @@ function mealMoodImgHtml(entries){
 }
 function mealEntryLineHtml(m){
   const hasContent = !!m.content;
-  const points = hasContent ? mealAmountPoints(m.mealType, m.amount) : (m.fasted ? MEAL_FAST_POINTS : null);
+  const basePoints = hasContent ? mealAmountPoints(m.mealType, m.amount) : (m.fasted ? MEAL_FAST_POINTS : null);
+  const drinkPts = mealDrinkPoints(m.drinkBottles);
+  const points = (basePoints==null && !drinkPts) ? null : (basePoints||0)+drinkPts;
   const pointsHtml = points!=null ? ` <span style="color:${points<0?'var(--bad)':'var(--good)'};font-weight:700;">${points>0?'+':''}${points}점</span>` : '';
   const statusText = hasContent ? m.amount : (m.fasted ? MEAL_FAST_TEXT[m.mealType] : '');
   const showContent = hasContent && !isMobileViewport();
-  return `${escapeHtml(m.mealType)} · ${escapeHtml(statusText)}${showContent?' · '+escapeHtml(m.content):''}${pointsHtml}`;
+  const drinkHtml = m.drinkBottles ? ` · 🍶 반주 ${m.drinkBottles}병` : '';
+  return `${escapeHtml(m.mealType)} · ${escapeHtml(statusText)}${showContent?' · '+escapeHtml(m.content):''}${drinkHtml}${pointsHtml}`;
 }
 function openMealDayModal(dateStr){
   const meals=(state.daily[dateStr] && state.daily[dateStr].health && state.daily[dateStr].health[healthPerson] && state.daily[dateStr].health[healthPerson].meals) || [];
@@ -3055,6 +3068,8 @@ function openMealSlotModal(mealType){
   }
   let selectedAmount=existing?existing.amount:'';
   const placeholder=(mealType==='저녁' && dinnerNudgeText()) ? dinnerNudgeText() : '무엇을 먹었는지';
+  const showDrink = healthPerson==='dad' && DRINK_TYPES.includes(mealType);
+  const existingBottles = existing?(existing.drinkBottles||0):0;
   openModal(`
     <h3>${MEAL_ICONS[mealType]} ${mealType} 기록</h3>
     <div class="field"><label>무엇을 먹었는지</label><textarea id="mMealContent" placeholder="${escapeHtml(placeholder)}" style="overflow:hidden;">${existing?escapeHtml(existing.content):''}</textarea></div>
@@ -3062,6 +3077,12 @@ function openMealSlotModal(mealType){
       ${mealAmountPillsHtml(mealType, 'mMealAmount', selectedAmount)}
       ${mealType==='저녁'?`<div class="meta" style="margin-top:6px;">🌙 저녁 식단은 점수가 1.5배로 가중돼요</div>`:''}
     </div>
+    ${showDrink?`<div class="field" style="margin-top:10px;"><label>🍶 반주 (병)</label>
+      <div class="row" style="gap:8px;align-items:center;">
+        <input id="mDrinkBottles" type="number" step="0.5" min="0" value="${existingBottles||''}" placeholder="0" style="width:90px;">
+        <span class="meta" id="mDrinkPointsLabel">0.5병당 -10점</span>
+      </div>
+    </div>`:''}
     <div class="modal-actions">
       ${existing?`<button class="btn danger" id="mDelete">삭제</button>`:''}
       <button class="btn" id="mCancel">취소</button>
@@ -3073,6 +3094,16 @@ function openMealSlotModal(mealType){
   const autoResizeMeal=()=>{ contentEl.style.height='auto'; contentEl.style.height=contentEl.scrollHeight+'px'; };
   autoResizeMeal();
   contentEl.addEventListener('input', autoResizeMeal);
+  const drinkEl=document.getElementById('mDrinkBottles');
+  const drinkPointsLabel=document.getElementById('mDrinkPointsLabel');
+  if(drinkEl){
+    const updateDrinkLabel=()=>{
+      const pts=mealDrinkPoints(drinkEl.value);
+      drinkPointsLabel.textContent = pts ? `${pts}점` : '0.5병당 -10점';
+    };
+    updateDrinkLabel();
+    drinkEl.addEventListener('input', updateDrinkLabel);
+  }
   document.getElementById('mSave').onclick=()=>{
     const content=contentEl.value.trim();
     const amount=(document.querySelector('input[name="mMealAmount"]:checked')||{}).value||'';
@@ -3081,6 +3112,7 @@ function openMealSlotModal(mealType){
     entry.content=content;
     entry.amount=amount;
     entry.fasted=false;
+    if(drinkEl) entry.drinkBottles=Number(drinkEl.value)||0;
     queueSave(); closeModal(); renderHealth();
   };
   const delBtn=document.getElementById('mDelete');
@@ -3426,11 +3458,13 @@ function renderHealth(){
             const hasContent = mHasContent || nHasContent;
             const fasted = !!(m && m.fasted);
             const confirmed = hasContent || fasted;
+            const drinkPts = !isSnack ? mealDrinkPoints(m && m.drinkBottles) : 0;
+            const drinkTag = (!isSnack && m && m.drinkBottles) ? ` · 🍶${m.drinkBottles}병` : '';
             const statusText = hasContent
-              ? (isSnack ? [mHasContent?`간식 ${m.amount}`:null, nHasContent?`야식 ${nightM.amount}`:null].filter(Boolean).join(' · ') : m.amount)
+              ? (isSnack ? [mHasContent?`간식 ${m.amount}`:null, nHasContent?`야식 ${nightM.amount}`:null].filter(Boolean).join(' · ') : m.amount+drinkTag)
               : MEAL_FAST_TEXT[t];
             const points = hasContent
-              ? (isSnack ? (mHasContent?mealAmountPoints('간식',m.amount):0)+(nHasContent?mealAmountPoints('야식',nightM.amount):0) : mealAmountPoints(t, m.amount))
+              ? (isSnack ? (mHasContent?mealAmountPoints('간식',m.amount):0)+(nHasContent?mealAmountPoints('야식',nightM.amount):0) : mealAmountPoints(t, m.amount)+drinkPts)
               : (fasted ? MEAL_FAST_POINTS : null);
             const pointsHtml = points!=null ? `<span style="color:${points<0?'#ff8080':'#4ade80'};font-weight:700;">${points>0?'+':''}${points}점</span>` : '';
             const previewContent = isSnack
