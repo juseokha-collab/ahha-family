@@ -1220,9 +1220,9 @@ function dtTimeColHtml(showNowMarker, nowMinutes){
   return `
     <div class="dtp-timecol">
       <div class="dtp-head"></div>
-      <div class="dtp-edge">${nowBefore}<div>${dtHl('08:00')}</div><div>이전</div></div>
+      <div class="dtp-edge"><div>${nowBefore}${dtHl('08:00')}</div><div>이전</div></div>
       <div class="dtp-prop" style="height:${DT_PROP_HEIGHT}px;">${hourLabels}${nowArrow}</div>
-      <div class="dtp-edge">${nowAfter}<div>${dtHl('18:00')}</div><div>이후</div></div>
+      <div class="dtp-edge"><div>${nowAfter}${dtHl('18:00')}</div><div>이후</div></div>
       <div class="dtp-edge" style="font-weight:700;">D-day</div>
     </div>`;
 }
