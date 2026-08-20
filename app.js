@@ -2432,7 +2432,8 @@ function shoppingGroupHtml(g){
   </div>`;
 }
 function shoppingListHtml(){
-  const list=state.shoppingList||[];
+  const myRole=effectiveRole();
+  const list=(state.shoppingList||[]).filter(g=>(g.owner||'dad')===myRole);
   return `
   <div class="card">
     <h3 style="margin:0;">🛒 사야 할 물품</h3>
@@ -2447,11 +2448,12 @@ function commitShoppingDraft(idx){
   const itemNames=(row.items||'').split(',').map(s=>s.trim()).filter(Boolean);
   if(!category || !itemNames.length){ showToast('카테고리와 품목을 입력해주세요'); return; }
   if(!state.shoppingList) state.shoppingList=[];
-  const existingGroup=state.shoppingList.find(g=>g.category===category);
+  const myRole=effectiveRole();
+  const existingGroup=state.shoppingList.find(g=>g.category===category && (g.owner||'dad')===myRole);
   if(existingGroup){
     itemNames.forEach(name=>{ if(!existingGroup.items.some(it=>it.name===name)) existingGroup.items.push({id:uid(), name, done:false}); });
   } else {
-    state.shoppingList.push({id:uid(), category, items:itemNames.map(name=>({id:uid(), name, done:false})), createdDate:todayStr()});
+    state.shoppingList.push({id:uid(), category, items:itemNames.map(name=>({id:uid(), name, done:false})), createdDate:todayStr(), owner:myRole});
   }
   shoppingDraftRows.splice(idx,1);
   if(shoppingDraftRows.length<2){ shoppingDraftRows.push({category:'',items:''}); }
@@ -3425,6 +3427,7 @@ function renderHealth(){
         </div>
       </div>
       ${showActivityTrend?renderActivityTrendPanel(healthPerson):''}
+      ${healthPerson==='dad'?mealWeightSyncWidget(healthPerson):''}
       <div class="field" style="margin-top:8px;">
         <label>Activity Comment</label>
         ${symptomShowingEdit
@@ -3888,6 +3891,88 @@ function renderMiniTrendChart(label, values, dateList, color, suffix){
       </svg>
     </div>
   `;
+}
+function pearsonCorrelation(xs, ys){
+  const n=xs.length;
+  if(n<3) return null;
+  const mx=xs.reduce((a,b)=>a+b,0)/n, my=ys.reduce((a,b)=>a+b,0)/n;
+  let num=0, dx2=0, dy2=0;
+  for(let i=0;i<n;i++){
+    const dx=xs[i]-mx, dy=ys[i]-my;
+    num+=dx*dy; dx2+=dx*dx; dy2+=dy*dy;
+  }
+  const denom=Math.sqrt(dx2*dy2);
+  return denom ? num/denom : null;
+}
+function normalizeSeries(vals){
+  const present=vals.filter(v=>v!=null);
+  if(!present.length) return vals.map(()=>null);
+  let min=Math.min(...present), max=Math.max(...present);
+  if(min===max){ min-=1; max+=1; }
+  return vals.map(v=> v==null?null:(v-min)/(max-min));
+}
+function mealWeightSyncWidget(key){
+  const days=21;
+  const today=parseDate(todayStr());
+  const dateList=Array.from({length:days},(_,i)=>fmtDate(addDays(today,-(days-1-i))));
+  const scoreMA=dateList.map((d,i)=>{
+    const winDates=dateList.slice(Math.max(0,i-6), i+1);
+    const scores=winDates.map(wd=>{
+      const rec=state.daily[wd] && state.daily[wd].health && state.daily[wd].health[key];
+      const meals=rec && rec.meals;
+      if(!meals) return null;
+      const {score,any}=mealScoreForEntries(meals);
+      return any?score:null;
+    }).filter(v=>v!=null);
+    return scores.length ? scores.reduce((a,b)=>a+b,0)/scores.length : null;
+  });
+  const weightVals=dateList.map(d=>{
+    const rec=state.daily[d] && state.daily[d].health && state.daily[d].health[key];
+    const w=rec && rec.weight;
+    return (w===undefined || w===null || w==='') ? null : Number(w);
+  });
+  const pairedIdx=dateList.map((_,i)=>i).filter(i=>scoreMA[i]!=null && weightVals[i]!=null);
+  const header=`<h3 style="margin:0 0 6px;">🧪 식단·체중 연동 <span style="font-size:11px;font-weight:400;color:var(--muted);">(Beta, 나만 보여요)</span></h3>`;
+  if(pairedIdx.length<5){
+    return `<div class="card" style="margin-top:8px;">
+      ${header}
+      <div class="meta">식단 점수와 체중이 겹치는 날이 5일 이상 쌓이면 패턴을 분석해서 보여드릴게요.</div>
+    </div>`;
+  }
+  const r=pearsonCorrelation(pairedIdx.map(i=>scoreMA[i]), pairedIdx.map(i=>weightVals[i]));
+  let insight;
+  if(r==null) insight='아직 패턴을 판단하기엔 데이터가 부족해요.';
+  else if(r<=-0.3) insight=`식단 점수가 높을수록 체중이 줄어드는 경향이 보여요 (r=${r.toFixed(2)}). 지금 방식 유지해봐요!`;
+  else if(r>=0.3) insight=`식단 점수가 높은데도 체중이 함께 움직이고 있어요 (r=${r.toFixed(2)}). 반주·활동량 등 다른 요인도 점검해보면 좋겠어요.`;
+  else insight=`아직 뚜렷한 상관관계는 안 보여요 (r=${r.toFixed(2)}). 기록을 좀 더 쌓아봐요.`;
+  const scoreNorm=normalizeSeries(scoreMA);
+  const weightNorm=normalizeSeries(weightVals);
+  const n=days;
+  const W=560,H=70,ML=2,MR=2,MT=8,MB=8;
+  const x=i=>ML+(i/(n-1))*(W-ML-MR);
+  const y=v=>MT+(H-MT-MB)-v*(H-MT-MB);
+  const buildPath=(norm)=>{
+    let d='';
+    norm.forEach((v,i)=>{ if(v==null) return; const px=x(i), py=y(v); d+=(d?'L':'M')+px+' '+py+' '; });
+    return d.trim();
+  };
+  const scorePath=buildPath(scoreNorm);
+  const weightPath=buildPath(weightNorm);
+  const lastScoreIdx=[...scoreMA].map((v,i)=>({v,i})).reverse().find(p=>p.v!=null);
+  const lastWeightIdx=[...weightVals].map((v,i)=>({v,i})).reverse().find(p=>p.v!=null);
+  return `<div class="card" style="margin-top:8px;">
+    ${header}
+    <div class="meta">최근 7일 식단 평균 <b style="color:var(--accent);">${lastScoreIdx?Math.round(lastScoreIdx.v):'-'}점</b> · 최근 체중 <b style="color:var(--accent2);">${lastWeightIdx?lastWeightIdx.v:'-'}kg</b></div>
+    <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:${H}px;display:block;margin-top:4px;">
+      <path d="${scorePath}" fill="none" stroke="var(--accent)" stroke-width="2"/>
+      <path d="${weightPath}" fill="none" stroke="var(--accent2)" stroke-width="2" stroke-dasharray="4 3"/>
+    </svg>
+    <div class="row" style="gap:12px;margin-top:2px;">
+      <span class="meta" style="display:flex;align-items:center;gap:4px;"><span style="width:12px;height:2px;background:var(--accent);display:inline-block;"></span>식단 점수(7일 평균)</span>
+      <span class="meta" style="display:flex;align-items:center;gap:4px;"><span style="width:12px;height:0;border-top:2px dashed var(--accent2);display:inline-block;"></span>체중</span>
+    </div>
+    <div style="margin-top:6px;font-size:13px;font-weight:600;">${escapeHtml(insight)}</div>
+  </div>`;
 }
 function renderActivityTrendPanel(key){
   const days=14;
