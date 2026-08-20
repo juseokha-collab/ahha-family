@@ -3862,6 +3862,7 @@ function renderMiniTrendChart(label, values, dateList, color, suffix){
   const pts=values.map((v,i)=>({i,v})).filter(p=>p.v!=null);
   if(!pts.length) return `<div class="meta" style="padding:3px 0;">${label}: 기록 없음</div>`;
   const vals=pts.map(p=>p.v);
+  const avg=vals.reduce((a,b)=>a+b,0)/vals.length;
   let min=Math.min(...vals), max=Math.max(...vals);
   if(min===max){ min-=1; max+=1; }
   const pad=(max-min)*0.15; min-=pad; max+=pad;
@@ -3875,12 +3876,15 @@ function renderMiniTrendChart(label, values, dateList, color, suffix){
     pathD += (pathD?'L':'M')+px+' '+py+' ';
     dots+=`<circle cx="${px}" cy="${py}" r="2.5" fill="${color}"/>`;
   });
+  const avgY=y(avg).toFixed(1);
+  const avgLine=`<line x1="${ML}" y1="${avgY}" x2="${W-MR}" y2="${avgY}" stroke="${color}" stroke-width="1" stroke-dasharray="4 3" opacity="0.55"/>`;
   const last=pts[pts.length-1];
+  const avgLabel=Math.round(avg*10)/10;
   return `
     <div style="margin-top:8px;">
-      <div class="meta">${label} · ${dateList[last.i].slice(5)} 기준 ${last.v}${suffix}</div>
+      <div class="meta">${label} · ${dateList[last.i].slice(5)} 기준 ${last.v}${suffix} · 평균 ${avgLabel}${suffix}</div>
       <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:${H}px;display:block;">
-        <path d="${pathD.trim()}" fill="none" stroke="${color}" stroke-width="2"/>${dots}
+        ${avgLine}<path d="${pathD.trim()}" fill="none" stroke="${color}" stroke-width="2"/>${dots}
       </svg>
     </div>
   `;
