@@ -593,6 +593,26 @@ function activityListHtml(stateKey){
 }
 function saveLocal(){ try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }catch(e){} }
 function familyDocRef(){ return db.collection('shared').doc('family-state'); }
+function migrateCloudDoc(data){
+  const base=defaultState();
+  base.vehicle=Object.assign(base.vehicle, data.vehicle||{});
+  return migrateHabitsByRole(migrateEventCategories(migrateCalendarDayColors(resetWeeklyPaymentDataOnce(migrateBudgetOwnership(migrateTodos(migrateVehicle(migrateDaily(Object.assign(base, data, {vehicle:base.vehicle})))))))));
+}
+let realtimeUnsub=null;
+function attachRealtimeSync(){
+  if(realtimeUnsub){ realtimeUnsub(); realtimeUnsub=null; }
+  realtimeUnsub=familyDocRef().onSnapshot(snap=>{
+    if(!snap.exists || snap.metadata.hasPendingWrites) return;
+    const cloudState=migrateCloudDoc(snap.data());
+    state=mergeStates(state, cloudState);
+    saveLocal();
+    const modalBg=document.getElementById('modalBg');
+    const modalOpen=modalBg && modalBg.classList.contains('show');
+    const activeTag=document.activeElement && document.activeElement.tagName;
+    const isEditing=modalOpen || activeTag==='INPUT' || activeTag==='TEXTAREA';
+    if(!isEditing) renderAll();
+  }, e=>{ console.warn(e); });
+}
 function queueSave(){
   logRoleActivity();
   saveLocal();
@@ -771,10 +791,7 @@ function initAuth(){
         const localState=state;
         const doc = await familyDocRef().get();
         if(doc.exists){
-          const data=doc.data();
-          const base=defaultState();
-          base.vehicle=Object.assign(base.vehicle, data.vehicle||{});
-          const cloudState=migrateHabitsByRole(migrateEventCategories(migrateCalendarDayColors(resetWeeklyPaymentDataOnce(migrateBudgetOwnership(migrateTodos(migrateVehicle(migrateDaily(Object.assign(base, data, {vehicle:base.vehicle})))))))));
+          const cloudState=migrateCloudDoc(doc.data());
           state=mergeStates(localState, cloudState);
           await familyDocRef().set(state);
         } else {
@@ -785,6 +802,9 @@ function initAuth(){
       }catch(e){ console.warn(e); setSyncStatus('error'); }
       saveLocal();
       renderAll();
+      attachRealtimeSync();
+    } else if(realtimeUnsub){
+      realtimeUnsub(); realtimeUnsub=null;
     }
   });
 }
