@@ -2433,7 +2433,7 @@ function shoppingGroupHtml(g){
 }
 function shoppingListHtml(){
   const myRole=effectiveRole();
-  const list=(state.shoppingList||[]).filter(g=>(g.owner||'dad')===myRole);
+  const list=(state.shoppingList||[]).filter(g=>(g.owner||'daughter')===myRole);
   return `
   <div class="card">
     <h3 style="margin:0;">🛒 사야 할 물품</h3>
@@ -2449,7 +2449,7 @@ function commitShoppingDraft(idx){
   if(!category || !itemNames.length){ showToast('카테고리와 품목을 입력해주세요'); return; }
   if(!state.shoppingList) state.shoppingList=[];
   const myRole=effectiveRole();
-  const existingGroup=state.shoppingList.find(g=>g.category===category && (g.owner||'dad')===myRole);
+  const existingGroup=state.shoppingList.find(g=>g.category===category && (g.owner||'daughter')===myRole);
   if(existingGroup){
     itemNames.forEach(name=>{ if(!existingGroup.items.some(it=>it.name===name)) existingGroup.items.push({id:uid(), name, done:false}); });
   } else {
@@ -3268,7 +3268,7 @@ function renderHealth(){
     else if(diff>0){ dietLine1Emph=`${diff}kg 늘었네 ㅠㅠ.`; dietLine1='괜찮아 다시 화이팅!'; dietLine1Color='var(--bad)'; dietIcon='moods/dieting.png'; }
     else dietLine1='어제와 몸무게가 같아요!';
   }
-  if(prevWeightEntry) dietLine2=`지난 몸무게 ${prevWeightEntry.weight}kg`;
+  if(prevWeightEntry) dietLine2=`${Number(prevWeightEntry.date.slice(5,7))}월 ${Number(prevWeightEntry.date.slice(8,10))}일 몸무게 ${prevWeightEntry.weight}kg`;
   const todaysMealsByType={};
   (rec.meals||[]).forEach(m=>{ todaysMealsByType[m.mealType]=m; });
   const {score:mealScore, any:hasAnyMealRecord} = mealScoreForEntries(rec.meals||[]);
@@ -3986,11 +3986,19 @@ function renderActivityTrendPanel(key){
   const sleepVals=dateList.map(d=>getVal(d,'sleep'));
   const fastingVals=dateList.map(d=>getVal(d,'fasting'));
   const stepVals=dateList.map(d=>getVal(d,'steps'));
+  const scoreVals=dateList.map(d=>{
+    const rec=state.daily[d] && state.daily[d].health && state.daily[d].health[key];
+    const meals=rec && rec.meals;
+    if(!meals) return null;
+    const {score,any}=mealScoreForEntries(meals);
+    return any?score:null;
+  });
   return `
     <div class="card" style="margin-top:8px;">
       ${renderMiniTrendChart('수면 시간', sleepVals, dateList, '#8b7cf6', '시간')}
       ${renderMiniTrendChart('공복시간', fastingVals, dateList, '#4dd0c4', '시간')}
       ${renderMiniTrendChart('걸음 수', stepVals, dateList, '#ff7a94', '보')}
+      ${renderMiniTrendChart('식단 점수', scoreVals, dateList, '#f5a623', '점')}
     </div>
   `;
 }
