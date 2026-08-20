@@ -4712,7 +4712,7 @@ function renderStudy(){
   }).join('');
   const summaryCells=days.map((d,di)=>{
     const gap=di>0?'<td class="dt-gap"></td>':'';
-    return gap+`<td class="sb-summary-cell"><span style="color:var(--warn);font-weight:700;">🟡 공부 ${fmtStudyMin(summaries[di].study)}</span><br><span style="color:var(--good);font-weight:700;">🟢 운동 ${fmtStudyMin(summaries[di].exercise)}</span><br><span style="color:${SB_COLORS.housework};font-weight:700;">🧹 집안일 ${fmtStudyMin(summaries[di].housework)}</span></td>`;
+    return gap+`<td class="sb-summary-cell"><span style="color:var(--warn);font-weight:700;">🟡 공부 ${fmtStudyMin(summaries[di].study)}</span><br><span style="color:var(--good);font-weight:700;">🟢 운동 ${fmtStudyMin(summaries[di].exercise)}</span><br><span style="color:var(--accent2);font-weight:700;">🧹 집안일 ${fmtStudyMin(summaries[di].housework)}</span></td>`;
   }).join('');
   const gapCells=days.map((d,di)=>{
     const gap=di>0?'<td class="dt-gap"></td>':'';
@@ -4749,7 +4749,7 @@ function renderStudy(){
               const studyT=fmtStudyMin(w.study), exT=fmtStudyMin(w.exercise), hwT=fmtStudyMin(w.housework);
               const detailCell = isMobileViewport()
                 ? `<div>${range} 총 ${total}</div><div style="color:var(--muted);">(학습 ${studyT} / 운동 ${exT} / 집안일 ${hwT})</div>`
-                : `<b>${range} 총 ${total}</b> (<span style="color:var(--warn);">학습 ${studyT}</span> / <span style="color:var(--good);">운동 ${exT}</span> / <span style="color:${SB_COLORS.housework};">집안일 ${hwT}</span>)`;
+                : `<b>${range} 총 ${total}</b> (<span style="color:var(--warn);">학습 ${studyT}</span> / <span style="color:var(--good);">운동 ${exT}</span> / <span style="color:var(--accent2);">집안일 ${hwT}</span>)`;
               return `
               <tr>
                 <td style="width:18px;padding:4px 2px 4px 0;vertical-align:top;">${i===0?'📅':''}</td>
