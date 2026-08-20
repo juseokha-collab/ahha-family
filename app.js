@@ -3474,8 +3474,8 @@ function renderHealth(){
               ? [mHasContent?m.content:null, nHasContent?nightM.content:null].filter(Boolean).join(' / ')
               : (hasContent?m.content:'');
             const amountForImg = isSnack ? (mHasContent?m.amount:(nHasContent?nightM.amount:null)) : (hasContent?m.amount:null);
-            const amountImg = amountForImg ? MEAL_AMOUNT_IMAGES[amountForImg] : null;
-            const imgStyle = amountForImg ? (MEAL_AMOUNT_IMAGE_STYLE[amountForImg] || {x:50,y:15,scale:1.0}) : null;
+            const amountImg = amountForImg ? MEAL_AMOUNT_IMAGES[amountForImg] : (!hasContent && fasted ? 'amounts/fasted.png' : null);
+            const imgStyle = amountForImg ? (MEAL_AMOUNT_IMAGE_STYLE[amountForImg] || {x:50,y:15,scale:1.0}) : {x:50,y:15,scale:1.0};
             const bgImgHtml = amountImg ? `<img src="${amountImg}" class="meal-card-bg" style="object-position:${imgStyle.x}% ${imgStyle.y}%;transform:scale(${imgStyle.scale});"><div class="meal-card-overlay"></div>` : '';
             return `<div class="meal-card${confirmed?' meal-card-done':''}${amountImg?' meal-card-photo':''}">
               ${bgImgHtml}
