@@ -3130,7 +3130,7 @@ let showActivityTrend = false;
 let sleepTimeEditing = false;
 let fastingTimeEditing = false;
 let weightEditing = false;
-let caloriesEditing = false;
+let stepsEditing = false;
 let symptomEditing = false;
 let networkEditing = false;
 function memberLabel(key){ const m=FAMILY_MEMBERS.find(x=>x.key===key); return m?m.label:key; }
@@ -3300,7 +3300,7 @@ function renderHealth(){
   const sleepShowingEdit = sleepTimeEditing || !(rec.sleepStart && rec.sleepEnd);
   const fastingShowingEdit = fastingTimeEditing || !(rec.lastMeal && rec.firstMeal);
   const weightShowingEdit = weightEditing || !rec.weight;
-  const caloriesShowingEdit = caloriesEditing || !rec.calories;
+  const stepsShowingEdit = stepsEditing || !rec.steps;
   const symptomShowingEdit = symptomEditing || !(rec.symptom && rec.symptom.trim());
   const networkShowingEdit = networkEditing || !(rec.network && rec.network.trim());
   const dLabel = parseDate(healthDate).toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'});
@@ -3369,7 +3369,7 @@ function renderHealth(){
           ${healthDate!==todayStr()?todayPillBtn('hToday'):''}
         </div>
         <div class="row" style="justify-content:flex-end;align-items:center;gap:8px;">
-          <span class="meta" id="healthSaveStatus">${(rec.weight||rec.sleep||rec.fasting||rec.calories)?'✓ 저장됨':''}</span>
+          <span class="meta" id="healthSaveStatus">${(rec.weight||rec.sleep||rec.fasting||rec.steps)?'✓ 저장됨':''}</span>
           <button class="icon-btn" id="toggleActivityTrendBtn" title="추이 그래프">📈</button>
           <button class="btn small primary" id="healthSaveBtn">저장</button>
         </div>
@@ -3382,15 +3382,15 @@ function renderHealth(){
       </div>
       <div class="grid2" style="margin-top:0;">
         <span class="meta" style="font-size:11px;">${escapeHtml(dietLine2)}</span>
-        ${!isMobileViewport()?`<label class="meta" style="font-size:11px;">총칼로리 (kcal)</label>`:''}
+        ${!isMobileViewport()?`<label class="meta" style="font-size:11px;">걸음 수 (보)</label>`:''}
       </div>
       <div class="grid2" style="margin-top:6px;">
         <div class="field">${weightShowingEdit
           ? `<input type="number" step="0.1" id="hWeight" placeholder="체중 (kg)" value="${rec.weight||''}">`
           : `<div class="row" style="align-items:center;gap:6px;"><span style="font-size:13px;">${rec.weight}kg</span><button type="button" class="icon-btn" id="hWeightEditBtn" title="수정">✏️</button></div>`}</div>
-        ${!isMobileViewport()?`<div class="field">${caloriesShowingEdit
-          ? `<input type="number" step="10" id="hCalories" value="${rec.calories||''}">`
-          : `<div class="row" style="align-items:center;gap:6px;"><span style="font-size:13px;">${rec.calories}kcal</span><button type="button" class="icon-btn" id="hCaloriesEditBtn" title="수정">✏️</button></div>`}</div>`:''}
+        ${!isMobileViewport()?`<div class="field">${stepsShowingEdit
+          ? `<input type="number" step="100" id="hSteps" value="${rec.steps||''}">`
+          : `<div class="row" style="align-items:center;gap:6px;"><span style="font-size:13px;">${Number(rec.steps).toLocaleString()}보</span><button type="button" class="icon-btn" id="hStepsEditBtn" title="수정">✏️</button></div>`}</div>`:''}
       </div>
       <div class="grid2" style="margin-top:10px;">
         <div class="field">
@@ -3534,7 +3534,7 @@ function renderHealth(){
     pt.addEventListener('mouseenter', ()=>showDtTooltip(pt, pt.dataset.tip));
     pt.addEventListener('mouseleave', hideDtTooltip);
   });
-  const resetEditingFlags=()=>{ sleepTimeEditing=false; fastingTimeEditing=false; weightEditing=false; caloriesEditing=false; symptomEditing=false; networkEditing=false; };
+  const resetEditingFlags=()=>{ sleepTimeEditing=false; fastingTimeEditing=false; weightEditing=false; stepsEditing=false; symptomEditing=false; networkEditing=false; };
   document.getElementById('hPrev').onclick=()=>{ healthDate=fmtDate(addDays(parseDate(healthDate),-1)); resetEditingFlags(); renderHealth(); };
   document.getElementById('hNext').onclick=()=>{ healthDate=fmtDate(addDays(parseDate(healthDate),1)); resetEditingFlags(); renderHealth(); };
   const tb=document.getElementById('hToday'); if(tb) tb.onclick=()=>{ healthDate=todayStr(); resetEditingFlags(); renderHealth(); };
@@ -3556,10 +3556,10 @@ function renderHealth(){
     weightEditing=false;
     renderHealth();
   });
-  const hCaloriesEl=document.getElementById('hCalories');
-  if(hCaloriesEl) hCaloriesEl.addEventListener('change',e=>{
-    save('calories', e.target.value?Number(e.target.value):'');
-    caloriesEditing=false;
+  const hStepsEl=document.getElementById('hSteps');
+  if(hStepsEl) hStepsEl.addEventListener('change',e=>{
+    save('steps', e.target.value?Number(e.target.value):'');
+    stepsEditing=false;
     renderHealth();
   });
   const hSymptomChangeEl=document.getElementById('hSymptom');
@@ -3568,8 +3568,8 @@ function renderHealth(){
   if(hNetworkEl) hNetworkEl.addEventListener('change',e=>save('network', e.target.value));
   const weightEditBtn=document.getElementById('hWeightEditBtn');
   if(weightEditBtn) weightEditBtn.onclick=()=>{ weightEditing=true; renderHealth(); };
-  const caloriesEditBtn=document.getElementById('hCaloriesEditBtn');
-  if(caloriesEditBtn) caloriesEditBtn.onclick=()=>{ caloriesEditing=true; renderHealth(); };
+  const stepsEditBtn=document.getElementById('hStepsEditBtn');
+  if(stepsEditBtn) stepsEditBtn.onclick=()=>{ stepsEditing=true; renderHealth(); };
   const symptomEditBtn=document.getElementById('hSymptomEditBtn');
   if(symptomEditBtn) symptomEditBtn.onclick=()=>{ symptomEditing=true; renderHealth(); };
   const networkEditBtn=document.getElementById('hNetworkEditBtn');
@@ -3621,7 +3621,7 @@ function renderHealth(){
     autoResize();
     hSymptomEl.addEventListener('input', autoResize);
   }
-  ['hWeight','hCalories','hSymptom','hNetwork'].forEach(id=>{
+  ['hWeight','hSteps','hSymptom','hNetwork'].forEach(id=>{
     const idEl=document.getElementById(id);
     if(idEl) idEl.addEventListener('input', ()=>{
       document.getElementById('healthSaveStatus').textContent='';
@@ -3638,7 +3638,7 @@ function renderHealth(){
     if(weightShowingEdit) save('weight', document.getElementById('hWeight').value?Number(document.getElementById('hWeight').value):'');
     if(sleepShowingEdit) recalcSleep();
     if(fastingShowingEdit) recalcFasting();
-    if(caloriesShowingEdit && !isMobileViewport()) save('calories', document.getElementById('hCalories').value?Number(document.getElementById('hCalories').value):'');
+    if(stepsShowingEdit && !isMobileViewport()) save('steps', document.getElementById('hSteps').value?Number(document.getElementById('hSteps').value):'');
     if(symptomShowingEdit) save('symptom', document.getElementById('hSymptom').value);
     if(networkShowingEdit) save('network', document.getElementById('hNetwork').value);
     resetEditingFlags();
@@ -3900,12 +3900,12 @@ function renderActivityTrendPanel(key){
   };
   const sleepVals=dateList.map(d=>getVal(d,'sleep'));
   const fastingVals=dateList.map(d=>getVal(d,'fasting'));
-  const calVals=dateList.map(d=>getVal(d,'calories'));
+  const stepVals=dateList.map(d=>getVal(d,'steps'));
   return `
     <div class="card" style="margin-top:8px;">
       ${renderMiniTrendChart('수면 시간', sleepVals, dateList, '#8b7cf6', '시간')}
       ${renderMiniTrendChart('공복시간', fastingVals, dateList, '#4dd0c4', '시간')}
-      ${renderMiniTrendChart('총칼로리', calVals, dateList, '#ff7a94', 'kcal')}
+      ${renderMiniTrendChart('걸음 수', stepVals, dateList, '#ff7a94', '보')}
     </div>
   `;
 }
