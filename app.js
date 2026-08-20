@@ -381,7 +381,7 @@ function markDeleted(id){
   if(!state.deletedIds) state.deletedIds=[];
   state.deletedIds.push(id);
 }
-const SB_COLORS={study:'#f5d76e', exercise:'#7ee787'};
+const SB_COLORS={study:'#f5d76e', exercise:'#7ee787', housework:'#9ad1ff'};
 function migrateTodos(st){
   if(!st.todos) st.todos={};
   if(!st.todos.daughter) st.todos.daughter=[];
@@ -4512,7 +4512,7 @@ function encourageNudge(title, message){
 }
 function checkStudyHourMilestone(key, dateStr){
   const s=studySummary(studyBlocksFor(key,dateStr));
-  const totalMin=s.study+s.exercise;
+  const totalMin=s.study+s.exercise+s.housework;
   const hours=Math.floor(totalMin/60);
   if(hours<1) return;
   const flags=gamificationFlags(key);
@@ -4520,7 +4520,7 @@ function checkStudyHourMilestone(key, dateStr){
   if(hours>prevCelebrated){
     flags.studyHourMilestone[dateStr]=hours;
     queueSave();
-    celebrate('기록 달성! 🎉', `학습·운동 ${hours}시간을 기록했어요!`, dateStr);
+    celebrate('기록 달성! 🎉', `학습·운동·집안일 ${hours}시간을 기록했어요!`, dateStr);
   }
 }
 function checkWeightGoalReached(key, newWeight){
@@ -4634,9 +4634,9 @@ function studyBlocksFor(authorKey, dateStr){
   return state.studyBlocks[authorKey][dateStr];
 }
 function studySummary(arr){
-  let study=0, exercise=0;
-  arr.forEach(v=>{ if(v==='study') study+=10; else if(v==='exercise') exercise+=10; });
-  return {study, exercise};
+  let study=0, exercise=0, housework=0;
+  arr.forEach(v=>{ if(v==='study') study+=10; else if(v==='exercise') exercise+=10; else if(v==='housework') housework+=10; });
+  return {study, exercise, housework};
 }
 function fmtStudyMin(min){ return `${Math.floor(min/60)}시간 ${min%60}분`; }
 function weekRangeContaining(dateStr){
@@ -4656,11 +4656,11 @@ function weeklyLogRows(key){
     const weekDates=Array.from({length:7},(_,j)=>fmtDate(addDays(parseDate(weekStart),j)));
     const sum=weekDates.reduce((acc,d)=>{
       const s=studySummary(studyBlocksFor(key,d));
-      acc.study+=s.study; acc.exercise+=s.exercise;
+      acc.study+=s.study; acc.exercise+=s.exercise; acc.housework+=s.housework;
       return acc;
-    },{study:0,exercise:0});
-    if(i===0 || sum.study>0 || sum.exercise>0){
-      rows.push({start:weekDates[0], end:weekDates[6], study:sum.study, exercise:sum.exercise});
+    },{study:0,exercise:0,housework:0});
+    if(i===0 || sum.study>0 || sum.exercise>0 || sum.housework>0){
+      rows.push({start:weekDates[0], end:weekDates[6], study:sum.study, exercise:sum.exercise, housework:sum.housework});
     }
     weekStart=fmtDate(addDays(parseDate(weekStart),-7));
   }
@@ -4712,7 +4712,7 @@ function renderStudy(){
   }).join('');
   const summaryCells=days.map((d,di)=>{
     const gap=di>0?'<td class="dt-gap"></td>':'';
-    return gap+`<td class="sb-summary-cell"><span style="color:var(--warn);font-weight:700;">🟡 공부 ${fmtStudyMin(summaries[di].study)}</span><br><span style="color:var(--good);font-weight:700;">🟢 운동 ${fmtStudyMin(summaries[di].exercise)}</span></td>`;
+    return gap+`<td class="sb-summary-cell"><span style="color:var(--warn);font-weight:700;">🟡 공부 ${fmtStudyMin(summaries[di].study)}</span><br><span style="color:var(--good);font-weight:700;">🟢 운동 ${fmtStudyMin(summaries[di].exercise)}</span><br><span style="color:${SB_COLORS.housework};font-weight:700;">🧹 집안일 ${fmtStudyMin(summaries[di].housework)}</span></td>`;
   }).join('');
   const gapCells=days.map((d,di)=>{
     const gap=di>0?'<td class="dt-gap"></td>':'';
@@ -4725,7 +4725,8 @@ function renderStudy(){
       <div class="row" style="gap:10px;margin-bottom:10px;flex-wrap:wrap;justify-content:flex-end;">
         <span class="pill" style="background:${SB_COLORS.study};color:#3a2e00;border:none;">🟡 공부</span>
         <span class="pill" style="background:${SB_COLORS.exercise};color:#08321a;border:none;">🟢 운동</span>
-        <span class="meta">칸을 눌러 색칠 (공부 → 운동 → 지우기)</span>
+        <span class="pill" style="background:${SB_COLORS.housework};color:#0a2a4d;border:none;">🧹 집안일</span>
+        <span class="meta">칸을 눌러 색칠 (공부 → 운동 → 집안일 → 지우기)</span>
       </div>
       <div style="overflow-x:auto;">
         <table class="dt-table sb-table">
@@ -4744,11 +4745,11 @@ function renderStudy(){
           <tbody>
             ${logRows.map((w,i)=>{
               const range=`(${w.start.slice(5)} ~ ${w.end.slice(5)})`;
-              const total=fmtStudyMin(w.study+w.exercise);
-              const studyT=fmtStudyMin(w.study), exT=fmtStudyMin(w.exercise);
+              const total=fmtStudyMin(w.study+w.exercise+w.housework);
+              const studyT=fmtStudyMin(w.study), exT=fmtStudyMin(w.exercise), hwT=fmtStudyMin(w.housework);
               const detailCell = isMobileViewport()
-                ? `<div>${range} 총 ${total}</div><div style="color:var(--muted);">(학습 ${studyT} / 운동 ${exT})</div>`
-                : `<b>${range} 총 ${total}</b> (<span style="color:var(--warn);">학습 ${studyT}</span> / <span style="color:var(--good);">운동 ${exT}</span>)`;
+                ? `<div>${range} 총 ${total}</div><div style="color:var(--muted);">(학습 ${studyT} / 운동 ${exT} / 집안일 ${hwT})</div>`
+                : `<b>${range} 총 ${total}</b> (<span style="color:var(--warn);">학습 ${studyT}</span> / <span style="color:var(--good);">운동 ${exT}</span> / <span style="color:${SB_COLORS.housework};">집안일 ${hwT}</span>)`;
               return `
               <tr>
                 <td style="width:18px;padding:4px 2px 4px 0;vertical-align:top;">${i===0?'📅':''}</td>
@@ -4766,7 +4767,7 @@ function renderStudy(){
       const di=Number(seg.dataset.day), idx=Number(seg.dataset.idx);
       const arr=arrays[di];
       const cur=arr[idx];
-      arr[idx] = cur==='' ? 'study' : cur==='study' ? 'exercise' : '';
+      arr[idx] = cur==='' ? 'study' : cur==='study' ? 'exercise' : cur==='exercise' ? 'housework' : '';
       queueSave();
       checkStudyHourMilestone(key, days[di]);
       renderStudy();
