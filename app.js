@@ -593,10 +593,21 @@ function activityListHtml(stateKey){
 }
 function saveLocal(){ try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }catch(e){} }
 function familyDocRef(){ return db.collection('shared').doc('family-state'); }
+function migrateFoodBudgetCategories(st){
+  if(!st.budgetCategories) return st;
+  Object.keys(st.budgetCategories).forEach(key=>{
+    if(key==='daughter') return;
+    const list=st.budgetCategories[key];
+    if(!Array.isArray(list)) return;
+    if(!list.includes('밥값')) list.push('밥값');
+    if(!list.includes('간식비')) list.push('간식비');
+  });
+  return st;
+}
 function migrateCloudDoc(data){
   const base=defaultState();
   base.vehicle=Object.assign(base.vehicle, data.vehicle||{});
-  return migrateHabitsByRole(migrateEventCategories(migrateCalendarDayColors(resetWeeklyPaymentDataOnce(migrateBudgetOwnership(migrateTodos(migrateVehicle(migrateDaily(Object.assign(base, data, {vehicle:base.vehicle})))))))));
+  return migrateFoodBudgetCategories(migrateHabitsByRole(migrateEventCategories(migrateCalendarDayColors(resetWeeklyPaymentDataOnce(migrateBudgetOwnership(migrateTodos(migrateVehicle(migrateDaily(Object.assign(base, data, {vehicle:base.vehicle}))))))))));
 }
 let realtimeUnsub=null;
 function attachRealtimeSync(){
@@ -2998,6 +3009,7 @@ function openMealEditModal(dateStr, id){
     </div>
     <div class="field"><label>내용</label><input id="mMealContent" value="${escapeHtml(m.content)}"></div>
     <div class="field"><label>양</label><select id="mMealAmount">${MEAL_AMOUNTS.map(a=>{ const p=mealAmountPoints(m.mealType,a); return `<option value="${a}" ${m.amount===a?'selected':''}>${a} (${p>0?'+':''}${p}점)</option>`; }).join('')}</select></div>
+    ${mealCostFieldHtml('mMeal', m)}
     <div class="modal-actions"><button class="btn danger" id="mDelete">삭제</button><button class="btn" id="mCancel">취소</button><button class="btn primary" id="mSave">저장</button></div>
   `);
   document.getElementById('mCancel').onclick=closeModal;
@@ -3005,12 +3017,17 @@ function openMealEditModal(dateStr, id){
     m.mealType=(document.querySelector('input[name="mMealType"]:checked')||{}).value||m.mealType;
     m.content=document.getElementById('mMealContent').value;
     m.amount=document.getElementById('mMealAmount').value;
-    queueSave(); closeModal(); renderHealth();
+    const cost=Number(document.getElementById('mMealCost').value)||0;
+    const currency=document.getElementById('mMealCurrency').value;
+    const isSnack=(m.mealType==='간식' || m.mealType==='야식');
+    syncMealBudgetEntry(m, m.mealType, isSnack, cost, currency, m.content, dateStr);
+    queueSave(); closeModal(); renderHealth(); renderBudget();
   };
   document.getElementById('mDelete').onclick=()=>{
     if(!confirm('삭제할까요?')) return;
+    removeMealBudgetEntry(m);
     state.daily[dateStr].health[healthPerson].meals=meals.filter(x=>x.id!==id);
-    queueSave(); closeModal(); renderHealth();
+    queueSave(); closeModal(); renderHealth(); renderBudget();
   };
 }
 function findOrCreateMealSlot(mealType){
@@ -3040,10 +3057,15 @@ function mealAmountPillsHtml(scoreType, amountName, selectedAmount){
 }
 function mealExpenseCategoryFor(isSnack){
   const cats=myBudgetCategories();
-  if(isSnack) return cats.includes('Tea 등 음료') ? 'Tea 등 음료' : '식비';
+  if(isSnack){
+    if(cats.includes('Tea 등 음료')) return 'Tea 등 음료';
+    if(cats.includes('간식비')) return '간식비';
+    return '식비';
+  }
   return cats.includes('밥값') ? '밥값' : '식비';
 }
-function syncMealBudgetEntry(entry, mealType, isSnack, cost, currency, content){
+function syncMealBudgetEntry(entry, mealType, isSnack, cost, currency, content, dateStr){
+  const forDate = dateStr || healthDate;
   entry.cost = cost>0 ? cost : '';
   entry.currency = currency;
   if(cost>0){
@@ -3051,9 +3073,9 @@ function syncMealBudgetEntry(entry, mealType, isSnack, cost, currency, content){
     const memo=`${MEAL_ICONS[mealType]||''} ${mealType} · ${content}`.trim();
     const existingBudget = entry.budgetId ? state.budget.find(x=>x.id===entry.budgetId) : null;
     if(existingBudget){
-      existingBudget.amount=cost; existingBudget.currency=currency; existingBudget.category=category; existingBudget.memo=memo; existingBudget.date=healthDate;
+      existingBudget.amount=cost; existingBudget.currency=currency; existingBudget.category=category; existingBudget.memo=memo; existingBudget.date=forDate;
     } else {
-      const rec={id:uid(), date:healthDate, category, amount:cost, currency, memo, type:'expense', owner:currentAuthorKey()};
+      const rec={id:uid(), date:forDate, category, amount:cost, currency, memo, type:'expense', owner:currentAuthorKey()};
       state.budget.push(rec);
       entry.budgetId=rec.id;
     }
@@ -4089,7 +4111,7 @@ function renderActivityTrendPanel(key){
 
 /* ---------- BUDGET ---------- */
 let budgetMonth = todayStr().slice(0,7);
-const BUDGET_CATS=['식비','생활용품','의료/건강','쇼핑','문화/여가','교통','기타'];
+const BUDGET_CATS=['식비','밥값','간식비','생활용품','의료/건강','쇼핑','문화/여가','교통','기타'];
 const DAUGHTER_EXPENSE_CATS=['밥값','Tea 등 음료','문화생활비','체육활동비','기타'];
 const INCOME_CATS=['용돈','상여금','환급','기타'];
 const DAUGHTER_INCOME_CATS=['주급(토스)','주급(로이드)','학습·운동 인센티브','체중감량 인센티브','기타'];
