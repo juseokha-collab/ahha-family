@@ -2889,7 +2889,7 @@ const FAMILY_MEMBERS=[{key:'dad',label:'아빠'},{key:'mom',label:'엄마'},{key
 const MEMBER_EMOJI={dad:'👨',mom:'👩',daughter:'👧'};
 const MEAL_TYPES=['아침','점심','저녁','간식'];
 const MEAL_AMOUNTS=['쫌쫌따리','알잘딱','쫌많이','레전드'];
-const MEAL_ICONS={아침:'☀️',점심:'🌤️',저녁:'🌙',간식:'🍰'};
+const MEAL_ICONS={아침:'☀️',점심:'🌤️',저녁:'🌙',간식:'🍰',야식:'🌃'};
 const MEAL_FAST_TEXT={아침:'단식했어요',점심:'단식했어요',저녁:'단식했어요',간식:'참았어요'};
 const MEAL_AMOUNT_POINTS={'쫌쫌따리':20,'알잘딱':10,'쫌많이':-10,'레전드':-30};
 const NIGHT_SNACK_AMOUNT_POINTS={'쫌많이':-20,'레전드':-40};
@@ -2980,8 +2980,9 @@ function openMealDayModal(dateStr){
   document.querySelectorAll('[data-day-edit-meal]').forEach(b=>b.onclick=()=>openMealEditModal(dateStr, b.dataset.dayEditMeal));
   document.querySelectorAll('[data-day-del-meal]').forEach(b=>b.onclick=()=>{
     if(!confirm('삭제할까요?')) return;
+    removeMealBudgetEntry(meals.find(x=>x.id===b.dataset.dayDelMeal));
     state.daily[dateStr].health[healthPerson].meals=meals.filter(x=>x.id!==b.dataset.dayDelMeal);
-    queueSave(); closeModal(); renderHealth();
+    queueSave(); closeModal(); renderHealth(); renderBudget();
   });
 }
 function openMealEditModal(dateStr, id){
@@ -3037,6 +3038,51 @@ function mealAmountPillsHtml(scoreType, amountName, selectedAmount){
     ${MEAL_AMOUNTS.map(a=>{ const p=mealAmountPoints(scoreType,a); return `<label class="pill" style="cursor:pointer;white-space:nowrap;"><input type="radio" name="${amountName}" value="${a}" ${selectedAmount===a?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">${a} (${p>0?'+':''}${p}점)</label>`; }).join('')}
   </div>`;
 }
+function mealExpenseCategoryFor(isSnack){
+  const cats=myBudgetCategories();
+  if(isSnack) return cats.includes('Tea 등 음료') ? 'Tea 등 음료' : '식비';
+  return cats.includes('밥값') ? '밥값' : '식비';
+}
+function syncMealBudgetEntry(entry, mealType, isSnack, cost, currency, content){
+  entry.cost = cost>0 ? cost : '';
+  entry.currency = currency;
+  if(cost>0){
+    const category=mealExpenseCategoryFor(isSnack);
+    const memo=`${MEAL_ICONS[mealType]||''} ${mealType} · ${content}`.trim();
+    const existingBudget = entry.budgetId ? state.budget.find(x=>x.id===entry.budgetId) : null;
+    if(existingBudget){
+      existingBudget.amount=cost; existingBudget.currency=currency; existingBudget.category=category; existingBudget.memo=memo; existingBudget.date=healthDate;
+    } else {
+      const rec={id:uid(), date:healthDate, category, amount:cost, currency, memo, type:'expense', owner:currentAuthorKey()};
+      state.budget.push(rec);
+      entry.budgetId=rec.id;
+    }
+  } else if(entry.budgetId){
+    state.budget=state.budget.filter(x=>x.id!==entry.budgetId);
+    markDeleted(entry.budgetId);
+    entry.budgetId=null;
+  }
+}
+function removeMealBudgetEntry(entry){
+  if(entry && entry.budgetId){
+    state.budget=state.budget.filter(x=>x.id!==entry.budgetId);
+    markDeleted(entry.budgetId);
+  }
+}
+function mealCostFieldHtml(idPrefix, existing){
+  const defaultCur = effectiveRole()==='daughter' ? 'GBP' : 'KRW';
+  const cur = (existing && existing.currency) ? existing.currency : defaultCur;
+  const cost = (existing && existing.cost) ? existing.cost : '';
+  return `<div class="field" style="margin-top:8px;"><label>식비지출</label>
+    <div class="row" style="gap:6px;flex-wrap:nowrap;">
+      <input type="number" step="0.01" min="0" id="${idPrefix}Cost" value="${cost}" placeholder="0" style="flex:1;min-width:0;">
+      <select id="${idPrefix}Currency" style="flex-shrink:0;">
+        <option value="KRW" ${cur==='KRW'?'selected':''}>원 (KRW)</option>
+        <option value="GBP" ${cur==='GBP'?'selected':''}>£ (GBP)</option>
+      </select>
+    </div>
+  </div>`;
+}
 function openMealSlotModal(mealType){
   const meals=(state.daily[healthDate] && state.daily[healthDate].health && state.daily[healthDate].health[healthPerson] && state.daily[healthDate].health[healthPerson].meals) || [];
   const existing=meals.find(m=>m.mealType===mealType);
@@ -3044,10 +3090,12 @@ function openMealSlotModal(mealType){
     const nightExisting=meals.find(m=>m.mealType==='야식');
     openModal(`
       <h3>${MEAL_ICONS['간식']} 간식 기록</h3>
-      <div class="field"><label>간식</label><textarea id="mSnackContent" placeholder="무엇을 먹었는지">${existing?escapeHtml(existing.content):''}</textarea></div>
+      <div class="field"><label>간식</label><input type="text" id="mSnackContent" placeholder="어디서, 무엇을 먹었는지" value="${existing?escapeHtml(existing.content):''}"></div>
       <div class="field" style="margin-top:6px;">${mealAmountPillsHtml('간식','mSnackAmount', existing?existing.amount:'')}</div>
-      <div class="field" style="margin-top:16px;"><label>야식</label><textarea id="mNightContent" placeholder="무엇을 먹었는지">${nightExisting?escapeHtml(nightExisting.content):''}</textarea></div>
+      ${mealCostFieldHtml('mSnack', existing)}
+      <div class="field" style="margin-top:16px;"><label>야식</label><input type="text" id="mNightContent" placeholder="어디서, 무엇을 먹었는지" value="${nightExisting?escapeHtml(nightExisting.content):''}"></div>
       <div class="field" style="margin-top:6px;">${mealAmountPillsHtml('야식','mNightAmount', nightExisting?nightExisting.amount:'')}</div>
+      ${mealCostFieldHtml('mNight', nightExisting)}
       <div class="meta" style="margin-top:6px;">🌙 야식은 쫌많이/레전드 감점이 더 커요</div>
       <div class="modal-actions">
         ${(existing||nightExisting)?`<button class="btn danger" id="mDelete">삭제</button>`:''}
@@ -3058,8 +3106,6 @@ function openMealSlotModal(mealType){
     document.getElementById('mCancel').onclick=closeModal;
     const snackEl=document.getElementById('mSnackContent');
     const nightEl=document.getElementById('mNightContent');
-    const autoResizeMeal=(el)=>{ el.style.height='auto'; el.style.height=el.scrollHeight+'px'; };
-    [snackEl,nightEl].forEach(el=>{ autoResizeMeal(el); el.addEventListener('input', ()=>autoResizeMeal(el)); });
     document.getElementById('mSave').onclick=()=>{
       const snackContent=snackEl.value.trim();
       const nightContent=nightEl.value.trim();
@@ -3069,36 +3115,49 @@ function openMealSlotModal(mealType){
       if(snackContent){
         const entry=findOrCreateMealSlot('간식');
         entry.content=snackContent; entry.amount=snackAmount; entry.fasted=false;
+        const cost=Number(document.getElementById('mSnackCost').value)||0;
+        const currency=document.getElementById('mSnackCurrency').value;
+        syncMealBudgetEntry(entry, '간식', true, cost, currency, snackContent);
       } else {
+        const old=meals.find(x=>x.mealType==='간식');
+        removeMealBudgetEntry(old);
         state.daily[healthDate].health[healthPerson].meals=state.daily[healthDate].health[healthPerson].meals.filter(x=>x.mealType!=='간식');
       }
       if(nightContent){
         const entry=findOrCreateMealSlot('야식');
         entry.content=nightContent; entry.amount=nightAmount; entry.fasted=false;
+        const cost=Number(document.getElementById('mNightCost').value)||0;
+        const currency=document.getElementById('mNightCurrency').value;
+        syncMealBudgetEntry(entry, '야식', true, cost, currency, nightContent);
       } else {
+        const old=meals.find(x=>x.mealType==='야식');
+        removeMealBudgetEntry(old);
         state.daily[healthDate].health[healthPerson].meals=state.daily[healthDate].health[healthPerson].meals.filter(x=>x.mealType!=='야식');
       }
-      queueSave(); closeModal(); renderHealth();
+      queueSave(); closeModal(); renderHealth(); renderBudget();
     };
     const delBtn=document.getElementById('mDelete');
     if(delBtn) delBtn.onclick=()=>{
       if(!confirm('삭제할까요?')) return;
+      removeMealBudgetEntry(existing);
+      removeMealBudgetEntry(nightExisting);
       state.daily[healthDate].health[healthPerson].meals=meals.filter(x=>x.mealType!=='간식' && x.mealType!=='야식');
-      queueSave(); closeModal(); renderHealth();
+      queueSave(); closeModal(); renderHealth(); renderBudget();
     };
     return;
   }
   let selectedAmount=existing?existing.amount:'';
-  const placeholder=(mealType==='저녁' && dinnerNudgeText()) ? dinnerNudgeText() : '무엇을 먹었는지';
+  const placeholder=(mealType==='저녁' && dinnerNudgeText()) ? dinnerNudgeText() : '어디서, 무엇을 먹었는지';
   const showDrink = healthPerson==='dad' && DRINK_TYPES.includes(mealType);
   const existingBottles = existing?(existing.drinkBottles||0):0;
   openModal(`
     <h3>${MEAL_ICONS[mealType]} ${mealType} 기록</h3>
-    <div class="field"><label>무엇을 먹었는지</label><textarea id="mMealContent" placeholder="${escapeHtml(placeholder)}" style="overflow:hidden;">${existing?escapeHtml(existing.content):''}</textarea></div>
+    <div class="field"><label>무엇을 먹었는지</label><input type="text" id="mMealContent" placeholder="${escapeHtml(placeholder)}" value="${existing?escapeHtml(existing.content):''}"></div>
     <div class="field" style="margin-top:10px;"><label>먹은 양</label>
       ${mealAmountPillsHtml(mealType, 'mMealAmount', selectedAmount)}
       ${mealType==='저녁'?`<div class="meta" style="margin-top:6px;">🌙 저녁 식단은 점수가 1.5배로 가중돼요</div>`:''}
     </div>
+    ${mealCostFieldHtml('mMeal', existing)}
     ${showDrink?`<div class="field" style="margin-top:10px;"><label>🍶 반주 (병)</label>
       <div class="row" style="gap:8px;align-items:center;">
         <input id="mDrinkBottles" type="number" step="0.5" min="0" value="${existingBottles||''}" placeholder="0" style="width:90px;">
@@ -3113,9 +3172,6 @@ function openMealSlotModal(mealType){
   `, {maxWidth:'560px'});
   document.getElementById('mCancel').onclick=closeModal;
   const contentEl=document.getElementById('mMealContent');
-  const autoResizeMeal=()=>{ contentEl.style.height='auto'; contentEl.style.height=contentEl.scrollHeight+'px'; };
-  autoResizeMeal();
-  contentEl.addEventListener('input', autoResizeMeal);
   const drinkEl=document.getElementById('mDrinkBottles');
   const drinkPointsLabel=document.getElementById('mDrinkPointsLabel');
   if(drinkEl){
@@ -3135,13 +3191,17 @@ function openMealSlotModal(mealType){
     entry.amount=amount;
     entry.fasted=false;
     if(drinkEl) entry.drinkBottles=Number(drinkEl.value)||0;
-    queueSave(); closeModal(); renderHealth();
+    const cost=Number(document.getElementById('mMealCost').value)||0;
+    const currency=document.getElementById('mMealCurrency').value;
+    syncMealBudgetEntry(entry, mealType, false, cost, currency, content);
+    queueSave(); closeModal(); renderHealth(); renderBudget();
   };
   const delBtn=document.getElementById('mDelete');
   if(delBtn) delBtn.onclick=()=>{
     if(!confirm('삭제할까요?')) return;
+    removeMealBudgetEntry(existing);
     state.daily[healthDate].health[healthPerson].meals=meals.filter(x=>x.id!==existing.id);
-    queueSave(); closeModal(); renderHealth();
+    queueSave(); closeModal(); renderHealth(); renderBudget();
   };
 }
 const EMAIL_ROLE={'juseok.ha@gmail.com':'dad','jinahkim2023@gmail.com':'mom','loraha5416@gmail.com':'daughter'};
@@ -3679,8 +3739,12 @@ function renderHealth(){
   el.querySelectorAll('[data-del-meal-day]').forEach(b=>b.onclick=()=>{
     if(!confirm('이 날짜의 식단 기록을 모두 삭제할까요?')) return;
     const date=b.dataset.delMealDay;
-    if(state.daily[date] && state.daily[date].health && state.daily[date].health[healthPerson]) state.daily[date].health[healthPerson].meals=[];
-    queueSave(); renderHealth();
+    const dayHealth=state.daily[date] && state.daily[date].health && state.daily[date].health[healthPerson];
+    if(dayHealth){
+      (dayHealth.meals||[]).forEach(m=>removeMealBudgetEntry(m));
+      dayHealth.meals=[];
+    }
+    queueSave(); renderHealth(); renderBudget();
   });
   const addHealthSchedBtn=document.getElementById('addHealthSchedBtn');
   if(addHealthSchedBtn) addHealthSchedBtn.onclick=()=>openHealthSchedModal();
