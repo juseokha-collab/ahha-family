@@ -526,11 +526,12 @@ function activityContentFor(tab){
     const d=todayStr();
     const key=currentAuthorKey();
     if(tab==='schedule'){
-      const arr=state.schedule||[];
-      return arr.length ? arr[arr.length-1].title : '';
+      const arr=(state.schedule||[]).filter(x=>x.createdBy===undefined || x.createdBy===key);
+      const last=arr[arr.length-1];
+      return last ? last.title : '';
     }
     if(tab==='budget'){
-      const arr=state.budget||[];
+      const arr=(state.budget||[]).filter(x=>x.owner===undefined || x.owner===key);
       if(!arr.length) return '';
       const b=arr[arr.length-1];
       return `${b.category||''} ${fmtCurrency(b.amount||0, b.currency||'KRW')}`.trim();
