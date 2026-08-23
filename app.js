@@ -827,14 +827,19 @@ function doLogin(){
 }
 function renderAuthArea(){
   const el=document.getElementById('authArea');
-  if(user){
+  if(user && EMAIL_ROLE[user.email]==='dad'){
+    el.style.display='none';
+  } else if(user){
+    el.style.display='';
     el.innerHTML = `<span id="syncStatus"></span><span>${escapeHtml(user.displayName||user.email)}님</span><button class="btn small" id="logoutBtn">로그아웃</button>`;
     document.getElementById('logoutBtn').onclick=()=>auth.signOut();
     setSyncStatus('synced');
   } else if(auth){
+    el.style.display='';
     el.innerHTML = `<button class="btn small" id="loginBtn">구글 로그인</button>`;
     document.getElementById('loginBtn').onclick=doLogin;
   } else {
+    el.style.display='';
     el.innerHTML = `<span>로컬 저장 모드</span>`;
   }
   if(typeof updateViewAsButtons==='function') updateViewAsButtons();
