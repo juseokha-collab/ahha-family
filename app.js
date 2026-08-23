@@ -827,7 +827,7 @@ function doLogin(){
 }
 function renderAuthArea(){
   const el=document.getElementById('authArea');
-  if(user && EMAIL_ROLE[user.email]==='dad'){
+  if(user && EMAIL_ROLE[user.email]==='dad' && isMobileViewport()){
     el.style.display='none';
   } else if(user){
     el.style.display='';
