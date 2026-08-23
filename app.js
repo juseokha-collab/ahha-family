@@ -3111,6 +3111,23 @@ function mealCostFieldHtml(idPrefix, existing){
     </div>
   </div>`;
 }
+function drinkFieldHtml(idPrefix, existingBottles){
+  return `<div class="field" style="margin-top:10px;"><label>🍶 반주 (병)</label>
+    <div class="row" style="gap:8px;align-items:center;">
+      <input id="${idPrefix}Bottles" type="number" step="0.5" min="0" value="${existingBottles||''}" placeholder="0" style="width:90px;">
+      <span class="meta" id="${idPrefix}PointsLabel">0.5병당 -10점</span>
+    </div>
+  </div>`;
+}
+function bindDrinkField(idPrefix){
+  const el=document.getElementById(idPrefix+'Bottles');
+  const label=document.getElementById(idPrefix+'PointsLabel');
+  if(!el) return null;
+  const update=()=>{ const pts=mealDrinkPoints(el.value); label.textContent = pts ? `${pts}점` : '0.5병당 -10점'; };
+  update();
+  el.addEventListener('input', update);
+  return el;
+}
 function openMealSlotModal(mealType){
   const meals=(state.daily[healthDate] && state.daily[healthDate].health && state.daily[healthDate].health[healthPerson] && state.daily[healthDate].health[healthPerson].meals) || [];
   const existing=meals.find(m=>m.mealType===mealType);
@@ -3124,6 +3141,7 @@ function openMealSlotModal(mealType){
       <div class="field" style="margin-top:16px;"><label>야식</label><input type="text" id="mNightContent" placeholder="어디서, 무엇을 먹었는지" value="${nightExisting?escapeHtml(nightExisting.content):''}"></div>
       <div class="field" style="margin-top:6px;">${mealAmountPillsHtml('야식','mNightAmount', nightExisting?nightExisting.amount:'')}</div>
       ${mealCostFieldHtml('mNight', nightExisting)}
+      ${healthPerson==='dad'?drinkFieldHtml('mNightDrink', nightExisting?nightExisting.drinkBottles||0:0):''}
       <div class="meta" style="margin-top:6px;">🌙 야식은 쫌많이/레전드 감점이 더 커요</div>
       <div class="modal-actions">
         ${(existing||nightExisting)?`<button class="btn danger" id="mDelete">삭제</button>`:''}
@@ -3134,6 +3152,7 @@ function openMealSlotModal(mealType){
     document.getElementById('mCancel').onclick=closeModal;
     const snackEl=document.getElementById('mSnackContent');
     const nightEl=document.getElementById('mNightContent');
+    const nightDrinkEl = healthPerson==='dad' ? bindDrinkField('mNightDrink') : null;
     document.getElementById('mSave').onclick=()=>{
       const snackContent=snackEl.value.trim();
       const nightContent=nightEl.value.trim();
@@ -3158,6 +3177,7 @@ function openMealSlotModal(mealType){
       if(nightContent){
         const entry=findOrCreateMealSlot('야식');
         entry.content=nightContent; entry.amount=nightAmount; entry.fasted=false;
+        if(nightDrinkEl) entry.drinkBottles=Number(nightDrinkEl.value)||0;
         const cost=Number(document.getElementById('mNightCost').value)||0;
         const currency=document.getElementById('mNightCurrency').value;
         syncMealBudgetEntry(entry, '야식', true, cost, currency, nightContent);
@@ -3190,12 +3210,7 @@ function openMealSlotModal(mealType){
       ${mealType==='저녁'?`<div class="meta" style="margin-top:6px;">🌙 저녁 식단은 점수가 1.5배로 가중돼요</div>`:''}
     </div>
     ${mealCostFieldHtml('mMeal', existing)}
-    ${showDrink?`<div class="field" style="margin-top:10px;"><label>🍶 반주 (병)</label>
-      <div class="row" style="gap:8px;align-items:center;">
-        <input id="mDrinkBottles" type="number" step="0.5" min="0" value="${existingBottles||''}" placeholder="0" style="width:90px;">
-        <span class="meta" id="mDrinkPointsLabel">0.5병당 -10점</span>
-      </div>
-    </div>`:''}
+    ${showDrink?drinkFieldHtml('mDrink', existingBottles):''}
     <div class="modal-actions">
       ${existing?`<button class="btn danger" id="mDelete">삭제</button>`:''}
       <button class="btn" id="mCancel">취소</button>
@@ -3204,16 +3219,7 @@ function openMealSlotModal(mealType){
   `, {maxWidth:'560px'});
   document.getElementById('mCancel').onclick=closeModal;
   const contentEl=document.getElementById('mMealContent');
-  const drinkEl=document.getElementById('mDrinkBottles');
-  const drinkPointsLabel=document.getElementById('mDrinkPointsLabel');
-  if(drinkEl){
-    const updateDrinkLabel=()=>{
-      const pts=mealDrinkPoints(drinkEl.value);
-      drinkPointsLabel.textContent = pts ? `${pts}점` : '0.5병당 -10점';
-    };
-    updateDrinkLabel();
-    drinkEl.addEventListener('input', updateDrinkLabel);
-  }
+  const drinkEl=showDrink?bindDrinkField('mDrink'):null;
   document.getElementById('mSave').onclick=()=>{
     const content=contentEl.value.trim();
     const amount=(document.querySelector('input[name="mMealAmount"]:checked')||{}).value||'';
@@ -5329,12 +5335,16 @@ const FLAG_GB_SVG=`<svg width="18" height="13" viewBox="0 0 16 11" style="vertic
 function updateWorldClock(){
   const ukEl=document.getElementById('worldClockUk');
   const krEl=document.getElementById('worldClockKr');
+  const ukFlagEl=document.getElementById('worldClockUkFlag');
+  const krFlagEl=document.getElementById('worldClockKrFlag');
   if(!ukEl || !krEl) return;
   const now=new Date();
   const kr=now.toLocaleTimeString('ko-KR',{timeZone:'Asia/Seoul',hour:'2-digit',minute:'2-digit',hour12:false});
   const uk=now.toLocaleTimeString('ko-KR',{timeZone:'Europe/London',hour:'2-digit',minute:'2-digit',hour12:false});
-  ukEl.innerHTML = `${FLAG_GB_SVG} ${uk}`;
-  krEl.innerHTML = `${FLAG_KR_SVG} ${kr}`;
+  ukEl.textContent = uk;
+  krEl.textContent = kr;
+  if(ukFlagEl && !ukFlagEl.innerHTML) ukFlagEl.innerHTML = FLAG_GB_SVG;
+  if(krFlagEl && !krFlagEl.innerHTML) krFlagEl.innerHTML = FLAG_KR_SVG;
 }
 
 function hasContentToday(){
