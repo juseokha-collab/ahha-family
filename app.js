@@ -5317,12 +5317,14 @@ function bindShowCommonToggle(id){
 const FLAG_KR_SVG=`<svg width="14" height="14" viewBox="0 0 100 100" style="vertical-align:-2px;"><circle cx="50" cy="50" r="50" fill="#c60c30"/><path d="M50,0 A50,50 0 0,0 50,100 A25,25 0 0,0 50,50 A25,25 0 0,1 50,0 Z" fill="#003478" stroke="#003478" stroke-width="1.5"/></svg>`;
 const FLAG_GB_SVG=`<svg width="18" height="13" viewBox="0 0 16 11" style="vertical-align:-2px;"><rect width="16" height="11" fill="#00247d"/><path d="M0,0 L16,11 M16,0 L0,11" stroke="#fff" stroke-width="2.2"/><path d="M0,0 L16,11 M16,0 L0,11" stroke="#cf142b" stroke-width="1.1"/><path d="M8,0 V11 M0,5.5 H16" stroke="#fff" stroke-width="3.6"/><path d="M8,0 V11 M0,5.5 H16" stroke="#cf142b" stroke-width="2.2"/></svg>`;
 function updateWorldClock(){
-  const el=document.getElementById('worldClock');
-  if(!el) return;
+  const ukEl=document.getElementById('worldClockUk');
+  const krEl=document.getElementById('worldClockKr');
+  if(!ukEl || !krEl) return;
   const now=new Date();
   const kr=now.toLocaleTimeString('ko-KR',{timeZone:'Asia/Seoul',hour:'2-digit',minute:'2-digit',hour12:false});
   const uk=now.toLocaleTimeString('ko-KR',{timeZone:'Europe/London',hour:'2-digit',minute:'2-digit',hour12:false});
-  el.innerHTML = `<div>${FLAG_GB_SVG} ${uk}</div><div>${FLAG_KR_SVG} ${kr}</div>`;
+  ukEl.innerHTML = `${FLAG_GB_SVG} ${uk}`;
+  krEl.innerHTML = `${FLAG_KR_SVG} ${kr}`;
 }
 
 function hasContentToday(){
