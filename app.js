@@ -5322,7 +5322,7 @@ function updateWorldClock(){
   const now=new Date();
   const kr=now.toLocaleTimeString('ko-KR',{timeZone:'Asia/Seoul',hour:'2-digit',minute:'2-digit',hour12:false});
   const uk=now.toLocaleTimeString('ko-KR',{timeZone:'Europe/London',hour:'2-digit',minute:'2-digit',hour12:false});
-  el.innerHTML = `${FLAG_GB_SVG} ${uk} · ${FLAG_KR_SVG} ${kr}`;
+  el.innerHTML = `<div>${FLAG_GB_SVG} ${uk}</div><div>${FLAG_KR_SVG} ${kr}</div>`;
 }
 
 function hasContentToday(){
