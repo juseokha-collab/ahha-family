@@ -3138,6 +3138,10 @@ function openMealSlotModal(mealType){
       const snackContent=snackEl.value.trim();
       const nightContent=nightEl.value.trim();
       if(!snackContent && !nightContent){ showToast('내용을 입력해주세요'); return; }
+      ensureDay(healthDate);
+      if(!state.daily[healthDate].health) state.daily[healthDate].health={};
+      if(!state.daily[healthDate].health[healthPerson]) state.daily[healthDate].health[healthPerson]={};
+      if(!state.daily[healthDate].health[healthPerson].meals) state.daily[healthDate].health[healthPerson].meals=[];
       const snackAmount=(document.querySelector('input[name="mSnackAmount"]:checked')||{}).value||'';
       const nightAmount=(document.querySelector('input[name="mNightAmount"]:checked')||{}).value||'';
       if(snackContent){
