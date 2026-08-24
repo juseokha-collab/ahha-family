@@ -5305,7 +5305,8 @@ function updateViewAsButtons(){
   const isPreviewing = viewAsOverride==='daughter' || viewAsOverride==='mom';
   const authArea=document.getElementById('authArea');
   const themeToggle=document.getElementById('themeToggle');
-  if(authArea) authArea.style.display = isPreviewing ? 'none' : '';
+  const hideAuthArea = isPreviewing || (realRole==='dad' && isMobileViewport());
+  if(authArea) authArea.style.display = hideAuthArea ? 'none' : '';
   if(themeToggle) themeToggle.style.display = isPreviewing ? 'none' : '';
   if(momBtn) momBtn.style.display = (isDadOrGuest && viewAsOverride!=='daughter') ? '' : 'none';
   if(daughterBtn) daughterBtn.style.display = (canViewDaughter && viewAsOverride!=='mom') ? '' : 'none';
