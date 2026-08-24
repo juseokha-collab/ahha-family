@@ -2590,7 +2590,7 @@ function renderSchedule(){
     const inMonth = dayNum>=1 && dayNum<=daysInMonth;
     const dayEvents=filtered.filter(s=>scheduleItemOccursOn(s,dateStr)).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
     const holidayName=holidays[dateStr];
-    const shown=dayEvents.slice(0,MAX_SHOWN).map(s=>`<span class="cal-evt" data-item-id="${s.id}"${s.virtual?' data-virtual="1"':''}>${s.time?escapeHtml(s.time)+' ':''}${escapeHtml(s.title)}</span>`).join('');
+    const shown=dayEvents.slice(0,MAX_SHOWN).map(s=>`<span class="cal-evt" data-item-id="${s.id}"${s.virtual?' data-virtual="1"':''}>${s.time?escapeHtml(s.time.split(':')[0])+' ':''}${escapeHtml(s.title)}</span>`).join('');
     const more = dayEvents.length>MAX_SHOWN ? `<span class="cal-evt more">+${dayEvents.length-MAX_SHOWN}개 더</span>` : '';
     const dayEntry=((state.daily[dateStr]||{}).entries||{})[currentAuthorKey()];
     const commentText=dayEntry&&dayEntry.diary?dayEntry.diary:'';
