@@ -1476,7 +1476,7 @@ function todosForToday(){
   const list=myTodos().filter(t=>{
     if(t.createdDate && t.createdDate>homeDate) return false;
     if(t.repeat && t.repeat!=='none') return todoOccursOn(t, homeDate);
-    return !t.done || (t.doneDate && t.doneDate>=homeDate);
+    return !t.done || t.dueDate>=homeDate;
   });
   return list.sort((a,b)=>{
     if(todoSortBy==='task') return a.task.localeCompare(b.task);
@@ -1538,7 +1538,7 @@ function setTodoDoneOn(t, dateStr, done){
     if(done) t.doneLog[dateStr]=true; else delete t.doneLog[dateStr];
   } else {
     t.done=done;
-    t.doneDate=done?dateStr:'';
+    t.doneDate=done?todayStr():'';
   }
 }
 function mdLabel(dateStr){
