@@ -1107,7 +1107,7 @@ function classifyDayItems(items){
     if(it.endTime){
       const [eh,emi]=it.endTime.split(':').map(Number);
       endMin=eh*60+emi;
-      if(endMin<=startMin) endMin=startMin+30;
+      if(endMin<=startMin) endMin+=1440; // spans past midnight into the next day
     } else {
       endMin=startMin+30;
     }
@@ -1186,9 +1186,10 @@ function dtChip(it, extraStyle, dayDate){
   const commonCls = (!bg && it.owner==='common') ? ' dt-evt-common' : '';
   const colorStyle = bg ? `background:${bg};color:#181820;` : '';
   const styleAttr = (colorStyle||extra) ? ` style="${colorStyle}${extra}"` : '';
-  const timeLabel = timeRangeLabel(it);
+  const timeLabel = it.isContinuation ? `~${it.endTime} (전날부터)` : timeRangeLabel(it);
   const fullText = `${timeLabel?timeLabel+' ':''}${it.title}${it.memo?' · '+it.memo:''}`;
-  return `<div class="dt-evt${commonCls}" draggable="true" data-item-id="${it.id}" data-full="${escapeHtml(fullText)}"${dateAttr}${styleAttr}>${badge}${timeLabel?escapeHtml(timeLabel)+' ':''}${escapeHtml(it.title)}</div>`;
+  const draggableAttr = it.isContinuation ? '' : ' draggable="true"';
+  return `<div class="dt-evt${commonCls}"${draggableAttr} data-item-id="${it.id}" data-full="${escapeHtml(fullText)}"${dateAttr}${styleAttr}>${badge}${timeLabel?escapeHtml(timeLabel)+' ':''}${escapeHtml(it.title)}</div>`;
 }
 function dtPropChipHtml(p, dayDate){
   const top=dtPropTop(p.startMin);
@@ -1285,7 +1286,7 @@ function dtDayColInnerHtml(d, items){
     return `<div class="dt-cell dtp-hourband" style="top:${i*DT_HOUR_PX}px;height:${DT_HOUR_PX}px;" data-add-date="${d}" data-add-time="${hhmm}"></div>`;
   }).join('');
   const propChips=packed.map(p=>dtPropChipHtml(p, d)).join('');
-  const beforeHtml=`<div class="dt-cell dtp-edge" data-add-date="${d}" data-add-time="07:00">${before.map(it=>dtChip(it)).join('')}</div>`;
+  const beforeHtml=`<div class="dt-cell dtp-edge" data-add-date="${d}" data-add-time="07:00">${before.map(it=>dtChip(it, '', it.isContinuation?it.date:undefined)).join('')}</div>`;
   const afterHtml=`<div class="dt-cell dtp-edge" data-add-date="${d}" data-add-time="19:00">${after.map(it=>dtChip(it)).join('')}</div>`;
   return `${beforeHtml}<div class="dtp-prop" style="height:${DT_PROP_HEIGHT}px;">${hourBands}${propChips}</div>${afterHtml}`;
 }
@@ -1293,7 +1294,17 @@ function renderDayTimelines(){
   const dayCount=multiDayCount();
   const dayOffset=Math.floor((dayCount-1)/2);
   const days=Array.from({length:dayCount},(_,n)=>fmtDate(addDays(parseDate(homeDate), n-dayOffset)));
-  const itemsByDay=days.map(d=>myHomeVisibleScheduleItems(d).filter(it=>!String(it.id).startsWith('evt-')));
+  const itemsByDay=days.map(d=>{
+    const own=myHomeVisibleScheduleItems(d).filter(it=>!String(it.id).startsWith('evt-'));
+    const prevDate=fmtDate(addDays(parseDate(d),-1));
+    const prevOwn=myHomeVisibleScheduleItems(prevDate).filter(it=>!String(it.id).startsWith('evt-'));
+    const continuations=prevOwn.filter(it=>{
+      if(!it.time || !it.endTime) return false;
+      const [h,mi]=it.time.split(':').map(Number), [eh,emi]=it.endTime.split(':').map(Number);
+      return (eh*60+emi)<=(h*60+mi);
+    }).map(it=>({...it, time:'00:00', isContinuation:true}));
+    return own.concat(continuations);
+  });
   const nowInfo=nowInfoForRole(effectiveRole());
   const showNowMarker=days.includes(nowInfo.dateStr);
   const nowMinutes=nowInfo.hour*60;
@@ -2896,7 +2907,13 @@ function openScheduleModal(existing, prefill, occurDate){
     if(s.id){ const idx=state.schedule.findIndex(x=>x.id===s.id); state.schedule[idx]=rec; }
     else state.schedule.push(rec);
     scheduleSel=date;
+    let spansOvernight=false;
+    if(rec.time && rec.endTime){
+      const [sh,sm]=rec.time.split(':').map(Number), [eh,em]=rec.endTime.split(':').map(Number);
+      spansOvernight = (eh*60+em) <= (sh*60+sm);
+    }
     queueSave(); closeModal(); renderSchedule(); renderHome();
+    if(spansOvernight) showToast(`다음날 ${rec.endTime}까지 이어지는 일정으로 저장했어요`);
   };
   const delBtn=document.getElementById('mDelete');
   if(delBtn) delBtn.onclick=()=>{ confirmDeleteScheduleItem(s, occurDate||s.date); };
