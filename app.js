@@ -798,6 +798,7 @@ function initAuth(){
     user=u;
     renderAuthArea();
     if(u && db){
+      renderAll();
       setSyncStatus('syncing');
       try{
         const localState=state;
@@ -805,7 +806,7 @@ function initAuth(){
         if(doc.exists){
           const cloudState=migrateCloudDoc(doc.data());
           state=mergeStates(localState, cloudState);
-          await familyDocRef().set(state);
+          if(JSON.stringify(state)!==JSON.stringify(cloudState)) await familyDocRef().set(state);
         } else {
           state=localState;
           await familyDocRef().set(state);
