@@ -2803,26 +2803,26 @@ function openScheduleModal(existing, prefill, occurDate){
       </div>
     </div>
     <div class="field" style="flex-direction:row;align-items:center;gap:8px;margin-bottom:22px;"><label style="flex-shrink:0;">일정색상</label>${renderColorSwatches(selectedColor, 'modal')}</div>
-    <div class="field"><label>날짜</label><input type="text" readonly class="date-input" placeholder="YYYY-MM-DD" id="mDate" value="${s.date}"></div>
-    <div class="grid2">
-      <div class="field">
+    <div class="field" style="gap:2px;"><label>날짜</label><input type="text" readonly class="date-input" placeholder="YYYY-MM-DD" id="mDate" value="${s.date}"></div>
+    <div class="grid2" style="margin-top:16px;">
+      <div class="field" style="gap:2px;">
         <div class="row" style="justify-content:space-between;align-items:center;">
           <label style="margin:0;">시작 시간 (선택)</label>
           <button type="button" class="link-btn" id="mTimeToggle">${mTimeSet?'지우기':'+ 추가'}</button>
         </div>
-        <div id="mTimeWrap" style="display:${mTimeSet?'':'none'};margin-top:4px;">${timeSelect10Html('mTime', s.time||'09:00')}</div>
+        <div id="mTimeWrap" style="display:${mTimeSet?'':'none'};margin-top:2px;">${timeSelect10Html('mTime', s.time||'09:00')}</div>
       </div>
-      <div class="field">
+      <div class="field" style="gap:2px;">
         <div class="row" style="justify-content:space-between;align-items:center;">
           <label style="margin:0;">종료 시간 (선택)</label>
           <button type="button" class="link-btn" id="mEndTimeToggle">${mEndTimeSet?'지우기':'+ 추가'}</button>
         </div>
-        <div id="mEndTimeWrap" style="display:${mEndTimeSet?'':'none'};margin-top:4px;">${timeSelect10Html('mEndTime', s.endTime||'10:00')}</div>
+        <div id="mEndTimeWrap" style="display:${mEndTimeSet?'':'none'};margin-top:2px;">${timeSelect10Html('mEndTime', s.endTime||'10:00')}</div>
       </div>
     </div>
-    <div class="field"><label>제목</label><input id="mTitle" value="${escapeHtml(s.title)}"></div>
-    <div class="field"><label>인맥 (쉼표로 구분, 예: 홍길동, 김철수)</label><input id="mContacts" value="${escapeHtml(s.contacts)}"></div>
-    <div class="field"><label>메모</label><textarea id="mMemo">${escapeHtml(s.memo)}</textarea></div>
+    <div class="field" style="gap:2px;margin-top:16px;"><label>제목</label><input id="mTitle" value="${escapeHtml(s.title)}"></div>
+    <div class="field" style="gap:2px;margin-top:16px;"><label>인맥 (쉼표로 구분, 예: 홍길동, 김철수)</label><input id="mContacts" value="${escapeHtml(s.contacts)}"></div>
+    <div class="field" style="gap:2px;margin-top:16px;"><label>메모</label><textarea id="mMemo">${escapeHtml(s.memo)}</textarea></div>
     <div id="repeatOptions" style="display:${curRepeat!=='none'?'':'none'};margin-top:10px;padding-top:10px;border-top:1px solid var(--border);">
       <div class="field"><label>반복</label>
         <div class="row" style="gap:6px;">
@@ -2848,6 +2848,7 @@ function openScheduleModal(existing, prefill, occurDate){
       setTimeSelect10Value('mEndTime', addOneHour(getTimeSelect10Value('mTime')));
     }
   });
+  bindTimeSelect10('mEndTime', ()=>{});
   document.getElementById('mTimeToggle').onclick=()=>{
     mTimeSet=!mTimeSet;
     document.getElementById('mTimeWrap').style.display=mTimeSet?'':'none';
