@@ -738,8 +738,15 @@ function queueSave(){
   clearTimeout(saveTimer);
   saveTimer=setTimeout(()=>{
     if(user && db){
-      familyDocRef().set(state)
-        .then(()=>setSyncStatus('synced'))
+      setSyncStatus('syncing');
+      familyDocRef().get().then(snap=>{
+        if(snap.exists && !snap.metadata.hasPendingWrites){
+          const cloudState=migrateCloudDoc(snap.data());
+          state=mergeStates(state, cloudState);
+          saveLocal();
+        }
+        return familyDocRef().set(state);
+      }).then(()=>setSyncStatus('synced'))
         .catch(e=>{ console.warn(e); setSyncStatus('error'); });
     }
   }, 800);
