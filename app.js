@@ -1329,6 +1329,9 @@ function packOverlaps(prop){
     const ra=DT_OWNER_PRIORITY[a.it.owner]!==undefined?DT_OWNER_PRIORITY[a.it.owner]:4;
     const rb=DT_OWNER_PRIORITY[b.it.owner]!==undefined?DT_OWNER_PRIORITY[b.it.owner]:4;
     if(ra!==rb) return ra-rb;
+    const sa=a.trueStartMin!==undefined?a.trueStartMin:a.startMin;
+    const sb=b.trueStartMin!==undefined?b.trueStartMin:b.startMin;
+    if(sa!==sb) return sa-sb;
     return scheduleCreationOrder(a.it)-scheduleCreationOrder(b.it);
   });
   const overlaps=(a,b)=>a.startMin<b.endMin && a.endMin>b.startMin;
@@ -1359,7 +1362,7 @@ function packOverlaps(prop){
     const N=clusterMaxDepth[root];
     const k=depths[i];
     const widthPct = N>0 ? (N-k+1)/N*100 : 100;
-    return {...p, overlay:k>1, widthPct, z:k};
+    return {...p, overlay:k>1, widthPct, z:k, cluster:root};
   });
 }
 const ROLE_EMOJI={dad:'🍷',mom:'💐',daughter:'🍼'};
@@ -1389,7 +1392,7 @@ function dtChip(it, extraStyle, dayDate){
   const styleAttr = (colorStyle||extra) ? ` style="${colorStyle}${extra}"` : '';
   const timeLabel = it.isContinuation ? `~${it.endTime} (전날부터)` : timeRangeLabel(it);
   const fullText = `${timeLabel?timeLabel+' ':''}${it.title}${it.memo?' · '+it.memo:''}`;
-  const draggableAttr = it.isContinuation ? '' : ' draggable="true"';
+  const draggableAttr = (it.isContinuation || it.isCarryover) ? '' : ' draggable="true"';
   return `<div class="dt-evt${commonCls}"${draggableAttr} data-item-id="${it.id}" data-full="${escapeHtml(fullText)}"${dateAttr}${styleAttr}>${badge}${timeLabel?escapeHtml(timeLabel)+' ':''}${escapeHtml(it.title)}</div>`;
 }
 function dtPropChipHtml(p, dayDate){
@@ -1491,9 +1494,47 @@ function scheduleItemTimeRange(it){
   }
   return {startMin, endMin};
 }
-function dtAfterChipHtml(p, dayDate){
-  const style = p.overlay ? `width:${p.widthPct.toFixed(2)}%;margin-left:auto;box-shadow:-2px 1px 6px rgba(0,0,0,0.25);` : '';
-  return dtChip(p.it, style, dayDate);
+function dtAfterZoneHtml(carryoverList, afterList, byId, dayDate){
+  // Items that visually run off the bottom of the proportional area (past
+  // 19:00) still need SOME trace in the "이후" zone below, or they read as
+  // cut off. Each carryover gets a translucent ghost chip here that shares
+  // the SAME priority/width computation as genuine "이후" items, so a real
+  // overlap between the two renders as a layered, semi-transparent stack
+  // instead of two independent full-width rows.
+  const entries=[];
+  carryoverList.forEach(p=>{
+    const info=byId[p.it.id];
+    const ghostIt={...p.it, isCarryover:true};
+    entries.push(info ? {...info, it:ghostIt} : {it:ghostIt, overlay:false, widthPct:100, z:1, cluster:'c'+p.it.id});
+  });
+  afterList.forEach(it=>{
+    const info=byId[it.id];
+    entries.push(info || {it, overlay:false, widthPct:100, z:1, cluster:it.id});
+  });
+  const groups={};
+  const order=[];
+  entries.forEach(e=>{
+    const key=e.cluster!==undefined?e.cluster:e.it.id;
+    if(!groups[key]){ groups[key]=[]; order.push(key); }
+    groups[key].push(e);
+  });
+  return order.map(key=>{
+    const members=groups[key];
+    if(members.length===1 && !members[0].overlay){
+      const p=members[0];
+      const ghost=p.it.isCarryover ? 'opacity:0.55;' : '';
+      return dtChip(p.it, ghost, dayDate);
+    }
+    const H=20;
+    const chips=members.map(p=>{
+      const ghost=p.it.isCarryover ? 'opacity:0.6;' : '';
+      const posStyle=p.overlay ? `left:${(100-p.widthPct).toFixed(2)}%;width:${p.widthPct.toFixed(2)}%;` : 'left:0;width:100%;';
+      const shadow=p.overlay ? 'box-shadow:-2px 1px 6px rgba(0,0,0,0.25);' : '';
+      const style=`position:absolute;top:0;height:${H}px;box-sizing:border-box;${posStyle}overflow:hidden;text-overflow:ellipsis;white-space:nowrap;z-index:${p.z};${shadow}${ghost}`;
+      return dtChip(p.it, style, dayDate);
+    }).join('');
+    return `<div style="position:relative;height:${H}px;margin-bottom:2px;">${chips}</div>`;
+  }).join('');
 }
 function dtDayColInnerHtml(d, items){
   const {before, after, prop}=classifyDayItems(items);
@@ -1516,10 +1557,8 @@ function dtDayColInnerHtml(d, items){
     const info=byId[p.it.id]||{overlay:false, widthPct:100, z:1};
     return dtPropChipHtml({...p, overlay:info.overlay, widthPct:info.widthPct, z:info.z}, d);
   }).join('');
-  const afterChips=after.map(it=>{
-    const info=byId[it.id]||{it, overlay:false, widthPct:100, z:1};
-    return dtAfterChipHtml(info, d);
-  }).join('');
+  const carryover=prop.filter(p=>p.trueEndMin>DT_START_MIN+DT_PROP_SPAN_MIN);
+  const afterChips=dtAfterZoneHtml(carryover, after, byId, d);
   const beforeHtml=`<div class="dt-cell dtp-edge" data-add-date="${d}" data-add-time="07:00">${before.map(it=>dtChip(it, '', it.isContinuation?it.date:undefined)).join('')}</div>`;
   const afterHtml=`<div class="dt-cell dtp-edge" data-add-date="${d}" data-add-time="19:00">${afterChips}</div>`;
   return `${beforeHtml}<div class="dtp-prop" style="height:${DT_PROP_HEIGHT}px;">${hourBands}${propChips}</div>${afterHtml}`;
