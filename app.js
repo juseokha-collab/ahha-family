@@ -595,6 +595,71 @@ function activityListHtml(stateKey){
 }
 function saveLocal(){ try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }catch(e){} }
 function familyDocRef(){ return db.collection('shared').doc('family-state'); }
+/* ---------- per-feature Firestore documents ----------
+   Splitting one giant shared document into several smaller ones so a
+   stale/long-open tab saving unrelated data can't blow away another
+   family member's more recent edit to a *different* feature area. The
+   legacy family-state doc is kept as a read-only fallback for one-time
+   migration; nothing writes to it anymore. */
+const STATE_GROUPS={
+  schedule:['schedule'],
+  budget:['budget','budgetCategories','incomeCategories','budgetCarryover','weeklyPaymentStatus','weeklyPaymentResetV2','shoppingList'],
+  daily:['daily'],
+  todos:['todos','todoCategories'],
+  events:['events','eventCategoriesByRole'],
+  study:['study','studyBlocks'],
+  habits:['habits','habitLog'],
+  vehicle:['vehicle'],
+  misc:['healthSchedule','calendarDayColors','deletedIds','monthNotes','letters','daughterActivity','momActivity','weightGoals']
+};
+const STATE_GROUP_NAMES=Object.keys(STATE_GROUPS);
+function groupDocRef(name){ return db.collection('shared').doc('group-'+name); }
+function keysForGroup(groupName, sourceObj){
+  const explicitKeys=STATE_GROUPS[groupName]||[];
+  if(groupName!=='misc') return explicitKeys;
+  const allExplicit=new Set(Object.values(STATE_GROUPS).flat());
+  const src=sourceObj||state;
+  const dynamic=Object.keys(src||{}).filter(k=>!allExplicit.has(k));
+  return [...new Set([...explicitKeys, ...dynamic])];
+}
+function pickKeys(obj, keys){
+  const out={};
+  keys.forEach(k=>{ if(obj && obj[k]!==undefined) out[k]=obj[k]; });
+  return out;
+}
+async function fetchAllGroups(){
+  const snaps=await Promise.all(STATE_GROUP_NAMES.map(name=>groupDocRef(name).get()));
+  const anyGroupExists=snaps.some(s=>s.exists);
+  if(!anyGroupExists){
+    try{
+      const oldSnap=await familyDocRef().get();
+      if(oldSnap.exists){
+        const oldData=oldSnap.data()||{};
+        const raw={};
+        STATE_GROUP_NAMES.forEach(name=>{ raw[name]=pickKeys(oldData, keysForGroup(name, oldData)); });
+        return {combined:oldData, raw, migratedFromLegacy:true};
+      }
+    }catch(e){ console.warn('legacy state read failed', e); }
+  }
+  const combined={};
+  const raw={};
+  STATE_GROUP_NAMES.forEach((name,i)=>{
+    const data=snaps[i].exists ? (snaps[i].data()||{}) : {};
+    raw[name]=data;
+    Object.assign(combined, data);
+  });
+  return {combined, raw};
+}
+async function writeChangedGroups(raw, force){
+  const writes=[];
+  STATE_GROUP_NAMES.forEach(name=>{
+    const groupData=pickKeys(state, keysForGroup(name));
+    if(force || JSON.stringify(groupData)!==JSON.stringify(raw[name]||{})){
+      writes.push(groupDocRef(name).set(groupData));
+    }
+  });
+  await Promise.all(writes);
+}
 function migrateFoodBudgetCategories(st){
   if(!st.budgetCategories) return st;
   Object.keys(st.budgetCategories).forEach(key=>{
@@ -611,20 +676,38 @@ function migrateCloudDoc(data){
   base.vehicle=Object.assign(base.vehicle, data.vehicle||{});
   return migrateFoodBudgetCategories(migrateHabitsByRole(migrateEventCategories(migrateCalendarDayColors(resetWeeklyPaymentDataOnce(migrateBudgetOwnership(migrateTodos(migrateVehicle(migrateDaily(Object.assign(base, data, {vehicle:base.vehicle}))))))))));
 }
-let realtimeUnsub=null;
+let realtimeUnsubs=[];
+function detachAllRealtimeSync(){
+  realtimeUnsubs.forEach(u=>{ try{ u(); }catch(e){} });
+  realtimeUnsubs=[];
+}
+function applyGroupSnapshotToState(name, data){
+  const keys=keysForGroup(name);
+  const deletedSet=new Set([...(state.deletedIds||[]), ...(data.deletedIds||[])]);
+  let changed=false;
+  keys.forEach(k=>{
+    if(data[k]===undefined) return;
+    const mergedVal=mergeSingleKey(k, state[k], data[k], deletedSet);
+    if(JSON.stringify(mergedVal)!==JSON.stringify(state[k])){ state[k]=mergedVal; changed=true; }
+  });
+  return changed;
+}
 function attachRealtimeSync(){
-  if(realtimeUnsub){ realtimeUnsub(); realtimeUnsub=null; }
-  realtimeUnsub=familyDocRef().onSnapshot(snap=>{
-    if(!snap.exists || snap.metadata.hasPendingWrites) return;
-    const cloudState=migrateCloudDoc(snap.data());
-    state=mergeStates(state, cloudState);
-    saveLocal();
-    const modalBg=document.getElementById('modalBg');
-    const modalOpen=modalBg && modalBg.classList.contains('show');
-    const activeTag=document.activeElement && document.activeElement.tagName;
-    const isEditing=modalOpen || activeTag==='INPUT' || activeTag==='TEXTAREA';
-    if(!isEditing) renderAll();
-  }, e=>{ console.warn(e); });
+  detachAllRealtimeSync();
+  STATE_GROUP_NAMES.forEach(name=>{
+    const unsub=groupDocRef(name).onSnapshot(snap=>{
+      if(!snap.exists || snap.metadata.hasPendingWrites) return;
+      const changed=applyGroupSnapshotToState(name, snap.data()||{});
+      if(!changed) return;
+      saveLocal();
+      const modalBg=document.getElementById('modalBg');
+      const modalOpen=modalBg && modalBg.classList.contains('show');
+      const activeTag=document.activeElement && document.activeElement.tagName;
+      const isEditing=modalOpen || activeTag==='INPUT' || activeTag==='TEXTAREA';
+      if(!isEditing) renderAll();
+    }, e=>{ console.warn(e); });
+    realtimeUnsubs.push(unsub);
+  });
 }
 
 /* ---------- 하루 앱(별도 Firebase 프로젝트) 몸무게 양방향 연동 ---------- */
@@ -736,18 +819,19 @@ function queueSave(){
   logRoleActivity();
   saveLocal();
   clearTimeout(saveTimer);
-  saveTimer=setTimeout(()=>{
+  saveTimer=setTimeout(async ()=>{
     if(user && db){
       setSyncStatus('syncing');
-      familyDocRef().get().then(snap=>{
-        if(snap.exists && !snap.metadata.hasPendingWrites){
-          const cloudState=migrateCloudDoc(snap.data());
+      try{
+        const {combined, raw, migratedFromLegacy}=await fetchAllGroups();
+        if(Object.keys(combined).length){
+          const cloudState=migrateCloudDoc(combined);
           state=mergeStates(state, cloudState);
           saveLocal();
         }
-        return familyDocRef().set(state);
-      }).then(()=>setSyncStatus('synced'))
-        .catch(e=>{ console.warn(e); setSyncStatus('error'); });
+        await writeChangedGroups(raw, !!migratedFromLegacy);
+        setSyncStatus('synced');
+      }catch(e){ console.warn(e); setSyncStatus('error'); }
     }
   }, 800);
 }
@@ -872,37 +956,41 @@ function mergeHabitLog(localLog, cloudLog){
   });
   return merged;
 }
-function mergeStates(localState, cloudState){
-  const merged=JSON.parse(JSON.stringify(cloudState));
-  const deletedSet=new Set([...(localState.deletedIds||[]), ...(cloudState.deletedIds||[])]);
-  merged.deletedIds=[...deletedSet];
-  merged.schedule=mergeById(localState.schedule, cloudState.schedule, deletedSet);
-  merged.budget=mergeById(localState.budget, cloudState.budget, deletedSet);
-  merged.events=mergeById(localState.events, cloudState.events, deletedSet);
-  merged.study=mergeById(localState.study, cloudState.study, deletedSet);
-  merged.todos=mergeKeyedArrays(localState.todos, cloudState.todos, deletedSet);
-  merged.healthSchedule=mergeKeyedArrays(localState.healthSchedule, cloudState.healthSchedule, deletedSet);
-  merged.budgetCategories=mergeCategoryLists(localState.budgetCategories, cloudState.budgetCategories);
-  merged.daily=mergeDaily(localState.daily, cloudState.daily);
-  merged.studyBlocks=mergeStudyBlocks(localState.studyBlocks, cloudState.studyBlocks);
-  merged.vehicle=mergeVehicle(localState.vehicle, cloudState.vehicle, deletedSet);
-  merged.calendarDayColors=mergeKeyedColorMaps(localState.calendarDayColors, cloudState.calendarDayColors);
-  merged.todoCategories=mergeTodoCategories(localState.todoCategories, cloudState.todoCategories);
-  merged.eventCategoriesByRole=mergeKeyedCategoryLists(localState.eventCategoriesByRole, cloudState.eventCategoriesByRole);
+function mergeHabitsField(localVal, cloudVal, deletedSet){
   const mergeHabitsRole=(localRole, cloudRole)=>({
     daily: mergeById(localRole&&localRole.daily, cloudRole&&cloudRole.daily, deletedSet),
     weekly: mergeById(localRole&&localRole.weekly, cloudRole&&cloudRole.weekly, deletedSet)
   });
-  merged.habits={
-    dad: mergeHabitsRole(localState.habits&&localState.habits.dad, cloudState.habits&&cloudState.habits.dad),
-    daughter: mergeHabitsRole(localState.habits&&localState.habits.daughter, cloudState.habits&&cloudState.habits.daughter)
+  return {
+    dad: mergeHabitsRole(localVal&&localVal.dad, cloudVal&&cloudVal.dad),
+    daughter: mergeHabitsRole(localVal&&localVal.daughter, cloudVal&&cloudVal.daughter)
   };
-  merged.habitLog=mergeHabitLog(localState.habitLog, cloudState.habitLog);
-  merged.monthNotes=mergeKeyedColorMaps(localState.monthNotes, cloudState.monthNotes);
-  merged.letters=mergeById(localState.letters, cloudState.letters, deletedSet);
-  merged.daughterActivity=mergeById(localState.daughterActivity, cloudState.daughterActivity, deletedSet);
-  merged.momActivity=mergeById(localState.momActivity, cloudState.momActivity, deletedSet);
-  merged.shoppingList=mergeById(localState.shoppingList, cloudState.shoppingList, deletedSet);
+}
+const KEY_MERGE_FN={
+  schedule:mergeById, budget:mergeById, events:mergeById, study:mergeById,
+  letters:mergeById, daughterActivity:mergeById, momActivity:mergeById, shoppingList:mergeById,
+  todos:mergeKeyedArrays, healthSchedule:mergeKeyedArrays,
+  budgetCategories:mergeCategoryLists,
+  daily:(l,c)=>mergeDaily(l,c),
+  studyBlocks:(l,c)=>mergeStudyBlocks(l,c),
+  vehicle:mergeVehicle,
+  calendarDayColors:mergeKeyedColorMaps, monthNotes:mergeKeyedColorMaps,
+  todoCategories:mergeTodoCategories,
+  eventCategoriesByRole:mergeKeyedCategoryLists,
+  habits:mergeHabitsField
+};
+function mergeSingleKey(key, localVal, cloudVal, deletedSet){
+  if(key==='deletedIds') return [...deletedSet];
+  if(key==='habitLog') return mergeHabitLog(localVal, cloudVal);
+  const fn=KEY_MERGE_FN[key];
+  if(fn) return fn(localVal, cloudVal, deletedSet);
+  return cloudVal!==undefined ? cloudVal : localVal;
+}
+function mergeStates(localState, cloudState){
+  const deletedSet=new Set([...(localState.deletedIds||[]), ...(cloudState.deletedIds||[])]);
+  const merged=JSON.parse(JSON.stringify(cloudState));
+  const allKeys=new Set([...Object.keys(localState||{}), ...Object.keys(cloudState||{})]);
+  allKeys.forEach(k=>{ merged[k]=mergeSingleKey(k, localState[k], cloudState[k], deletedSet); });
   return merged;
 }
 function initAuth(){
@@ -916,22 +1004,21 @@ function initAuth(){
       setSyncStatus('syncing');
       try{
         const localState=state;
-        const doc = await familyDocRef().get();
-        if(doc.exists){
-          const cloudState=migrateCloudDoc(doc.data());
+        const {combined, raw, migratedFromLegacy}=await fetchAllGroups();
+        if(Object.keys(combined).length){
+          const cloudState=migrateCloudDoc(combined);
           state=mergeStates(localState, cloudState);
-          if(JSON.stringify(state)!==JSON.stringify(cloudState)) await familyDocRef().set(state);
         } else {
           state=localState;
-          await familyDocRef().set(state);
         }
+        await writeChangedGroups(raw, !!migratedFromLegacy);
         setSyncStatus('synced');
       }catch(e){ console.warn(e); setSyncStatus('error'); }
       saveLocal();
       renderAll();
       attachRealtimeSync();
-    } else if(realtimeUnsub){
-      realtimeUnsub(); realtimeUnsub=null;
+    } else {
+      detachAllRealtimeSync();
     }
   });
 }
