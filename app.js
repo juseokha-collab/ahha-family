@@ -1399,31 +1399,37 @@ function scheduleItemTimeRange(it){
   }
   return {startMin, endMin};
 }
-function afterOverlapInfo(afterItems, prop){
-  if(!afterItems.length) return [];
-  const afterEntries = afterItems.map(it=>({it, ...scheduleItemTimeRange(it)}));
-  const carryEntries = prop.filter(p=>p.trueEndMin>DT_START_MIN+DT_PROP_SPAN_MIN).map(p=>({it:p.it, startMin:p.trueStartMin, endMin:p.trueEndMin}));
-  const packed = packOverlaps(carryEntries.concat(afterEntries));
-  const byId={};
-  packed.forEach(p=>{ byId[p.it.id]=p; });
-  return afterItems.map(it=>byId[it.id] || {it, overlay:false, widthPct:100, z:1});
-}
 function dtAfterChipHtml(p, dayDate){
   const style = p.overlay ? `width:${p.widthPct.toFixed(2)}%;margin-left:auto;box-shadow:-2px 1px 6px rgba(0,0,0,0.25);` : '';
   return dtChip(p.it, style, dayDate);
 }
 function dtDayColInnerHtml(d, items){
   const {before, after, prop}=classifyDayItems(items);
-  const packed=packOverlaps(prop);
+  // Overlap priority must be computed across prop+after together (using each
+  // item's TRUE, uncapped time range) so a prop item that visually ends at
+  // 19:00 but really continues later still competes fairly against an
+  // after-bucket item it genuinely overlaps - and whichever side loses gets
+  // narrowed on ITS OWN chip, not just referenced and discarded.
+  const propForOverlap = prop.map(p=>({it:p.it, startMin:p.trueStartMin, endMin:p.trueEndMin}));
+  const afterForOverlap = after.map(it=>({it, ...scheduleItemTimeRange(it)}));
+  const unified = packOverlaps(propForOverlap.concat(afterForOverlap));
+  const byId={};
+  unified.forEach(p=>{ byId[p.it.id]=p; });
   const hourBands=Array.from({length:DT_ROWS},(_,i)=>{
     const min=DT_START_MIN+i*DT_STEP;
     const hhmm=pad2(Math.floor(min/60))+':'+pad2(min%60);
     return `<div class="dt-cell dtp-hourband" style="top:${i*DT_HOUR_PX}px;height:${DT_HOUR_PX}px;" data-add-date="${d}" data-add-time="${hhmm}"></div>`;
   }).join('');
-  const propChips=packed.map(p=>dtPropChipHtml(p, d)).join('');
-  const afterPacked=afterOverlapInfo(after, packed);
+  const propChips=prop.map(p=>{
+    const info=byId[p.it.id]||{overlay:false, widthPct:100, z:1};
+    return dtPropChipHtml({...p, overlay:info.overlay, widthPct:info.widthPct, z:info.z}, d);
+  }).join('');
+  const afterChips=after.map(it=>{
+    const info=byId[it.id]||{it, overlay:false, widthPct:100, z:1};
+    return dtAfterChipHtml(info, d);
+  }).join('');
   const beforeHtml=`<div class="dt-cell dtp-edge" data-add-date="${d}" data-add-time="07:00">${before.map(it=>dtChip(it, '', it.isContinuation?it.date:undefined)).join('')}</div>`;
-  const afterHtml=`<div class="dt-cell dtp-edge" data-add-date="${d}" data-add-time="19:00">${afterPacked.map(p=>dtAfterChipHtml(p, d)).join('')}</div>`;
+  const afterHtml=`<div class="dt-cell dtp-edge" data-add-date="${d}" data-add-time="19:00">${afterChips}</div>`;
   return `${beforeHtml}<div class="dtp-prop" style="height:${DT_PROP_HEIGHT}px;">${hourBands}${propChips}</div>${afterHtml}`;
 }
 function renderDayTimelines(){
