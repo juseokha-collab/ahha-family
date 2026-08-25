@@ -935,9 +935,7 @@ function doLogin(){
 }
 function renderAuthArea(){
   const el=document.getElementById('authArea');
-  if(user && EMAIL_ROLE[user.email]==='dad' && isMobileViewport()){
-    el.style.display='none';
-  } else if(user){
+  if(user){
     el.style.display='';
     el.innerHTML = `<span id="syncStatus"></span><span>${escapeHtml(user.displayName||user.email)}님</span><button class="btn small" id="logoutBtn">로그아웃</button>`;
     document.getElementById('logoutBtn').onclick=()=>auth.signOut();
@@ -1458,7 +1456,7 @@ function renderDayTimelines(){
     const prevBtn=isFirst?`<button class="iconbtn" id="dtPrevBtn" style="font-size:13px;width:20px;height:20px;flex-shrink:0;">◀</button>`:'';
     const nextBtn=isLast?`<button class="iconbtn" id="dtNextBtn" style="font-size:13px;width:20px;height:20px;flex-shrink:0;">▶</button>`:'';
     const justify=isFirst?'flex-start':isLast?'flex-end':'center';
-    const headHtml=`<div class="dtp-head row" style="justify-content:${justify};flex-wrap:nowrap;gap:4px;">${prevBtn}${dateText}${nextBtn}</div>`;
+    const headHtml=`<div class="dtp-head row" style="justify-content:${justify};flex-wrap:nowrap;gap:2px;">${prevBtn}${dateText}${nextBtn}</div>`;
     const evs=state.events.filter(ev=>!(ev.hiddenFromDaughter && ddayRole==='daughter') && fmtDate(eventOccurrence(ev))===d)
       .map(ev=>({id:'evt-dday-'+ev.id, title:ev.name, memo:ev.memo, ddayCommon:ddayRole!=='daughter'}));
     const ddayHtml=`<div class="dt-cell dtp-edge">${evs.map(ev=>dtChip(ev)).join('')}</div>`;
@@ -5462,18 +5460,19 @@ function updateViewAsButtons(){
   const realRole = user ? EMAIL_ROLE[user.email] : null;
   const isDadOrGuest = !realRole || realRole==='dad';
   const canViewDaughter = isDadOrGuest || realRole==='mom';
+  const isPreviewing = viewAsOverride==='daughter' || viewAsOverride==='mom';
+  const authArea=document.getElementById('authArea');
+  const themeToggle=document.getElementById('themeToggle');
+  const hideAuthArea = isPreviewing || isMobileViewport();
+  if(authArea) authArea.style.display = hideAuthArea ? 'none' : '';
   if(momBtn) momBtn.classList.toggle('active', viewAsOverride==='mom');
   if(daughterBtn) daughterBtn.classList.toggle('active', viewAsOverride==='daughter');
   if(!isDadOrGuest && !canViewDaughter){
     if(momBtn) momBtn.style.display='none';
     if(daughterBtn) daughterBtn.style.display='none';
+    if(themeToggle) themeToggle.style.display = isPreviewing ? 'none' : '';
     return;
   }
-  const isPreviewing = viewAsOverride==='daughter' || viewAsOverride==='mom';
-  const authArea=document.getElementById('authArea');
-  const themeToggle=document.getElementById('themeToggle');
-  const hideAuthArea = isPreviewing || (realRole==='dad' && isMobileViewport());
-  if(authArea) authArea.style.display = hideAuthArea ? 'none' : '';
   if(themeToggle) themeToggle.style.display = isPreviewing ? 'none' : '';
   if(momBtn) momBtn.style.display = (isDadOrGuest && viewAsOverride!=='daughter') ? '' : 'none';
   if(daughterBtn) daughterBtn.style.display = (canViewDaughter && viewAsOverride!=='mom') ? '' : 'none';
