@@ -818,7 +818,10 @@ function pushWeightToHaru(dateStr, val){
 
 /* ---------- undo (Ctrl+Z) ---------- */
 let undoHistory=[];
-let lastUndoSnapshot=null;
+// Seeded with the just-loaded state (not null) so the very FIRST edit of a
+// session still has a "before" snapshot to push once its queueSave() runs -
+// otherwise the first Ctrl+Z of a session always finds an empty history.
+let lastUndoSnapshot=JSON.parse(JSON.stringify(state));
 const UNDO_MAX=20;
 function captureUndoSnapshot(){
   if(lastUndoSnapshot){
@@ -1048,6 +1051,7 @@ function initAuth(){
         setSyncStatus('synced');
       }catch(e){ console.warn(e); setSyncStatus('error'); }
       saveLocal();
+      lastUndoSnapshot=JSON.parse(JSON.stringify(state));
       renderAll();
       attachRealtimeSync();
     } else {
@@ -1424,8 +1428,9 @@ function dtChip(it, extraStyle, dayDate){
   }
   const badge = authorBadge(it.createdBy);
   const bg = it.color || it.bgColor;
-  const commonCls = (!bg && it.owner==='common') ? ' dt-evt-common' : '';
-  const colorStyle = bg ? `background:${bg};color:#181820;` : '';
+  const isCommon = it.owner==='common';
+  const commonCls = isCommon ? ' dt-evt-common' : '';
+  const colorStyle = (bg && !isCommon) ? `background:${bg};color:#181820;` : '';
   const styleAttr = (colorStyle||extra) ? ` style="${colorStyle}${extra}"` : '';
   const timeLabel = it.isContinuation ? `~${it.endTime} (전날부터)` : timeRangeLabel(it);
   const fullText = `${timeLabel?timeLabel+' ':''}${it.title}${it.memo?' · '+it.memo:''}`;
@@ -1649,7 +1654,7 @@ function renderDayTimelines(){
         </div>
         <div class="row" style="gap:10px;">
           ${role && role!=='daughter' ? `<label class="pill" style="cursor:pointer;"><input type="checkbox" id="showDaughterToggleHome" ${showDaughterOnHome?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">딸</label>` : ''}
-          <label class="pill" style="cursor:pointer;"><input type="checkbox" id="showCommonToggleHome" ${showCommonOnHome?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">가족공통</label>
+          <label class="pill pill-common" style="cursor:pointer;"><input type="checkbox" id="showCommonToggleHome" ${showCommonOnHome?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">가족공통</label>
         </div>
       </div>
       ${scheduleColorPick?`<div class="meta" style="margin-bottom:6px;">🎨 색상을 적용할 일정을 클릭하세요</div>`:''}
@@ -2945,7 +2950,7 @@ function renderSchedule(){
     <div class="card">
       <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:4px;gap:10px;">
         ${renderColorSwatches(calendarColorPick, 'cal-paint', true)}
-        <label class="pill" style="cursor:pointer;"><input type="checkbox" id="showCommonToggleSchedule" ${showCommonOnHome?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">가족공통</label>
+        <label class="pill pill-common" style="cursor:pointer;"><input type="checkbox" id="showCommonToggleSchedule" ${showCommonOnHome?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">가족공통</label>
       </div>
       ${calendarColorPick?`<div class="meta" style="margin-bottom:6px;">🎨 색상을 적용할 날짜를 클릭하세요</div>`:''}
       <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
