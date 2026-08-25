@@ -1478,7 +1478,17 @@ function dtHl(hhmm){
 }
 let showCommonOnHome=false;
 let showDaughterOnHome=false;
+let showMineOnHome=true;
 let parentHomeDefaultsApplied=false;
+let momToggleDefaultsApplied=false;
+function applyMomToggleDefaultsOnce(){
+  if(effectiveRole()==='mom' && !momToggleDefaultsApplied){
+    momToggleDefaultsApplied=true;
+    showMineOnHome=true;
+    showCommonOnHome=true;
+    showDaughterOnHome=false;
+  }
+}
 let momWeightDefaultsApplied=false;
 let daughterWeightDefaultsApplied=false;
 let studyAnchor=todayStr();
@@ -1497,7 +1507,7 @@ function myHomeVisibleScheduleItems(dateStr){
   const allItems=state.schedule.map(s=>({...s, owner:s.owner||'common', ...resolveItemColors(s,dateStr)})).concat(virtualEventItems);
   const visible = allItems.filter(it=>{
     if(!role) return it.owner==='common';
-    if(it.owner===role) return true;
+    if(it.owner===role) return role==='mom' ? showMineOnHome : true;
     if(it.owner==='daughter') return role!=='daughter' && showDaughterOnHome;
     if(it.owner==='common') return showCommonOnHome;
     return false;
@@ -1653,6 +1663,7 @@ function renderDayTimelines(){
           ${!days.includes(todayStr())?todayPillBtn('dtTodayBtn'):''}
         </div>
         <div class="row" style="gap:10px;">
+          ${role==='mom' ? `<label class="pill" style="cursor:pointer;"><input type="checkbox" id="showMineToggleHome" ${showMineOnHome?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">My</label>` : ''}
           ${role && role!=='daughter' ? `<label class="pill" style="cursor:pointer;"><input type="checkbox" id="showDaughterToggleHome" ${showDaughterOnHome?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">딸</label>` : ''}
           <label class="pill pill-common" style="cursor:pointer;"><input type="checkbox" id="showCommonToggleHome" ${showCommonOnHome?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">가족공통</label>
         </div>
@@ -1687,7 +1698,12 @@ function bindDayTimelineEvents(){
   const showDaughterToggle=document.getElementById('showDaughterToggleHome');
   if(showDaughterToggle) showDaughterToggle.addEventListener('change', e=>{
     showDaughterOnHome=e.target.checked;
-    renderHome();
+    renderHome(); renderSchedule();
+  });
+  const showMineToggle=document.getElementById('showMineToggleHome');
+  if(showMineToggle) showMineToggle.addEventListener('change', e=>{
+    showMineOnHome=e.target.checked;
+    renderHome(); renderSchedule();
   });
   const dtTodayBtn=document.getElementById('dtTodayBtn');
   if(dtTodayBtn) dtTodayBtn.onclick=()=>{
@@ -2397,11 +2413,12 @@ function bindHabitEvents(el){
   });
 }
 function renderHome(){
-  if((effectiveRole()==='mom' || effectiveRole()==='dad') && !parentHomeDefaultsApplied){
+  if(effectiveRole()==='dad' && !parentHomeDefaultsApplied){
     parentHomeDefaultsApplied=true;
     showCommonOnHome=true;
     showDaughterOnHome=true;
   }
+  applyMomToggleDefaultsOnce();
   const day = state.daily[homeDate] || {};
   const entries = day.entries || {};
   const myKey = currentAuthorKey();
@@ -2901,14 +2918,19 @@ function renderSchedule(){
   const totalCells=Math.ceil((firstDow+daysInMonth)/7)*7;
   const allowedFilters=getAllowedScheduleFilters();
   const myRole=effectiveRole();
-  if(myRole && myRole!=='dad'){
+  applyMomToggleDefaultsOnce();
+  if(myRole==='mom'){
+    // handled below via the independent My/딸/가족공통 toggles, not scheduleFilter
+  } else if(myRole && myRole!=='dad'){
     scheduleFilter = showCommonOnHome ? 'common' : myRole;
   } else if(!allowedFilters.includes(scheduleFilter)){
     scheduleFilter = allowedFilters[0];
   }
   const virtualEventItems=state.events.filter(ev=>!(ev.hiddenFromDaughter && effectiveRole()==='daughter')).map(ev=>({id:'evt-'+ev.id, date:fmtDate(eventOccurrence(ev)), time:'', title:'🎉 '+ev.name, memo:ev.memo, owner:'common', virtual:true}));
   const allItems=state.schedule.map(s=>({...s, owner:s.owner||'common'})).concat(virtualEventItems);
-  const filtered = scheduleFilter==='all' ? allItems : allItems.filter(s=>s.owner===scheduleFilter);
+  const filtered = myRole==='mom'
+    ? allItems.filter(s=>(s.owner==='mom'&&showMineOnHome)||(s.owner==='daughter'&&showDaughterOnHome)||(s.owner==='common'&&showCommonOnHome))
+    : (scheduleFilter==='all' ? allItems : allItems.filter(s=>s.owner===scheduleFilter));
   const holidays=getHolidaysForViewer(y);
   const todayS=todayStr();
   const MAX_SHOWN=3;
@@ -2950,7 +2972,11 @@ function renderSchedule(){
     <div class="card">
       <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:4px;gap:10px;">
         ${renderColorSwatches(calendarColorPick, 'cal-paint', true)}
-        <label class="pill pill-common" style="cursor:pointer;"><input type="checkbox" id="showCommonToggleSchedule" ${showCommonOnHome?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">가족공통</label>
+        <div class="row" style="gap:10px;">
+          ${myRole==='mom' ? `<label class="pill" style="cursor:pointer;"><input type="checkbox" id="showMineToggleSchedule" ${showMineOnHome?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">My</label>
+          <label class="pill" style="cursor:pointer;"><input type="checkbox" id="showDaughterToggleSchedule" ${showDaughterOnHome?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">딸</label>` : ''}
+          <label class="pill pill-common" style="cursor:pointer;"><input type="checkbox" id="showCommonToggleSchedule" ${showCommonOnHome?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">가족공통</label>
+        </div>
       </div>
       ${calendarColorPick?`<div class="meta" style="margin-bottom:6px;">🎨 색상을 적용할 날짜를 클릭하세요</div>`:''}
       <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
@@ -2993,6 +3019,16 @@ function renderSchedule(){
     </div>
   `;
   bindShowCommonToggle('showCommonToggleSchedule');
+  const showMineToggleSched=document.getElementById('showMineToggleSchedule');
+  if(showMineToggleSched) showMineToggleSched.addEventListener('change', e=>{
+    showMineOnHome=e.target.checked;
+    renderHome(); renderSchedule();
+  });
+  const showDaughterToggleSched=document.getElementById('showDaughterToggleSchedule');
+  if(showDaughterToggleSched) showDaughterToggleSched.addEventListener('change', e=>{
+    showDaughterOnHome=e.target.checked;
+    renderHome(); renderSchedule();
+  });
   bindMonthNotesEvents(el, `${y}-${pad2(m+1)}`);
   document.getElementById('sPrev').onclick=()=>{ scheduleMonth=new Date(y,m-1,1); renderSchedule(); };
   document.getElementById('sNext').onclick=()=>{ scheduleMonth=new Date(y,m+1,1); renderSchedule(); };
