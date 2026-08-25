@@ -1218,9 +1218,10 @@ function classifyDayItems(items){
     } else {
       endMin=startMin+30;
     }
-    if(startMin<DT_START_MIN){ before.push(it); return; }
     if(startMin>=DT_START_MIN+DT_PROP_SPAN_MIN){ after.push(it); return; }
-    prop.push({it, startMin, endMin:Math.min(endMin, DT_START_MIN+DT_PROP_SPAN_MIN)});
+    if(endMin<=DT_START_MIN){ before.push(it); return; }
+    const clampedStart=Math.max(startMin, DT_START_MIN);
+    prop.push({it, startMin:clampedStart, endMin:Math.min(endMin, DT_START_MIN+DT_PROP_SPAN_MIN), trueStartMin:startMin, trueEndMin:endMin});
   });
   return {before, after, prop};
 }
@@ -1305,7 +1306,7 @@ function dtPropChipHtml(p, dayDate){
   const leftStyle = p.overlay ? `left:${(100-p.widthPct).toFixed(2)}%;width:${p.widthPct.toFixed(2)}%;` : 'left:0;width:100%;';
   const shadow = p.overlay ? 'box-shadow:-2px 1px 6px rgba(0,0,0,0.3);' : '';
   const style=`position:absolute;box-sizing:border-box;top:${(top+1).toFixed(1)}px;height:${(height-2).toFixed(1)}px;${leftStyle}overflow:hidden;text-overflow:ellipsis;white-space:nowrap;z-index:${p.z};${shadow}`;
-  return dtChip(p.it, style, dayDate);
+  return dtChip(p.it, style, p.it.isContinuation ? p.it.date : dayDate);
 }
 let dtTooltipEl=null;
 function showDtTooltip(target, text){
@@ -1384,6 +1385,32 @@ function dtTimeColHtml(showNowMarker, nowMinutes){
       <div class="dtp-edge" style="font-weight:700;">D-day</div>
     </div>`;
 }
+function scheduleItemTimeRange(it){
+  const [h,mi]=it.time.split(':').map(Number);
+  const startMin=h*60+mi;
+  let endMin;
+  if(it.endTime){
+    const [eh,emi]=it.endTime.split(':').map(Number);
+    endMin=eh*60+emi;
+    if(endMin<=startMin) endMin+=1440;
+  } else {
+    endMin=startMin+30;
+  }
+  return {startMin, endMin};
+}
+function afterOverlapInfo(afterItems, prop){
+  if(!afterItems.length) return [];
+  const afterEntries = afterItems.map(it=>({it, ...scheduleItemTimeRange(it)}));
+  const carryEntries = prop.filter(p=>p.trueEndMin>DT_START_MIN+DT_PROP_SPAN_MIN).map(p=>({it:p.it, startMin:p.trueStartMin, endMin:p.trueEndMin}));
+  const packed = packOverlaps(carryEntries.concat(afterEntries));
+  const byId={};
+  packed.forEach(p=>{ byId[p.it.id]=p; });
+  return afterItems.map(it=>byId[it.id] || {it, overlay:false, widthPct:100, z:1});
+}
+function dtAfterChipHtml(p, dayDate){
+  const style = p.overlay ? `width:${p.widthPct.toFixed(2)}%;margin-left:auto;box-shadow:-2px 1px 6px rgba(0,0,0,0.25);` : '';
+  return dtChip(p.it, style, dayDate);
+}
 function dtDayColInnerHtml(d, items){
   const {before, after, prop}=classifyDayItems(items);
   const packed=packOverlaps(prop);
@@ -1393,8 +1420,9 @@ function dtDayColInnerHtml(d, items){
     return `<div class="dt-cell dtp-hourband" style="top:${i*DT_HOUR_PX}px;height:${DT_HOUR_PX}px;" data-add-date="${d}" data-add-time="${hhmm}"></div>`;
   }).join('');
   const propChips=packed.map(p=>dtPropChipHtml(p, d)).join('');
+  const afterPacked=afterOverlapInfo(after, packed);
   const beforeHtml=`<div class="dt-cell dtp-edge" data-add-date="${d}" data-add-time="07:00">${before.map(it=>dtChip(it, '', it.isContinuation?it.date:undefined)).join('')}</div>`;
-  const afterHtml=`<div class="dt-cell dtp-edge" data-add-date="${d}" data-add-time="19:00">${after.map(it=>dtChip(it)).join('')}</div>`;
+  const afterHtml=`<div class="dt-cell dtp-edge" data-add-date="${d}" data-add-time="19:00">${afterPacked.map(p=>dtAfterChipHtml(p, d)).join('')}</div>`;
   return `${beforeHtml}<div class="dtp-prop" style="height:${DT_PROP_HEIGHT}px;">${hourBands}${propChips}</div>${afterHtml}`;
 }
 function renderDayTimelines(){
