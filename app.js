@@ -1,4 +1,5 @@
 /* ---------- utils ---------- */
+const APP_VERSION = (document.currentScript && (document.currentScript.src.split('v=')[1]||'').split('&')[0]) || '';
 function isMobileViewport(){ return window.innerWidth <= 600; }
 function multiDayCount(){ return isMobileViewport() ? 2 : 3; }
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
@@ -5571,3 +5572,26 @@ window.addEventListener('resize', ()=>{
     }
   }, 200);
 });
+
+/* ---------- stale-tab detection: a long-open tab silently overwrites newer
+   changes from other devices when it saves, since it never re-fetches the
+   latest app.js. Periodically check index.html's referenced app.js version
+   and prompt a reload if this tab is out of date. ---------- */
+function checkForNewVersion(){
+  if(!APP_VERSION) return;
+  fetch('index.html?_='+Date.now(), {cache:'no-store'}).then(r=>r.text()).then(html=>{
+    const m=html.match(/app\.js\?v=([a-zA-Z0-9._-]+)"/);
+    if(m && m[1] && m[1]!==APP_VERSION) showUpdateBanner();
+  }).catch(()=>{});
+}
+function showUpdateBanner(){
+  if(document.getElementById('updateBanner')) return;
+  const bar=document.createElement('div');
+  bar.id='updateBanner';
+  bar.style.cssText='position:fixed;left:0;right:0;bottom:0;z-index:999;background:#222;color:#fff;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;font-size:13px;gap:10px;box-shadow:0 -2px 10px rgba(0,0,0,.3);';
+  bar.innerHTML='<span>🔄 새 버전이 있어요. 지금 화면은 오래된 상태일 수 있어요.</span><button style="background:#fff;color:#222;border:none;border-radius:6px;padding:6px 12px;font-weight:700;cursor:pointer;flex-shrink:0;" id="updateReloadBtn">새로고침</button>';
+  document.body.appendChild(bar);
+  document.getElementById('updateReloadBtn').onclick=()=>location.reload();
+}
+setInterval(checkForNewVersion, 5*60*1000);
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) checkForNewVersion(); });
