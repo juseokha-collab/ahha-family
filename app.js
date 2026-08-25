@@ -1290,13 +1290,17 @@ function myVisibleScheduleItemsUK(ukDateStr){
   return results.sort((a,b)=>(a.time||'').localeCompare(b.time||''));
 }
 const DT_START_MIN=480; // 08:00
-const DT_END_MIN=1080;  // 18:00
+const DT_END_MIN=1380;  // 23:00 (last hour label; the area itself runs to 24:00)
 const DT_STEP=60;
-const DT_ROWS=(DT_END_MIN-DT_START_MIN)/DT_STEP+1; // 11
+const DT_ROWS=(DT_END_MIN-DT_START_MIN)/DT_STEP+1; // 16
 const DT_HOUR_PX=30;
-const DT_PROP_SPAN_MIN=DT_ROWS*DT_STEP; // 660 (08:00~19:00)
+const DT_PROP_SPAN_MIN=DT_ROWS*DT_STEP; // 960 (08:00~24:00)
 const DT_PROP_HEIGHT=DT_ROWS*DT_HOUR_PX;
 function dtPropTop(min){ return (min-DT_START_MIN)/DT_PROP_SPAN_MIN*DT_PROP_HEIGHT; }
+function dtBoundaryLabel(min){
+  if(min%1440===0) return '24:00';
+  return pad2(Math.floor(min/60)%24)+':'+pad2(min%60);
+}
 function classifyDayItems(items){
   const before=[], after=[], prop=[];
   items.forEach(it=>{
@@ -1478,7 +1482,7 @@ function dtTimeColHtml(showNowMarker, nowMinutes){
       <div class="dtp-head"></div>
       <div class="dtp-edge"><div>${nowBefore}${dtHl('08:00')}</div><div>이전</div></div>
       <div class="dtp-prop" style="height:${DT_PROP_HEIGHT}px;">${hourLabels}${nowArrow}</div>
-      <div class="dtp-edge"><div>${nowAfter}${dtHl('18:00')}</div><div>이후</div></div>
+      <div class="dtp-edge"><div>${nowAfter}${dtHl(dtBoundaryLabel(DT_START_MIN+DT_PROP_SPAN_MIN))}</div><div>이후</div></div>
       <div class="dtp-edge" style="font-weight:700;">D-day</div>
     </div>`;
 }
