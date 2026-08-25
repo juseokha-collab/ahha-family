@@ -2811,7 +2811,7 @@ function renderSchedule(){
   el.querySelector('.cal-grid').addEventListener('dblclick', e=>{
     const c=e.target.closest('.cal-cell'); if(!c) return;
     if(e.target.closest('.cal-evt')) return;
-    openScheduleModal(null, {date:c.dataset.date});
+    openScheduleModal(null, {date:c.dataset.date, time:'09:00'});
   });
   el.querySelectorAll('.cal-evt[data-item-id]').forEach(evEl=>{
     evEl.addEventListener('click', e=>{
@@ -2825,7 +2825,7 @@ function renderSchedule(){
       openScheduleModal(item, null, cellDate);
     });
   });
-  document.getElementById('addSchedBtn').onclick=()=>openScheduleModal();
+  document.getElementById('addSchedBtn').onclick=()=>openScheduleModal(null, {date:scheduleSel, time:'09:00'});
   el.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>openScheduleModal(state.schedule.find(x=>x.id===b.dataset.edit), null, b.dataset.occurDate||scheduleSel));
   el.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{
     const item=state.schedule.find(x=>x.id===b.dataset.del);
