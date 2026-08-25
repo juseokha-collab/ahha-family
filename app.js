@@ -1453,15 +1453,10 @@ function myHomeVisibleScheduleItems(dateStr){
     .filter(ev=>!(ev.hiddenFromDaughter && role==='daughter'))
     .map(ev=>({id:'evt-'+ev.id, date:fmtDate(eventOccurrence(ev)), time:'', title:'🎉 '+ev.name, owner:'common'}));
   const allItems=state.schedule.map(s=>({...s, owner:s.owner||'common', ...resolveItemColors(s,dateStr)})).concat(virtualEventItems);
-  const daughterOnly = role && role!=='daughter' && showDaughterOnHome;
   const visible = allItems.filter(it=>{
     if(!role) return it.owner==='common';
-    if(daughterOnly){
-      if(it.owner==='daughter') return true;
-      if(it.owner==='common') return showCommonOnHome;
-      return false;
-    }
     if(it.owner===role) return true;
+    if(it.owner==='daughter') return role!=='daughter' && showDaughterOnHome;
     if(it.owner==='common') return showCommonOnHome;
     return false;
   });
