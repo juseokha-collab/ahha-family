@@ -1401,7 +1401,13 @@ function dtPropChipHtml(p, dayDate){
   const height=Math.max(18, rawH);
   const leftStyle = p.overlay ? `left:${(100-p.widthPct).toFixed(2)}%;width:${p.widthPct.toFixed(2)}%;` : 'left:0;width:100%;';
   const shadow = p.overlay ? 'box-shadow:-2px 1px 6px rgba(0,0,0,0.3);' : '';
-  const style=`position:absolute;box-sizing:border-box;top:${(top+1).toFixed(1)}px;height:${(height-2).toFixed(1)}px;${leftStyle}overflow:hidden;text-overflow:ellipsis;white-space:nowrap;z-index:${p.z};${shadow}`;
+  // Items that keep going past the bottom of the proportional area get a
+  // matching ghost chip in the 이후 zone (see dtAfterZoneHtml) - flatten
+  // this chip's bottom corners so the two pieces read as one seam, not two
+  // separate rounded pills stacked on top of each other.
+  const isCarry = p.trueEndMin > DT_START_MIN+DT_PROP_SPAN_MIN;
+  const seam = isCarry ? 'border-radius:6px 6px 0 0;' : '';
+  const style=`position:absolute;box-sizing:border-box;top:${(top+1).toFixed(1)}px;height:${(height-2).toFixed(1)}px;${leftStyle}overflow:hidden;text-overflow:ellipsis;white-space:nowrap;z-index:${p.z};${shadow}${seam}`;
   return dtChip(p.it, style, p.it.isContinuation ? p.it.date : dayDate);
 }
 let dtTooltipEl=null;
@@ -1520,20 +1526,26 @@ function dtAfterZoneHtml(carryoverList, afterList, byId, dayDate){
   });
   return order.map(key=>{
     const members=groups[key];
+    // A carryover ghost is the continuation of the block sitting directly
+    // above it in the proportional area (see dtPropChipHtml's matching flat
+    // top corners) - flatten its top corners and pull it flush against that
+    // block so the pair reads as one seam instead of two stacked pills.
     if(members.length===1 && !members[0].overlay){
       const p=members[0];
-      const ghost=p.it.isCarryover ? 'opacity:0.55;' : '';
+      const ghost=p.it.isCarryover ? 'opacity:0.55;border-radius:0 0 6px 6px;margin-top:-3px;' : '';
       return dtChip(p.it, ghost, dayDate);
     }
     const H=20;
+    const hasCarry=members.some(m=>m.it.isCarryover);
     const chips=members.map(p=>{
-      const ghost=p.it.isCarryover ? 'opacity:0.6;' : '';
+      const ghost=p.it.isCarryover ? 'opacity:0.6;border-radius:0 0 6px 6px;' : '';
       const posStyle=p.overlay ? `left:${(100-p.widthPct).toFixed(2)}%;width:${p.widthPct.toFixed(2)}%;` : 'left:0;width:100%;';
       const shadow=p.overlay ? 'box-shadow:-2px 1px 6px rgba(0,0,0,0.25);' : '';
       const style=`position:absolute;top:0;height:${H}px;box-sizing:border-box;${posStyle}overflow:hidden;text-overflow:ellipsis;white-space:nowrap;z-index:${p.z};${shadow}${ghost}`;
       return dtChip(p.it, style, dayDate);
     }).join('');
-    return `<div style="position:relative;height:${H}px;margin-bottom:2px;">${chips}</div>`;
+    const wrapperMargin=hasCarry ? 'margin-top:-3px;' : '';
+    return `<div style="position:relative;height:${H}px;margin-bottom:2px;${wrapperMargin}">${chips}</div>`;
   }).join('');
 }
 function dtDayColInnerHtml(d, items){
