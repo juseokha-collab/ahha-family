@@ -625,6 +625,112 @@ function attachRealtimeSync(){
     if(!isEditing) renderAll();
   }, e=>{ console.warn(e); });
 }
+
+/* ---------- 하루 앱(별도 Firebase 프로젝트) 몸무게 양방향 연동 ---------- */
+const HARU_FIREBASE_CONFIG={
+  apiKey:"AIzaSyA7vy1c-yb0AmYZKpk71-o0IJB0fDNVbT4",
+  authDomain:"haru-d9bdd.firebaseapp.com",
+  projectId:"haru-d9bdd",
+  storageBucket:"haru-d9bdd.firebasestorage.app",
+  messagingSenderId:"1078904759332",
+  appId:"1:1078904759332:web:03f6a5fb74109c297ea4b1",
+  measurementId:"G-GEJRCEC0QM"
+};
+let haruAuth=null, haruDb=null, haruUser=null, haruDocRef=null, haruUnsub=null;
+let haruWeightCache={};
+let haruApplying=false;
+function haruEmptyEntry(dateStr){
+  return {
+    id:'ahha-'+dateStr, date:dateStr, people:[], schedule:'', mark:false,
+    meals:{ breakfast:{place:'',food:'',people:[]}, lunch:{place:'',food:'',people:[]}, dinner:{place:'',food:'',people:[]}, special:{place:'',food:'',people:[]} },
+    bizmeet:{name:'',time:'',people:[]}, bizmeets:[{name:'',time:'',people:[]}],
+    drinks:{beer:0,soju:0,makgeolli:0,etc:0},
+    exercise:{activity:'',minutes:0,weight:'',waist:''},
+    golfScore:{}, golfScores:{}, thoughts:'', learning:'', media:{}, mealDrinks:{}
+  };
+}
+function initHaruBridge(){
+  if(haruAuth) return;
+  try{
+    const haruApp = firebase.apps.find(a=>a.name==='haru') || firebase.initializeApp(HARU_FIREBASE_CONFIG, 'haru');
+    haruAuth = haruApp.auth();
+    haruDb = haruApp.firestore();
+  }catch(e){ console.warn('haru bridge init failed', e); return; }
+  haruAuth.onAuthStateChanged(u=>{
+    haruUser=u;
+    if(haruUnsub){ haruUnsub(); haruUnsub=null; }
+    if(!u){ haruDocRef=null; haruWeightCache={}; renderHealth(); return; }
+    haruDocRef = haruDb.collection('users').doc(u.uid).collection('app').doc('state');
+    haruDocRef.get().then(snap=>{
+      applyHaruSnapshot(snap);
+      haruUnsub = haruDocRef.onSnapshot(snap2=>{
+        if(!snap2.exists || snap2.metadata.hasPendingWrites) return;
+        applyHaruSnapshot(snap2);
+      });
+      renderHealth();
+    }).catch(e=>console.warn('haru initial load failed', e));
+  });
+}
+function haruSignIn(){
+  initHaruBridge();
+  if(!haruAuth) return;
+  const p=new firebase.auth.GoogleAuthProvider();
+  haruAuth.signInWithPopup(p).catch(e=>{
+    if(e && (e.code==='auth/popup-closed-by-user' || e.code==='auth/cancelled-popup-request')) return;
+    showToast('하루 앱 로그인 실패: '+(e&&e.message||e));
+  });
+}
+function haruSignOut(){ if(haruAuth) haruAuth.signOut(); }
+function applyHaruSnapshot(snap){
+  if(!snap.exists) return;
+  const data=snap.data();
+  if(!data || !data.json) return;
+  let haruState;
+  try{ haruState=JSON.parse(data.json); }catch(e){ return; }
+  const entries=haruState.entries||[];
+  let changed=false;
+  entries.forEach(e=>{
+    if(!e || !e.date) return;
+    const hasW = e.exercise && (e.exercise.weight===0 || e.exercise.weight);
+    const w = hasW ? Number(e.exercise.weight) : null;
+    if(w==null) return;
+    if(haruWeightCache[e.date]===w) return;
+    haruWeightCache[e.date]=w;
+    const dayHealth = state.daily[e.date] && state.daily[e.date].health && state.daily[e.date].health.dad;
+    const cur = dayHealth ? dayHealth.weight : null;
+    if(Number(cur)!==w){
+      ensureDay(e.date);
+      if(!state.daily[e.date].health) state.daily[e.date].health={};
+      if(!state.daily[e.date].health.dad) state.daily[e.date].health.dad={};
+      haruApplying=true;
+      state.daily[e.date].health.dad.weight=w;
+      haruApplying=false;
+      changed=true;
+    }
+  });
+  if(changed){ saveLocal(); queueSave(); if(effectiveRole()==='dad') renderHealth(); }
+}
+function pushWeightToHaru(dateStr, val){
+  if(haruApplying || !haruDocRef) return;
+  const num=(val==='' || val==null) ? null : Number(val);
+  if(haruWeightCache[dateStr]===num) return;
+  haruWeightCache[dateStr]=num;
+  haruDocRef.get().then(snap=>{
+    if(!snap.exists) return;
+    const data=snap.data();
+    let haruState;
+    try{ haruState=JSON.parse(data.json||'{}'); }catch(e){ return; }
+    if(!haruState.entries) haruState.entries=[];
+    let entry=haruState.entries.find(x=>x.date===dateStr);
+    if(!entry){
+      entry=haruEmptyEntry(dateStr);
+      haruState.entries.push(entry);
+    }
+    if(!entry.exercise) entry.exercise={activity:'',minutes:0,weight:'',waist:''};
+    entry.exercise.weight = num==null ? '' : num;
+    haruDocRef.set({ json:JSON.stringify(haruState), updatedAt:firebase.firestore.FieldValue.serverTimestamp() }).catch(e=>console.warn('haru push failed', e));
+  }).catch(e=>console.warn('haru push read failed', e));
+}
 function queueSave(){
   logRoleActivity();
   saveLocal();
@@ -3384,6 +3490,7 @@ function findHealthSchedItem(id){
 }
 function renderHealth(){
   healthPerson = effectiveRole() || 'mom';
+  if(healthPerson==='dad') initHaruBridge();
   if(effectiveRole()==='mom' && !momWeightDefaultsApplied){
     momWeightDefaultsApplied=true;
     weightChartOthers=['dad','daughter'];
@@ -3531,6 +3638,7 @@ function renderHealth(){
           ? `<input type="number" step="100" id="hSteps" value="${rec.steps||''}">`
           : `<div class="row" style="align-items:center;gap:6px;"><span style="font-size:13px;">${Number(rec.steps).toLocaleString()}보</span><button type="button" class="icon-btn" id="hStepsEditBtn" title="수정">✏️</button></div>`}</div>`:''}
       </div>
+      ${healthPerson==='dad'?`<div class="meta" style="margin-top:4px;">${haruUser?`🔗 하루 앱 몸무게 연동됨 (${escapeHtml(haruUser.displayName||haruUser.email||'')}) <button type="button" class="link-btn" id="haruDisconnectBtn">연동 해제</button>`:`<button type="button" class="link-btn" id="haruConnectBtn">🔗 하루 앱과 몸무게 연동하기</button>`}</div>`:''}
       <div class="grid2" style="margin-top:10px;">
         <div class="field">
           <div class="row" style="justify-content:space-between;align-items:center;">
@@ -3678,12 +3786,17 @@ function renderHealth(){
   document.getElementById('hPrev').onclick=()=>{ healthDate=fmtDate(addDays(parseDate(healthDate),-1)); resetEditingFlags(); renderHealth(); };
   document.getElementById('hNext').onclick=()=>{ healthDate=fmtDate(addDays(parseDate(healthDate),1)); resetEditingFlags(); renderHealth(); };
   const tb=document.getElementById('hToday'); if(tb) tb.onclick=()=>{ healthDate=todayStr(); resetEditingFlags(); renderHealth(); };
+  const haruConnectBtn=document.getElementById('haruConnectBtn');
+  if(haruConnectBtn) haruConnectBtn.onclick=haruSignIn;
+  const haruDisconnectBtn=document.getElementById('haruDisconnectBtn');
+  if(haruDisconnectBtn) haruDisconnectBtn.onclick=haruSignOut;
   const save=(k,v)=>{
     ensureDay(healthDate);
     if(!state.daily[healthDate].health) state.daily[healthDate].health={};
     if(!state.daily[healthDate].health[healthPerson]) state.daily[healthDate].health[healthPerson]={};
     state.daily[healthDate].health[healthPerson][k]=v;
     queueSave();
+    if(k==='weight' && healthPerson==='dad') pushWeightToHaru(healthDate, v);
   };
   const hWeightEl=document.getElementById('hWeight');
   if(hWeightEl) hWeightEl.addEventListener('change',e=>{
