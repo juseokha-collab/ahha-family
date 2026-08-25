@@ -3087,6 +3087,13 @@ function canManageSchedule(item){
   return item.owner!=='common' || !item.createdBy || item.createdBy===currentAuthorKey();
 }
 const REPEAT_LABELS={none:'안함',weekday:'매일(평일)',daily:'매일(휴일포함)',weekly:'매주',yearly:'매년'};
+const WEEKDAY_LABELS=['일','월','화','수','목','금','토'];
+function repeatSummaryLabel(repeat, repeatDays){
+  if(repeat!=='weekday') return REPEAT_LABELS[repeat];
+  const days=(repeatDays&&repeatDays.length)?repeatDays:[1,2,3,4,5];
+  if(days.length===5) return '매일(평일)';
+  return days.slice().sort((a,b)=>a-b).map(d=>WEEKDAY_LABELS[d]).join('')+' 반복';
+}
 function scheduleItemOccursOn(item, dateStr){
   if(item.excludeDates && item.excludeDates.includes(dateStr)) return false;
   if(item.date===dateStr) return true;
@@ -3097,7 +3104,8 @@ function scheduleItemOccursOn(item, dateStr){
   if(item.repeat==='daily') return true;
   if(item.repeat==='weekday'){
     const dow=target.getDay();
-    if(dow===0||dow===6) return false;
+    const days=(item.repeatDays && item.repeatDays.length) ? item.repeatDays : [1,2,3,4,5];
+    if(!days.includes(dow)) return false;
     const holidays=getHolidaysForViewer(target.getFullYear());
     return !holidays[dateStr];
   }
@@ -3117,6 +3125,7 @@ function openScheduleModal(existing, prefill, occurDate){
   if(!s.id && s.time && !s.endTime) s.endTime=addOneHour(s.time);
   const ownerOptions = myOwners.some(o=>o.key===(s.owner||'common')) ? myOwners : myOwners.concat([{key:s.owner||'common',label:ownerLabel(s.owner)}]);
   const curRepeat=s.repeat||'none';
+  const curRepeatDays = (s.repeatDays && s.repeatDays.length) ? s.repeatDays : [1,2,3,4,5];
   const wasRepeating = !!(s.id && s.repeat && s.repeat!=='none');
   const targetOccurDate = occurDate||s.date;
   const existingOverride = wasRepeating && s.colorOverrides && s.colorOverrides[targetOccurDate];
@@ -3157,10 +3166,17 @@ function openScheduleModal(existing, prefill, occurDate){
           ${['none','weekday','daily','weekly','yearly'].map(r=>`<label class="pill" style="cursor:pointer;"><input type="radio" name="mRepeat" value="${r}" ${curRepeat===r?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">${REPEAT_LABELS[r]}</label>`).join('')}
         </div>
       </div>
+      <div class="field" id="mWeekdayPickWrap" style="display:${curRepeat==='weekday'?'':'none'};margin-top:8px;">
+        <label>반복 요일</label>
+        <div class="row" style="gap:6px;flex-wrap:wrap;">
+          ${[1,2,3,4,5].map(d=>`<label class="pill" style="cursor:pointer;"><input type="checkbox" class="mWeekdayCk" value="${d}" ${curRepeatDays.includes(d)?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">${WEEKDAY_LABELS[d]}</label>`).join('')}
+          <label class="pill" style="cursor:pointer;"><input type="checkbox" id="mWeekdayAll" ${curRepeatDays.length===5?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">평일전체</label>
+        </div>
+      </div>
       <div class="field"><label>반복 기한 (선택, 비우면 계속 반복)</label><input type="text" readonly class="date-input" id="mRepeatUntil" value="${s.repeatUntil||''}"></div>
     </div>
     <div class="modal-actions" style="justify-content:space-between;">
-      <button type="button" class="btn small" id="repeatToggleBtn">🔁 반복${curRepeat!=='none'?': '+REPEAT_LABELS[curRepeat]:''}</button>
+      <button type="button" class="btn small" id="repeatToggleBtn">🔁 반복${curRepeat!=='none'?': '+repeatSummaryLabel(curRepeat,curRepeatDays):''}</button>
       <div class="row" style="gap:8px;">
         ${existing?`<button class="btn danger" id="mDelete">삭제</button>`:''}
         <button class="btn" id="mCancel">취소</button>
@@ -3197,6 +3213,21 @@ function openScheduleModal(existing, prefill, occurDate){
     const el=document.getElementById('repeatOptions');
     el.style.display = el.style.display==='none' ? '' : 'none';
   };
+  const weekdayCks=()=>Array.from(document.querySelectorAll('.mWeekdayCk'));
+  document.querySelectorAll('input[name="mRepeat"]').forEach(r=>{
+    r.addEventListener('change', ()=>{
+      document.getElementById('mWeekdayPickWrap').style.display = r.value==='weekday' ? '' : 'none';
+    });
+  });
+  const mWeekdayAll=document.getElementById('mWeekdayAll');
+  mWeekdayAll.addEventListener('change', ()=>{
+    weekdayCks().forEach(ck=>{ ck.checked=mWeekdayAll.checked; });
+  });
+  weekdayCks().forEach(ck=>{
+    ck.addEventListener('change', ()=>{
+      mWeekdayAll.checked = weekdayCks().every(c=>c.checked);
+    });
+  });
   document.querySelectorAll('[data-swatch-group="modal"] .color-swatch').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       selectedColor = (selectedColor===btn.dataset.color) ? null : btn.dataset.color;
@@ -3213,6 +3244,11 @@ function openScheduleModal(existing, prefill, occurDate){
     const repeat=(document.querySelector('input[name="mRepeat"]:checked')||{}).value || 'none';
     const repeatUntil=document.getElementById('mRepeatUntil').value;
     if(repeat==='none' && repeatUntil){ showToast('반복 기한만 있고 반복 주기가 "안함"이라 반복되지 않아요. 반복 주기를 선택해주세요'); return; }
+    let repeatDays=[];
+    if(repeat==='weekday'){
+      repeatDays=Array.from(document.querySelectorAll('.mWeekdayCk:checked')).map(ck=>Number(ck.value));
+      if(!repeatDays.length){ showToast('반복 요일을 하나 이상 선택해주세요'); return; }
+    }
     let bgColor=selectedColor;
     let colorOverrides=s.colorOverrides;
     if(wasRepeating){
@@ -3220,7 +3256,7 @@ function openScheduleModal(existing, prefill, occurDate){
       colorOverrides={...(s.colorOverrides||{})};
       colorOverrides[targetOccurDate]={...(colorOverrides[targetOccurDate]||{}), bgColor:selectedColor};
     }
-    const rec={id:s.id||uid(),date,time:mTimeSet?getTimeSelect10Value('mTime'):'',endTime:mEndTimeSet?getTimeSelect10Value('mEndTime'):'',title,contacts:document.getElementById('mContacts').value,memo:document.getElementById('mMemo').value,owner,repeat,repeatUntil,color:s.color||null,bgColor,colorOverrides,createdBy:s.createdBy||currentAuthorKey()};
+    const rec={id:s.id||uid(),date,time:mTimeSet?getTimeSelect10Value('mTime'):'',endTime:mEndTimeSet?getTimeSelect10Value('mEndTime'):'',title,contacts:document.getElementById('mContacts').value,memo:document.getElementById('mMemo').value,owner,repeat,repeatUntil,repeatDays:repeat==='weekday'?repeatDays:[],color:s.color||null,bgColor,colorOverrides,createdBy:s.createdBy||currentAuthorKey()};
     if(s.id){ const idx=state.schedule.findIndex(x=>x.id===s.id); state.schedule[idx]=rec; }
     else state.schedule.push(rec);
     scheduleSel=date;
