@@ -815,7 +815,35 @@ function pushWeightToHaru(dateStr, val){
     haruDocRef.set({ json:JSON.stringify(haruState), updatedAt:firebase.firestore.FieldValue.serverTimestamp() }).catch(e=>console.warn('haru push failed', e));
   }).catch(e=>console.warn('haru push read failed', e));
 }
+
+/* ---------- undo (Ctrl+Z) ---------- */
+let undoHistory=[];
+let lastUndoSnapshot=null;
+const UNDO_MAX=20;
+function captureUndoSnapshot(){
+  if(lastUndoSnapshot){
+    undoHistory.push(lastUndoSnapshot);
+    if(undoHistory.length>UNDO_MAX) undoHistory.shift();
+  }
+  lastUndoSnapshot=JSON.parse(JSON.stringify(state));
+}
+function undoLastChange(){
+  if(!undoHistory.length){ showToast('되돌릴 변경 내용이 없어요'); return; }
+  state=undoHistory.pop();
+  saveLocal();
+  renderAll();
+  queueSave();
+  showToast('마지막 변경을 되돌렸어요');
+}
+document.addEventListener('keydown', e=>{
+  if(!(e.ctrlKey||e.metaKey) || e.shiftKey || e.key.toLowerCase()!=='z') return;
+  const tag=document.activeElement && document.activeElement.tagName;
+  if(tag==='INPUT' || tag==='TEXTAREA') return;
+  e.preventDefault();
+  undoLastChange();
+});
 function queueSave(){
+  captureUndoSnapshot();
   logRoleActivity();
   saveLocal();
   clearTimeout(saveTimer);
@@ -863,10 +891,15 @@ try{
 }catch(e){ console.warn('firebase init skipped', e); }
 
 function mergeById(localArr, cloudArr, deletedSet){
-  const cloud=(cloudArr||[]).filter(x=>!(deletedSet && x && deletedSet.has(x.id)));
-  const cloudIds=new Set(cloud.map(x=>x&&x.id));
-  const onlyLocal=(localArr||[]).filter(x=>x && x.id && !cloudIds.has(x.id) && !(deletedSet && deletedSet.has(x.id)));
-  return cloud.concat(onlyLocal);
+  // Local wins for any id we already have - this array is merged right before
+  // WE write it back, so a matching cloud copy is by definition the version
+  // from before whatever we just edited locally. Cloud only contributes ids
+  // we don't have yet (e.g. something another device added since our last
+  // sync), so a fresh edit here never gets silently reverted by its own save.
+  const local=(localArr||[]).filter(x=>!(deletedSet && x && deletedSet.has(x.id)));
+  const localIds=new Set(local.map(x=>x&&x.id));
+  const cloudOnly=(cloudArr||[]).filter(x=>x && x.id && !localIds.has(x.id) && !(deletedSet && deletedSet.has(x.id)));
+  return local.concat(cloudOnly);
 }
 function mergeKeyedArrays(localObj, cloudObj, deletedSet){
   const merged={};
@@ -887,7 +920,7 @@ function mergeCategoryLists(localObj, cloudObj){
 function mergeKeyedColorMaps(localObj, cloudObj){
   const merged={};
   const keys=new Set([...Object.keys(localObj||{}), ...Object.keys(cloudObj||{})]);
-  keys.forEach(k=>{ merged[k]=Object.assign({}, (localObj||{})[k]||{}, (cloudObj||{})[k]||{}); });
+  keys.forEach(k=>{ merged[k]=Object.assign({}, (cloudObj||{})[k]||{}, (localObj||{})[k]||{}); });
   return merged;
 }
 function mergeTodoCategories(localObj, cloudObj){
@@ -913,46 +946,46 @@ function mergeKeyedCategoryLists(localObj, cloudObj){
   return merged;
 }
 function mergeDaily(localDaily, cloudDaily){
-  const merged=JSON.parse(JSON.stringify(cloudDaily||{}));
-  Object.keys(localDaily||{}).forEach(date=>{
-    const ld=localDaily[date]||{};
+  const merged=JSON.parse(JSON.stringify(localDaily||{}));
+  Object.keys(cloudDaily||{}).forEach(date=>{
+    const cd=cloudDaily[date]||{};
     if(!merged[date]) merged[date]={entries:{},health:{}};
     if(!merged[date].entries) merged[date].entries={};
     if(!merged[date].health) merged[date].health={};
-    Object.keys(ld.entries||{}).forEach(k=>{ if(merged[date].entries[k]===undefined) merged[date].entries[k]=ld.entries[k]; });
-    Object.keys(ld.health||{}).forEach(k=>{ if(merged[date].health[k]===undefined) merged[date].health[k]=ld.health[k]; });
+    Object.keys(cd.entries||{}).forEach(k=>{ if(merged[date].entries[k]===undefined) merged[date].entries[k]=cd.entries[k]; });
+    Object.keys(cd.health||{}).forEach(k=>{ if(merged[date].health[k]===undefined) merged[date].health[k]=cd.health[k]; });
   });
   return merged;
 }
 function mergeStudyBlocks(localSB, cloudSB){
-  const merged=JSON.parse(JSON.stringify(cloudSB||{}));
-  Object.keys(localSB||{}).forEach(key=>{
+  const merged=JSON.parse(JSON.stringify(localSB||{}));
+  Object.keys(cloudSB||{}).forEach(key=>{
     if(!merged[key]) merged[key]={};
-    Object.keys(localSB[key]).forEach(date=>{
-      const localArr=localSB[key][date]||[];
-      const cloudArr=merged[key][date];
-      if(!cloudArr || !cloudArr.length){ merged[key][date]=localArr.slice(); return; }
-      merged[key][date]=cloudArr.map((v,i)=> (v && String(v).length) ? v : (localArr[i]||v));
+    Object.keys(cloudSB[key]).forEach(date=>{
+      const cloudArr=cloudSB[key][date]||[];
+      const localArr=merged[key][date];
+      if(!localArr || !localArr.length){ merged[key][date]=cloudArr.slice(); return; }
+      merged[key][date]=localArr.map((v,i)=> (v && String(v).length) ? v : (cloudArr[i]||v));
     });
   });
   return merged;
 }
 function mergeVehicle(localV, cloudV, deletedSet){
-  const merged=JSON.parse(JSON.stringify(cloudV||{}));
+  const merged=JSON.parse(JSON.stringify(localV||{}));
   merged.fuel=mergeById(localV&&localV.fuel, cloudV&&cloudV.fuel, deletedSet);
   merged.maint=mergeById(localV&&localV.maint, cloudV&&cloudV.maint, deletedSet);
   merged.renewals=mergeById(localV&&localV.renewals, cloudV&&cloudV.renewals, deletedSet);
-  merged.maintCycle=Object.assign({}, (localV&&localV.maintCycle)||{}, (cloudV&&cloudV.maintCycle)||{});
+  merged.maintCycle=Object.assign({}, (cloudV&&cloudV.maintCycle)||{}, (localV&&localV.maintCycle)||{});
   ['plate','model','regDate','tireSize'].forEach(f=>{
-    if(!merged[f] && localV && localV[f]) merged[f]=localV[f];
+    if(!merged[f] && cloudV && cloudV[f]) merged[f]=cloudV[f];
   });
   return merged;
 }
 function mergeHabitLog(localLog, cloudLog){
-  const merged=JSON.parse(JSON.stringify(cloudLog||{}));
-  Object.keys(localLog||{}).forEach(id=>{
+  const merged=JSON.parse(JSON.stringify(localLog||{}));
+  Object.keys(cloudLog||{}).forEach(id=>{
     if(!merged[id]) merged[id]={};
-    Object.keys(localLog[id]).forEach(k=>{ if(merged[id][k]===undefined) merged[id][k]=localLog[id][k]; });
+    Object.keys(cloudLog[id]).forEach(k=>{ if(merged[id][k]===undefined) merged[id][k]=cloudLog[id][k]; });
   });
   return merged;
 }
