@@ -5250,7 +5250,7 @@ function weeklyWeightTrend(key){
   if(dates.length<2) return null;
   const startW=Number(state.daily[dates[0]].health[key].weight);
   const endW=Number(state.daily[dates[dates.length-1]].health[key].weight);
-  return {changeGrams:(startW-endW)*1000};
+  return {changeGrams:(startW-endW)*1000, startW, endW};
 }
 function checkWeightPaceNudge(key){
   if(!key) return;
@@ -5265,7 +5265,8 @@ function checkWeightPaceNudge(key){
   queueSave();
   if(trend.changeGrams < Number(goals.weeklyLoss)*0.5){
     const changeText = trend.changeGrams>=0 ? Math.round(trend.changeGrams)+'g 감량' : Math.round(-trend.changeGrams)+'g 증가';
-    encourageNudge('조금만 더 힘내요! 💪', `최근 일주일간 ${changeText}했어요. 목표(주당 ${goals.weeklyLoss}g 감량)까지 조금 더 힘내봐요!`);
+    const weightText = `(${trend.startW.toFixed(1)}kg → ${trend.endW.toFixed(1)}kg)`;
+    encourageNudge('조금만 더 힘내요! 💪', `최근 일주일간 ${changeText}했어요 ${weightText}<br>목표까지 조금 더 힘내봐요!`);
   }
 }
 function currentStreak(key){
