@@ -1544,16 +1544,16 @@ function dtTimeColHtml(showNowMarker, nowMinutes){
     const style = i===0 ? 'top:2px;transform:none;' : `top:${i*DT_HOUR_PX}px;`;
     return `<span class="dtp-timelabel" style="${style}">${dtHl(hhmm)}</span>`;
   }).join('');
+  const endLabel=`<span class="dtp-timelabel" style="top:${DT_PROP_HEIGHT}px;font-weight:700;color:var(--text);">${dtBoundaryLabel(DT_START_MIN+DT_PROP_SPAN_MIN)}</span>`;
   const nowInProp=showNowMarker && nowMinutes>=DT_START_MIN && nowMinutes<DT_START_MIN+DT_PROP_SPAN_MIN;
   const nowArrow=nowInProp?`<span style="position:absolute;left:0;top:${dtPropTop(nowMinutes).toFixed(1)}px;transform:translateY(-50%);color:#e5383b;font-size:10px;">▶</span>`:'';
   const nowBefore=showNowMarker && nowMinutes<DT_START_MIN ? `<span style="color:#e5383b;">▶</span> ` : '';
-  const nowAfter=showNowMarker && nowMinutes>=DT_START_MIN+DT_PROP_SPAN_MIN ? `<span style="color:#e5383b;">▶</span> ` : '';
   return `
     <div class="dtp-timecol">
       <div class="dtp-head"></div>
       <div class="dtp-edge"><div>${nowBefore}${dtHl('08:00')}</div><div>이전</div></div>
-      <div class="dtp-prop" style="height:${DT_PROP_HEIGHT}px;">${hourLabels}${nowArrow}</div>
-      <div class="dtp-edge"><div>${nowAfter}${dtHl(dtBoundaryLabel(DT_START_MIN+DT_PROP_SPAN_MIN))}</div><div>이후</div></div>
+      <div class="dtp-prop" style="height:${DT_PROP_HEIGHT}px;">${hourLabels}${endLabel}${nowArrow}</div>
+      <div class="dtp-edge"></div>
       <div class="dtp-edge" style="font-weight:700;">D-day</div>
     </div>`;
 }
