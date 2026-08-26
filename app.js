@@ -105,6 +105,14 @@ function todayStr(){ return fmtDate(new Date()); }
 function parseDate(s){ const [y,m,d]=s.split('-').map(Number); return new Date(y,m-1,d); }
 function addDays(d,n){ const r=new Date(d); r.setDate(r.getDate()+n); return r; }
 function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function titleWithEmojiBadge(title){
+  // A gray/white common-item chip makes a leading emoji look muddy since
+  // most emoji glyphs assume a light backdrop - give just that character a
+  // small white circle so it stays crisp against the gray fill.
+  const m=String(title||'').match(/^(\p{Extended_Pictographic}️?)\s*/u);
+  if(!m) return escapeHtml(title);
+  return `<span class="common-emoji-badge">${escapeHtml(m[1])}</span>${escapeHtml(title.slice(m[0].length))}`;
+}
 function dday(dateStr){
   const now=new Date(); now.setHours(0,0,0,0);
   const t=parseDate(dateStr); t.setHours(0,0,0,0);
@@ -687,7 +695,15 @@ function applyGroupSnapshotToState(name, data){
   let changed=false;
   keys.forEach(k=>{
     if(data[k]===undefined) return;
-    const mergedVal=mergeSingleKey(k, state[k], data[k], deletedSet);
+    // All merge fns are "prefer arg1, fill gaps from arg2." queueSave/initAuth
+    // call them as (local, cloud) so a just-made local edit survives its own
+    // save. Here it's the opposite: `data` is a FRESH write from another
+    // device/tab arriving over the realtime listener, so it must win over
+    // this tab's older `state` for anything both sides touch - swapping the
+    // argument order gives that precedence while still keeping any newer
+    // local key the snapshot doesn't even mention (a missing key never
+    // deletes the other side's value, per how each merge fn is written).
+    const mergedVal=mergeSingleKey(k, data[k], state[k], deletedSet);
     if(JSON.stringify(mergedVal)!==JSON.stringify(state[k])){ state[k]=mergedVal; changed=true; }
   });
   return changed;
@@ -1424,7 +1440,8 @@ function dtChip(it, extraStyle, dayDate){
   const extra=extraStyle||'';
   if(isVirtual){
     const fullText = it.memo ? `${it.title} · ${it.memo}` : it.title;
-    return `<div class="dt-evt${it.ddayCommon?' dt-evt-dday-common':''}"${extra?` style="${extra}"`:''} data-virtual="1" data-full="${escapeHtml(fullText)}"${dateAttr}>${escapeHtml(it.title)}</div>`;
+    const label = it.ddayCommon ? titleWithEmojiBadge(it.title) : escapeHtml(it.title);
+    return `<div class="dt-evt${it.ddayCommon?' dt-evt-dday-common':''}"${extra?` style="${extra}"`:''} data-virtual="1" data-full="${escapeHtml(fullText)}"${dateAttr}>${label}</div>`;
   }
   const badge = authorBadge(it.createdBy);
   const bg = it.color || it.bgColor;
@@ -1435,7 +1452,8 @@ function dtChip(it, extraStyle, dayDate){
   const timeLabel = it.isContinuation ? `~${it.endTime} (전날부터)` : timeRangeLabel(it);
   const fullText = `${timeLabel?timeLabel+' ':''}${it.title}${it.memo?' · '+it.memo:''}`;
   const draggableAttr = (it.isContinuation || it.isCarryover) ? '' : ' draggable="true"';
-  return `<div class="dt-evt${commonCls}"${draggableAttr} data-item-id="${it.id}" data-full="${escapeHtml(fullText)}"${dateAttr}${styleAttr}>${badge}${timeLabel?escapeHtml(timeLabel)+' ':''}${escapeHtml(it.title)}</div>`;
+  const titleHtml = isCommon ? titleWithEmojiBadge(it.title) : escapeHtml(it.title);
+  return `<div class="dt-evt${commonCls}"${draggableAttr} data-item-id="${it.id}" data-full="${escapeHtml(fullText)}"${dateAttr}${styleAttr}>${badge}${timeLabel?escapeHtml(timeLabel)+' ':''}${titleHtml}</div>`;
 }
 function dtPropChipHtml(p, dayDate){
   const top=dtPropTop(p.startMin);
@@ -2960,7 +2978,7 @@ function renderSchedule(){
     const inMonth = dayNum>=1 && dayNum<=daysInMonth;
     const dayEvents=filtered.filter(s=>scheduleItemOccursOn(s,dateStr)).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
     const holidayName=holidays[dateStr];
-    const shown=dayEvents.slice(0,MAX_SHOWN).map(s=>`<span class="cal-evt${s.owner==='common'?' cal-evt-common':''}" data-item-id="${s.id}"${s.virtual?' data-virtual="1"':''}>${s.time?escapeHtml(s.time.split(':')[0])+': ':''}${escapeHtml(s.title)}</span>`).join('');
+    const shown=dayEvents.slice(0,MAX_SHOWN).map(s=>`<span class="cal-evt${s.owner==='common'?' cal-evt-common':''}" data-item-id="${s.id}"${s.virtual?' data-virtual="1"':''}>${s.time?escapeHtml(s.time.split(':')[0])+': ':''}${s.owner==='common'?titleWithEmojiBadge(s.title):escapeHtml(s.title)}</span>`).join('');
     const more = dayEvents.length>MAX_SHOWN ? `<span class="cal-evt more">+${dayEvents.length-MAX_SHOWN}개 더</span>` : '';
     const dayEntry=((state.daily[dateStr]||{}).entries||{})[currentAuthorKey()];
     const commentText=dayEntry&&dayEntry.diary?dayEntry.diary:'';
