@@ -1029,7 +1029,8 @@ const KEY_MERGE_FN={
   calendarDayColors:mergeKeyedColorMaps, monthNotes:mergeKeyedColorMaps,
   todoCategories:mergeTodoCategories,
   eventCategoriesByRole:mergeKeyedCategoryLists,
-  habits:mergeHabitsField
+  habits:mergeHabitsField,
+  gamification:mergeKeyedColorMaps, weightGoals:mergeKeyedColorMaps
 };
 function mergeSingleKey(key, localVal, cloudVal, deletedSet){
   if(key==='deletedIds') return [...deletedSet];
