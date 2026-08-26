@@ -1462,13 +1462,7 @@ function dtPropChipHtml(p, dayDate){
   const height=Math.max(18, rawH);
   const leftStyle = p.overlay ? `left:${(100-p.widthPct).toFixed(2)}%;width:${p.widthPct.toFixed(2)}%;` : 'left:0;width:100%;';
   const shadow = p.overlay ? 'box-shadow:-2px 1px 6px rgba(0,0,0,0.3);' : '';
-  // Items that keep going past the bottom of the proportional area get a
-  // matching ghost chip in the 이후 zone (see dtAfterZoneHtml) - flatten
-  // this chip's bottom corners so the two pieces read as one seam, not two
-  // separate rounded pills stacked on top of each other.
-  const isCarry = p.trueEndMin > DT_START_MIN+DT_PROP_SPAN_MIN;
-  const seam = isCarry ? 'border-radius:6px 6px 0 0;' : '';
-  const style=`position:absolute;box-sizing:border-box;top:${(top+1).toFixed(1)}px;height:${(height-2).toFixed(1)}px;${leftStyle}overflow:hidden;text-overflow:ellipsis;white-space:nowrap;z-index:${p.z};${shadow}${seam}`;
+  const style=`position:absolute;box-sizing:border-box;top:${(top+1).toFixed(1)}px;height:${(height-2).toFixed(1)}px;${leftStyle}overflow:hidden;text-overflow:ellipsis;white-space:nowrap;z-index:${p.z};${shadow}`;
   return dtChip(p.it, style, p.it.isContinuation ? p.it.date : dayDate);
 }
 let dtTooltipEl=null;
@@ -1645,8 +1639,11 @@ function dtDayColInnerHtml(d, items){
     const info=byId[p.it.id]||{overlay:false, widthPct:100, z:1};
     return dtPropChipHtml({...p, overlay:info.overlay, widthPct:info.widthPct, z:info.z}, d);
   }).join('');
-  const carryover=prop.filter(p=>p.trueEndMin>DT_START_MIN+DT_PROP_SPAN_MIN);
-  const afterChips=dtAfterZoneHtml(carryover, after, byId, d);
+  // The proportional area now runs all the way to 24:00, so an item ending
+  // past midnight is already fully drawn up to the day boundary here and
+  // picked up as a "전날부터" continuation chip on the NEXT day - it no
+  // longer needs a duplicate ghost trace in this day's 이후 zone too.
+  const afterChips=dtAfterZoneHtml([], after, byId, d);
   const beforeHtml=`<div class="dt-cell dtp-edge" data-add-date="${d}" data-add-time="07:00">${before.map(it=>dtChip(it, '', it.isContinuation?it.date:undefined)).join('')}</div>`;
   const afterHtml=`<div class="dt-cell dtp-edge" data-add-date="${d}" data-add-time="19:00">${afterChips}</div>`;
   return `${beforeHtml}<div class="dtp-prop" style="height:${DT_PROP_HEIGHT}px;">${hourBands}${propChips}</div>${afterHtml}`;
