@@ -1479,7 +1479,16 @@ function dtHl(hhmm){
 let showCommonOnHome=false;
 let showDaughterOnHome=false;
 let showMineOnHome=true;
+let showMomOnHome=false;
 let parentHomeDefaultsApplied=false;
+function applyDadToggleDefaultsOnce(){
+  if(effectiveRole()==='dad' && !parentHomeDefaultsApplied){
+    parentHomeDefaultsApplied=true;
+    showCommonOnHome=true;
+    showDaughterOnHome=true;
+    showMomOnHome=false;
+  }
+}
 let momToggleDefaultsApplied=false;
 function applyMomToggleDefaultsOnce(){
   if(effectiveRole()==='mom' && !momToggleDefaultsApplied){
@@ -1509,6 +1518,7 @@ function myHomeVisibleScheduleItems(dateStr){
     if(!role) return it.owner==='common';
     if(it.owner===role) return role==='mom' ? showMineOnHome : true;
     if(it.owner==='daughter') return role!=='daughter' && showDaughterOnHome;
+    if(it.owner==='mom') return role==='dad' && showMomOnHome;
     if(it.owner==='common') return showCommonOnHome;
     return false;
   });
@@ -1664,6 +1674,7 @@ function renderDayTimelines(){
         </div>
         <div class="row" style="gap:10px;">
           ${role==='mom' ? `<label class="pill" style="cursor:pointer;"><input type="checkbox" id="showMineToggleHome" ${showMineOnHome?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">My</label>` : ''}
+          ${role==='dad' ? `<label class="pill" style="cursor:pointer;"><input type="checkbox" id="showMomToggleHome" ${showMomOnHome?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">아내</label>` : ''}
           ${role && role!=='daughter' ? `<label class="pill" style="cursor:pointer;"><input type="checkbox" id="showDaughterToggleHome" ${showDaughterOnHome?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">딸</label>` : ''}
           <label class="pill pill-common" style="cursor:pointer;"><input type="checkbox" id="showCommonToggleHome" ${showCommonOnHome?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">가족공통</label>
         </div>
@@ -1703,6 +1714,11 @@ function bindDayTimelineEvents(){
   const showMineToggle=document.getElementById('showMineToggleHome');
   if(showMineToggle) showMineToggle.addEventListener('change', e=>{
     showMineOnHome=e.target.checked;
+    renderHome(); renderSchedule();
+  });
+  const showMomToggle=document.getElementById('showMomToggleHome');
+  if(showMomToggle) showMomToggle.addEventListener('change', e=>{
+    showMomOnHome=e.target.checked;
     renderHome(); renderSchedule();
   });
   const dtTodayBtn=document.getElementById('dtTodayBtn');
@@ -2413,11 +2429,7 @@ function bindHabitEvents(el){
   });
 }
 function renderHome(){
-  if(effectiveRole()==='dad' && !parentHomeDefaultsApplied){
-    parentHomeDefaultsApplied=true;
-    showCommonOnHome=true;
-    showDaughterOnHome=true;
-  }
+  applyDadToggleDefaultsOnce();
   applyMomToggleDefaultsOnce();
   const day = state.daily[homeDate] || {};
   const entries = day.entries || {};
@@ -2918,10 +2930,11 @@ function renderSchedule(){
   const totalCells=Math.ceil((firstDow+daysInMonth)/7)*7;
   const allowedFilters=getAllowedScheduleFilters();
   const myRole=effectiveRole();
+  applyDadToggleDefaultsOnce();
   applyMomToggleDefaultsOnce();
-  if(myRole==='mom'){
-    // handled below via the independent My/딸/가족공통 toggles, not scheduleFilter
-  } else if(myRole && myRole!=='dad'){
+  if(myRole==='mom' || myRole==='dad'){
+    // handled below via the independent toggles, not scheduleFilter
+  } else if(myRole){
     scheduleFilter = showCommonOnHome ? 'common' : myRole;
   } else if(!allowedFilters.includes(scheduleFilter)){
     scheduleFilter = allowedFilters[0];
@@ -2930,7 +2943,9 @@ function renderSchedule(){
   const allItems=state.schedule.map(s=>({...s, owner:s.owner||'common'})).concat(virtualEventItems);
   const filtered = myRole==='mom'
     ? allItems.filter(s=>(s.owner==='mom'&&showMineOnHome)||(s.owner==='daughter'&&showDaughterOnHome)||(s.owner==='common'&&showCommonOnHome))
-    : (scheduleFilter==='all' ? allItems : allItems.filter(s=>s.owner===scheduleFilter));
+    : myRole==='dad'
+      ? allItems.filter(s=>s.owner==='dad'||(s.owner==='mom'&&showMomOnHome)||(s.owner==='daughter'&&showDaughterOnHome)||(s.owner==='common'&&showCommonOnHome))
+      : (scheduleFilter==='all' ? allItems : allItems.filter(s=>s.owner===scheduleFilter));
   const holidays=getHolidaysForViewer(y);
   const todayS=todayStr();
   const MAX_SHOWN=3;
@@ -2975,15 +2990,14 @@ function renderSchedule(){
         <div class="row" style="gap:10px;">
           ${myRole==='mom' ? `<label class="pill" style="cursor:pointer;"><input type="checkbox" id="showMineToggleSchedule" ${showMineOnHome?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">My</label>
           <label class="pill" style="cursor:pointer;"><input type="checkbox" id="showDaughterToggleSchedule" ${showDaughterOnHome?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">딸</label>` : ''}
+          ${myRole==='dad' ? `<label class="pill" style="cursor:pointer;"><input type="checkbox" id="showMomToggleSchedule" ${showMomOnHome?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">아내</label>
+          <label class="pill" style="cursor:pointer;"><input type="checkbox" id="showDaughterToggleSchedule" ${showDaughterOnHome?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">딸</label>` : ''}
           <label class="pill pill-common" style="cursor:pointer;"><input type="checkbox" id="showCommonToggleSchedule" ${showCommonOnHome?'checked':''} style="position:absolute;opacity:0;width:0;height:0;">가족공통</label>
         </div>
       </div>
       ${calendarColorPick?`<div class="meta" style="margin-bottom:6px;">🎨 색상을 적용할 날짜를 클릭하세요</div>`:''}
       <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
         <div class="datebar" style="margin-bottom:0;"><button class="iconbtn" id="sPrev">‹</button><div class="d" style="font-size:15px;font-weight:700;">${y}년 ${m+1}월</div><button class="iconbtn" id="sNext">›</button></div>
-        ${myRole==='dad'?`<div class="row" id="schedFilterRow" style="gap:6px;">
-          ${allowedFilters.map(f=>`<button class="btn small ${scheduleFilter===f?'active':''}" data-owner="${f}">${scheduleFilterLabel(f)}</button>`).join('')}
-        </div>`:''}
       </div>
       <div class="cal-grid" style="margin-top:10px;">${['일','월','화','수','목','금','토'].map(d=>`<div class="cal-head">${d}</div>`).join('')}${grid}</div>
       ${monthNotesHtml(`${y}-${pad2(m+1)}`)}
@@ -3029,14 +3043,14 @@ function renderSchedule(){
     showDaughterOnHome=e.target.checked;
     renderHome(); renderSchedule();
   });
+  const showMomToggleSched=document.getElementById('showMomToggleSchedule');
+  if(showMomToggleSched) showMomToggleSched.addEventListener('change', e=>{
+    showMomOnHome=e.target.checked;
+    renderHome(); renderSchedule();
+  });
   bindMonthNotesEvents(el, `${y}-${pad2(m+1)}`);
   document.getElementById('sPrev').onclick=()=>{ scheduleMonth=new Date(y,m-1,1); renderSchedule(); };
   document.getElementById('sNext').onclick=()=>{ scheduleMonth=new Date(y,m+1,1); renderSchedule(); };
-  const schedFilterRow=document.getElementById('schedFilterRow');
-  if(schedFilterRow) schedFilterRow.addEventListener('click', e=>{
-    const b=e.target.closest('button[data-owner]'); if(!b) return;
-    scheduleFilter=b.dataset.owner; renderSchedule();
-  });
   el.querySelectorAll('[data-swatch-group="cal-paint"] .color-swatch').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const c=btn.dataset.color;
