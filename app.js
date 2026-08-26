@@ -1257,7 +1257,7 @@ const SCHED_COLORS=['rgba(255,173,173,0.55)','rgba(255,214,165,0.55)','rgba(202,
 let scheduleColorPick=null;
 let calendarColorPick=null;
 function renderColorSwatches(selectedColor, groupId, includeDefault){
-  const defaultBtn = includeDefault ? `<button type="button" class="color-swatch" data-color="__default__" title="기본색으로 되돌리기" style="width:20px;height:20px;border-radius:50%;background:var(--panel);border:${selectedColor==='__default__'?'3px solid var(--text)':'2px solid rgba(128,128,128,0.4)'};cursor:pointer;padding:0;box-shadow:0 0 0 1px rgba(0,0,0,0.15);display:flex;align-items:center;justify-content:center;font-size:11px;line-height:1;color:var(--muted);">✕</button>` : '';
+  const defaultBtn = includeDefault ? `<button type="button" class="color-swatch" data-color="__default__" title="기본색으로 되돌리기" style="width:20px;height:20px;border-radius:50%;background:var(--panel);border:${selectedColor==='__default__'?'3px solid var(--text)':'2px solid rgba(128,128,128,0.4)'};cursor:pointer;padding:0;box-shadow:0 0 0 1px rgba(0,0,0,0.15);"></button>` : '';
   return `<div class="row" style="gap:6px;" data-swatch-group="${groupId}">${defaultBtn}${SCHED_COLORS.map(c=>`<button type="button" class="color-swatch" data-color="${c}" style="width:20px;height:20px;border-radius:50%;background:${c};border:${selectedColor===c?'3px solid var(--text)':'2px solid transparent'};cursor:pointer;padding:0;box-shadow:0 0 0 1px rgba(0,0,0,0.15);"></button>`).join('')}</div>`;
 }
 function fmtShortDateDow(dateStr){
@@ -4288,11 +4288,10 @@ function openHealthSchedModal(existing){
   };
 }
 function renderWeightChart(keys, goalProjections){
-  const pastDays=31, futureDays=10;
+  const pastDays=62, futureDays=10;
   const totalDays=pastDays+futureDays;
   const todayIdx=pastDays-1;
   const midIdx=todayIdx+Math.round(futureDays/2);
-  const endIdx=todayIdx+futureDays;
   const today=parseDate(todayStr());
   const dateList=Array.from({length:pastDays},(_,i)=>fmtDate(addDays(today, i-todayIdx)));
   const series=keys.map(key=>({
@@ -4310,12 +4309,10 @@ function renderWeightChart(keys, goalProjections){
     if(anchorIdx===-1) anchorIdx=todayIdx;
     const color=ROLE_BADGE_COLOR[gp.key]||'#8b7cf6';
     const midDate = gp.target ? projectedAchievementDate(anchorEntry.weight, gp.target, gp.weeklyLoss) : null;
-    const endDate = gp.finalTarget ? projectedAchievementDate(anchorEntry.weight, gp.finalTarget, gp.weeklyLoss) : null;
     const pts=new Array(totalDays).fill(null);
     pts[anchorIdx]=anchorEntry.weight;
     if(gp.target) pts[midIdx]=Number(gp.target);
-    if(gp.finalTarget) pts[endIdx]=Number(gp.finalTarget);
-    return {key:gp.key, color, pts, firstTarget:gp.target?Number(gp.target):null, midDate, endDate};
+    return {key:gp.key, color, pts, firstTarget:gp.target?Number(gp.target):null, midDate};
   }).filter(Boolean);
   const allVals=series.flatMap(s=>s.pts.filter(v=>v!=null)).concat(goals.flatMap(g=>g.pts.filter(v=>v!=null)));
   if(!allVals.length) return `<div class="empty">체중 기록이 아직 없어요</div>`;
@@ -4383,7 +4380,7 @@ function renderWeightChart(keys, goalProjections){
       if(v==null) return;
       const px=x(i), py=useBrokenAxis?y(v,s.key):y(v);
       pathD += (pathD?'L':'M')+px+' '+py+' ';
-      dots+=`<circle class="wt-point" data-tip="${escapeHtml(s.label)} ${v}kg (${fmtSlashMD(dateList[i].slice(5))})" cx="${px}" cy="${py}" r="4" fill="${s.color}" style="cursor:pointer;"/>`;
+      dots+=`<circle class="wt-point" data-tip="${escapeHtml(s.label)} ${v}kg (${fmtSlashMD(dateList[i].slice(5))})" cx="${px}" cy="${py}" r="2.7" fill="${s.color}" style="cursor:pointer;"/>`;
       if(v>maxVal){ maxVal=v; maxIdx=i; }
       if(v<minVal){ minVal=v; minIdx=i; }
     });
@@ -4406,14 +4403,7 @@ function renderWeightChart(keys, goalProjections){
       const dLabel=dateStr?fmtSlashMD(dateStr.slice(5)):'';
       return `<circle cx="${ex}" cy="${ey}" r="4" fill="var(--panel)" stroke="${g.color}" stroke-width="2"/><text x="${ex}" y="${ey-10}" font-size="8" fill="${g.color}" text-anchor="middle">${escapeHtml(dLabel)} ${prefix} ${val.toFixed(1)}kg</text>`;
     };
-    const pointLabelLeft=(idx,val,dateStr,prefix)=>{
-      if(val==null) return '';
-      const ex=x(idx), ey=useBrokenAxis?y(val,g.key):y(val);
-      const dLabel=dateStr?fmtSlashMD(dateStr.slice(5)):'';
-      return `<circle cx="${ex}" cy="${ey}" r="4" fill="var(--panel)" stroke="${g.color}" stroke-width="2"/><text x="${ex-8}" y="${ey+3}" font-size="8" fill="${g.color}" text-anchor="end">${escapeHtml(dLabel)} ${prefix} ${val.toFixed(1)}kg</text>`;
-    };
     svg += pointLabelAbove(midIdx, g.pts[midIdx], g.midDate, '1차');
-    svg += pointLabelLeft(endIdx, g.pts[endIdx], g.endDate, '최종');
     return svg;
   }).join('');
   const xLabels=dateList.map((d,i)=>{
