@@ -890,11 +890,18 @@ document.addEventListener('keydown', e=>{
   undoLastChange();
 });
 function queueSave(){
-  captureUndoSnapshot();
   logRoleActivity();
   saveLocal();
   clearTimeout(saveTimer);
   saveTimer=setTimeout(async ()=>{
+    // Deep-cloning the whole app state (captureUndoSnapshot) is not cheap
+    // once state has months of history in it - doing it on every single
+    // click (e.g. painting a study-block grid) made rapid clicks visibly
+    // laggy/unresponsive. Only clone once per settled batch of edits here,
+    // not once per edit; Ctrl+Z then undoes a whole burst of rapid clicks
+    // as one step instead of one click at a time, which is an acceptable
+    // trade for not blocking the main thread on every tap.
+    captureUndoSnapshot();
     if(user && db){
       setSyncStatus('syncing');
       try{
