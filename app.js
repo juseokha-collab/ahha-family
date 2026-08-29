@@ -662,7 +662,7 @@ async function writeChangedGroups(raw, force){
   const writes=[];
   STATE_GROUP_NAMES.forEach(name=>{
     const groupData=pickKeys(state, keysForGroup(name));
-    if(force || JSON.stringify(groupData)!==JSON.stringify(raw[name]||{})){
+    if(force || !deepEqual(groupData, raw[name]||{})){
       writes.push(groupDocRef(name).set(groupData));
     }
   });
@@ -701,6 +701,29 @@ function detachAllRealtimeSync(){
 // risk - a stale echo only ever contributes ids local doesn't have yet -
 // so those still swap to let other devices' edits arrive live.
 const REALTIME_ATOMIC_BLOB_KEYS=new Set(['daily','studyBlocks','vehicle','calendarDayColors','monthNotes','gamification','weightGoals','habitLog']);
+// JSON.stringify comparisons are order-sensitive: merging a blob by cloning
+// one side and inserting any keys missing from it (every atomic-blob merge
+// fn here does this) can produce an object with the SAME dates/data as
+// `state[k]` but in a different insertion order, which JSON.stringify
+// renders as different text even though nothing actually changed. That
+// false "changed" was intermittently forcing a real-render right as a
+// click landed - hence "works sometimes" rather than a hard failure.
+function deepEqual(a, b){
+  if(a===b) return true;
+  if(typeof a!==typeof b || a===null || b===null || typeof a!=='object' || typeof b!=='object') return a===b;
+  if(Array.isArray(a)!==Array.isArray(b)) return false;
+  if(Array.isArray(a)){
+    if(a.length!==b.length) return false;
+    for(let i=0;i<a.length;i++){ if(!deepEqual(a[i], b[i])) return false; }
+    return true;
+  }
+  const aKeys=Object.keys(a), bKeys=Object.keys(b);
+  if(aKeys.length!==bKeys.length) return false;
+  for(const k of aKeys){
+    if(!Object.prototype.hasOwnProperty.call(b,k) || !deepEqual(a[k], b[k])) return false;
+  }
+  return true;
+}
 function applyGroupSnapshotToState(name, data){
   const keys=keysForGroup(name);
   const deletedSet=new Set([...(state.deletedIds||[]), ...(data.deletedIds||[])]);
@@ -710,7 +733,7 @@ function applyGroupSnapshotToState(name, data){
     const mergedVal = REALTIME_ATOMIC_BLOB_KEYS.has(k)
       ? mergeSingleKey(k, state[k], data[k], deletedSet)
       : mergeSingleKey(k, data[k], state[k], deletedSet);
-    if(JSON.stringify(mergedVal)!==JSON.stringify(state[k])){ state[k]=mergedVal; changed=true; }
+    if(!deepEqual(mergedVal, state[k])){ state[k]=mergedVal; changed=true; }
   });
   return changed;
 }
