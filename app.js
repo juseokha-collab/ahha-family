@@ -689,21 +689,27 @@ function detachAllRealtimeSync(){
   realtimeUnsubs.forEach(u=>{ try{ u(); }catch(e){} });
   realtimeUnsubs=[];
 }
+// Keys whose merge fn treats an entire value as ONE atomic blob per id/date
+// (mergeDaily, mergeStudyBlocks, mergeVehicle, mergeKeyedColorMaps, mergeHabitLog)
+// must NOT have their argument order swapped for realtime updates: a
+// same-tab self-echo of an EARLIER save can arrive after a newer local edit
+// to that exact same blob (e.g. clicking a second study-block cell before
+// the first click's write is confirmed), and since these fns replace the
+// whole blob rather than merging item-by-item, "incoming wins" would let
+// that stale echo silently clobber the newer local edit. id-keyed
+// collections (schedule/budget/events/... via mergeById) don't have this
+// risk - a stale echo only ever contributes ids local doesn't have yet -
+// so those still swap to let other devices' edits arrive live.
+const REALTIME_ATOMIC_BLOB_KEYS=new Set(['daily','studyBlocks','vehicle','calendarDayColors','monthNotes','gamification','weightGoals','habitLog']);
 function applyGroupSnapshotToState(name, data){
   const keys=keysForGroup(name);
   const deletedSet=new Set([...(state.deletedIds||[]), ...(data.deletedIds||[])]);
   let changed=false;
   keys.forEach(k=>{
     if(data[k]===undefined) return;
-    // All merge fns are "prefer arg1, fill gaps from arg2." queueSave/initAuth
-    // call them as (local, cloud) so a just-made local edit survives its own
-    // save. Here it's the opposite: `data` is a FRESH write from another
-    // device/tab arriving over the realtime listener, so it must win over
-    // this tab's older `state` for anything both sides touch - swapping the
-    // argument order gives that precedence while still keeping any newer
-    // local key the snapshot doesn't even mention (a missing key never
-    // deletes the other side's value, per how each merge fn is written).
-    const mergedVal=mergeSingleKey(k, data[k], state[k], deletedSet);
+    const mergedVal = REALTIME_ATOMIC_BLOB_KEYS.has(k)
+      ? mergeSingleKey(k, state[k], data[k], deletedSet)
+      : mergeSingleKey(k, data[k], state[k], deletedSet);
     if(JSON.stringify(mergedVal)!==JSON.stringify(state[k])){ state[k]=mergedVal; changed=true; }
   });
   return changed;
