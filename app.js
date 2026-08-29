@@ -860,48 +860,11 @@ function pushWeightToHaru(dateStr, val){
   }).catch(e=>console.warn('haru push read failed', e));
 }
 
-/* ---------- undo (Ctrl+Z) ---------- */
-let undoHistory=[];
-// Seeded with the just-loaded state (not null) so the very FIRST edit of a
-// session still has a "before" snapshot to push once its queueSave() runs -
-// otherwise the first Ctrl+Z of a session always finds an empty history.
-let lastUndoSnapshot=JSON.parse(JSON.stringify(state));
-const UNDO_MAX=20;
-function captureUndoSnapshot(){
-  if(lastUndoSnapshot){
-    undoHistory.push(lastUndoSnapshot);
-    if(undoHistory.length>UNDO_MAX) undoHistory.shift();
-  }
-  lastUndoSnapshot=JSON.parse(JSON.stringify(state));
-}
-function undoLastChange(){
-  if(!undoHistory.length){ showToast('되돌릴 변경 내용이 없어요'); return; }
-  state=undoHistory.pop();
-  saveLocal();
-  renderAll();
-  queueSave();
-  showToast('마지막 변경을 되돌렸어요');
-}
-document.addEventListener('keydown', e=>{
-  if(!(e.ctrlKey||e.metaKey) || e.shiftKey || e.key.toLowerCase()!=='z') return;
-  const tag=document.activeElement && document.activeElement.tagName;
-  if(tag==='INPUT' || tag==='TEXTAREA') return;
-  e.preventDefault();
-  undoLastChange();
-});
 function queueSave(){
   logRoleActivity();
   saveLocal();
   clearTimeout(saveTimer);
   saveTimer=setTimeout(async ()=>{
-    // Deep-cloning the whole app state (captureUndoSnapshot) is not cheap
-    // once state has months of history in it - doing it on every single
-    // click (e.g. painting a study-block grid) made rapid clicks visibly
-    // laggy/unresponsive. Only clone once per settled batch of edits here,
-    // not once per edit; Ctrl+Z then undoes a whole burst of rapid clicks
-    // as one step instead of one click at a time, which is an acceptable
-    // trade for not blocking the main thread on every tap.
-    captureUndoSnapshot();
     if(user && db){
       setSyncStatus('syncing');
       try{
@@ -1105,7 +1068,6 @@ function initAuth(){
         setSyncStatus('synced');
       }catch(e){ console.warn(e); setSyncStatus('error'); }
       saveLocal();
-      lastUndoSnapshot=JSON.parse(JSON.stringify(state));
       renderAll();
       attachRealtimeSync();
     } else {
@@ -5169,7 +5131,13 @@ function openIncomeCategoryEditModal(oldName){
 function gamificationFlags(key){
   if(!state.gamification) state.gamification={};
   if(!state.gamification[key]) state.gamification[key]={studyHourMilestone:{}, weightGoalCelebrated:{target:false,finalTarget:false}, lastNudgeDate:''};
+  // A gamification object that arrived from a merge/cloud load rather than
+  // this default may be missing individual fields (e.g. an older shape, or
+  // one from before studyHourMilestone existed) - back-fill each one so
+  // callers can always index into them without throwing.
   if(!state.gamification[key].weightGoalCelebrated) state.gamification[key].weightGoalCelebrated={target:false,finalTarget:false};
+  if(!state.gamification[key].studyHourMilestone) state.gamification[key].studyHourMilestone={};
+  if(state.gamification[key].lastNudgeDate===undefined) state.gamification[key].lastNudgeDate='';
   return state.gamification[key];
 }
 function celebrate(title, message, achievedDate){
