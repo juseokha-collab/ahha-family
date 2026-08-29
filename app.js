@@ -708,6 +708,23 @@ function applyGroupSnapshotToState(name, data){
   });
   return changed;
 }
+// A realtime update rebuilds a tab's whole innerHTML, which detaches
+// whatever DOM node a click/tap gesture is mid-flight on and swallows the
+// click. renderAll() nuked ALL 7 tabs for ANY group's update, so e.g.
+// someone editing the family schedule could silently eat a click on the
+// study-blocks grid on a completely different tab. Only re-render the
+// tab(s) that actually depend on the group that changed; 'misc' stays a
+// full renderAll() since it's a catch-all for many unrelated fields.
+const GROUP_RENDER_FNS={
+  schedule:()=>{ renderHome(); renderSchedule(); },
+  budget:()=>{ renderBudget(); },
+  daily:()=>{ renderHome(); renderSchedule(); renderHealth(); },
+  todos:()=>{ renderHome(); },
+  events:()=>{ renderHome(); renderSchedule(); renderEvents(); },
+  study:()=>{ renderStudy(); },
+  habits:()=>{ renderHome(); renderSchedule(); },
+  vehicle:()=>{ renderVehicle(); }
+};
 function attachRealtimeSync(){
   detachAllRealtimeSync();
   STATE_GROUP_NAMES.forEach(name=>{
@@ -720,7 +737,12 @@ function attachRealtimeSync(){
       const modalOpen=modalBg && modalBg.classList.contains('show');
       const activeTag=document.activeElement && document.activeElement.tagName;
       const isEditing=modalOpen || activeTag==='INPUT' || activeTag==='TEXTAREA';
-      if(!isEditing) renderAll();
+      if(isEditing) return;
+      renderTabs();
+      const fn=GROUP_RENDER_FNS[name];
+      if(fn) fn(); else renderAll();
+      updateHeartIcon();
+      if(!viewAsOverride) checkWeightPaceNudge(effectiveRole());
     }, e=>{ console.warn(e); });
     realtimeUnsubs.push(unsub);
   });
