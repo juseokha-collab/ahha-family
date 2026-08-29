@@ -862,7 +862,12 @@ function pushWeightToHaru(dateStr, val){
 
 function queueSave(){
   logRoleActivity();
-  saveLocal();
+  // JSON.stringify(state) isn't free once state has months of accumulated
+  // records - running it synchronously inside every single click handler
+  // (before that click's own re-render even paints) adds up when clicking
+  // through many cells in a row. Defer it a tick so the click's own visual
+  // update isn't waiting behind it; it still runs almost immediately after.
+  setTimeout(saveLocal, 0);
   clearTimeout(saveTimer);
   saveTimer=setTimeout(async ()=>{
     if(user && db){
