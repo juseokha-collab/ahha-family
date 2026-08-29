@@ -977,14 +977,16 @@ function mergeDaily(localDaily, cloudDaily){
   return merged;
 }
 function mergeStudyBlocks(localSB, cloudSB){
+  // A day's 144-slot array is treated as ONE unit, not merged slot-by-slot:
+  // an empty slot ('') is ambiguous between "never painted" and "painted,
+  // then deliberately cleared", so gap-filling per index from cloud would
+  // silently resurrect a color the user just erased on this same array.
+  // Cloud only supplies a whole day this device has never touched at all.
   const merged=JSON.parse(JSON.stringify(localSB||{}));
   Object.keys(cloudSB||{}).forEach(key=>{
     if(!merged[key]) merged[key]={};
     Object.keys(cloudSB[key]).forEach(date=>{
-      const cloudArr=cloudSB[key][date]||[];
-      const localArr=merged[key][date];
-      if(!localArr || !localArr.length){ merged[key][date]=cloudArr.slice(); return; }
-      merged[key][date]=localArr.map((v,i)=> (v && String(v).length) ? v : (cloudArr[i]||v));
+      if(merged[key][date]===undefined) merged[key][date]=cloudSB[key][date];
     });
   });
   return merged;
