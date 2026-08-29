@@ -3116,7 +3116,14 @@ function renderSchedule(){
       if(!state.calendarDayColors) state.calendarDayColors={};
       if(!state.calendarDayColors[myKeyCal]) state.calendarDayColors[myKeyCal]={};
       if(calendarColorPick==='__default__'){
-        delete state.calendarDayColors[myKeyCal][c.dataset.date];
+        // Not a plain delete: mergeKeyedColorMaps rebuilds this map by
+        // overlaying local's keys onto cloud's (Object.assign), which can
+        // only ADD/OVERWRITE properties, never remove one - a deleted key
+        // simply isn't present to overwrite cloud's still-existing value
+        // with, so the old color would silently reappear on the next
+        // merge. null is an explicit, present value that wins the overlay
+        // and reads as "no color" the same way a missing key did.
+        state.calendarDayColors[myKeyCal][c.dataset.date]=null;
       } else {
         state.calendarDayColors[myKeyCal][c.dataset.date]=calendarColorPick;
       }
