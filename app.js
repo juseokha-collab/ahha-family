@@ -750,7 +750,15 @@ const GROUP_RENDER_FNS={
   daily:()=>{ renderHome(); renderSchedule(); renderHealth(); },
   todos:()=>{ renderHome(); },
   events:()=>{ renderHome(); renderSchedule(); renderEvents(); },
-  study:()=>{ renderStudy(); },
+  // Deliberately a no-op: the study grid is edited by rapid clicks that
+  // each already re-render it locally and synchronously, so a realtime
+  // re-render competing for the same tab kept intermittently eating a
+  // click no matter how the "did anything change" check was hardened.
+  // studyBlocks' merge already keeps this tab's own edits safe either
+  // way; another device's edit to the same personal data will simply
+  // show up the next time this tab re-renders on its own instead of
+  // fighting an in-progress click here.
+  study:()=>{},
   habits:()=>{ renderHome(); renderSchedule(); },
   vehicle:()=>{ renderVehicle(); }
 };
@@ -1541,6 +1549,7 @@ function applyMomToggleDefaultsOnce(){
 let momWeightDefaultsApplied=false;
 let daughterWeightDefaultsApplied=false;
 let studyAnchor=todayStr();
+let studyPaintMode=null; // null | 'study' | 'exercise' | 'housework' | 'erase'
 function resolveItemColors(s, dateStr){
   const ov=s.colorOverrides && s.colorOverrides[dateStr];
   return {
@@ -5414,11 +5423,12 @@ function renderStudy(){
   el.innerHTML=`
     <div class="card">
       ${streakInfo.streak>0?`<div class="row" style="margin-bottom:8px;"><span class="pill" style="background:var(--panel2);">🔥 ${streakInfo.streak}일 연속 기록${!streakInfo.todayLogged?' (오늘 기록하면 갱신!)':''}</span></div>`:''}
-      <div class="row" style="gap:10px;margin-bottom:10px;flex-wrap:wrap;justify-content:flex-end;">
-        <span class="pill" style="background:${SB_COLORS.study};color:#3a2e00;border:none;">🟡 공부</span>
-        <span class="pill" style="background:${SB_COLORS.exercise};color:#08321a;border:none;">🟢 운동</span>
-        <span class="pill" style="background:${SB_COLORS.housework};color:#0a2a4d;border:none;">🧹 집안일</span>
-        <span class="meta">칸을 눌러 색칠 (공부 → 운동 → 집안일 → 지우기)</span>
+      <div class="row" style="gap:10px;margin-bottom:10px;flex-wrap:wrap;justify-content:flex-end;align-items:center;">
+        <button type="button" class="pill sb-paint-btn" data-paint="study" style="background:${SB_COLORS.study};color:#3a2e00;border:${studyPaintMode==='study'?'3px solid var(--text)':'none'};cursor:pointer;">🟡 공부</button>
+        <button type="button" class="pill sb-paint-btn" data-paint="exercise" style="background:${SB_COLORS.exercise};color:#08321a;border:${studyPaintMode==='exercise'?'3px solid var(--text)':'none'};cursor:pointer;">🟢 운동</button>
+        <button type="button" class="pill sb-paint-btn" data-paint="housework" style="background:${SB_COLORS.housework};color:#0a2a4d;border:${studyPaintMode==='housework'?'3px solid var(--text)':'none'};cursor:pointer;">🧹 집안일</button>
+        <button type="button" class="pill sb-paint-btn" data-paint="erase" style="background:var(--panel2);border:${studyPaintMode==='erase'?'3px solid var(--text)':'2px solid rgba(128,128,128,0.4)'};cursor:pointer;">✕ 비우기</button>
+        <span class="meta">${studyPaintMode?'칸을 눌러 색칠하세요':'위에서 색을 먼저 선택하세요'}</span>
       </div>
       <div style="overflow-x:auto;">
         <table class="dt-table sb-table">
@@ -5454,12 +5464,19 @@ function renderStudy(){
       </div>
     </div>
   `;
+  el.querySelectorAll('.sb-paint-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const mode=btn.dataset.paint;
+      studyPaintMode = (studyPaintMode===mode) ? null : mode;
+      renderStudy();
+    });
+  });
   el.querySelectorAll('.sb-seg').forEach(seg=>{
     seg.addEventListener('click', ()=>{
+      if(!studyPaintMode){ showToast('먼저 위에서 색을 선택해주세요'); return; }
       const di=Number(seg.dataset.day), idx=Number(seg.dataset.idx);
       const arr=arrays[di];
-      const cur=arr[idx];
-      arr[idx] = cur==='' ? 'study' : cur==='study' ? 'exercise' : cur==='exercise' ? 'housework' : '';
+      arr[idx] = studyPaintMode==='erase' ? '' : studyPaintMode;
       queueSave();
       checkStudyHourMilestone(key, days[di]);
       renderStudy();
