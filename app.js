@@ -5424,11 +5424,11 @@ function renderStudy(){
     <div class="card">
       ${streakInfo.streak>0?`<div class="row" style="margin-bottom:8px;"><span class="pill" style="background:var(--panel2);">🔥 ${streakInfo.streak}일 연속 기록${!streakInfo.todayLogged?' (오늘 기록하면 갱신!)':''}</span></div>`:''}
       <div class="row" style="gap:10px;margin-bottom:10px;flex-wrap:wrap;justify-content:flex-end;align-items:center;">
+        <span class="meta">${studyPaintMode?'칸을 눌러 색칠하세요':'색을 먼저 선택하세요'}</span>
         <button type="button" class="pill sb-paint-btn" data-paint="study" style="background:${SB_COLORS.study};color:#3a2e00;border:${studyPaintMode==='study'?'3px solid var(--text)':'none'};cursor:pointer;">🟡 공부</button>
         <button type="button" class="pill sb-paint-btn" data-paint="exercise" style="background:${SB_COLORS.exercise};color:#08321a;border:${studyPaintMode==='exercise'?'3px solid var(--text)':'none'};cursor:pointer;">🟢 운동</button>
         <button type="button" class="pill sb-paint-btn" data-paint="housework" style="background:${SB_COLORS.housework};color:#0a2a4d;border:${studyPaintMode==='housework'?'3px solid var(--text)':'none'};cursor:pointer;">🧹 집안일</button>
         <button type="button" class="pill sb-paint-btn" data-paint="erase" style="background:var(--panel2);border:${studyPaintMode==='erase'?'3px solid var(--text)':'2px solid rgba(128,128,128,0.4)'};cursor:pointer;">✕ 비우기</button>
-        <span class="meta">${studyPaintMode?'칸을 눌러 색칠하세요':'위에서 색을 먼저 선택하세요'}</span>
       </div>
       <div style="overflow-x:auto;">
         <table class="dt-table sb-table">
