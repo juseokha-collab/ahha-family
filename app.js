@@ -1712,7 +1712,7 @@ function renderDayTimelines(){
     const justify=isFirst?'flex-start':isLast?'flex-end':'center';
     const headHtml=`<div class="dtp-head row" style="justify-content:${justify};flex-wrap:nowrap;gap:2px;">${prevBtn}${dateText}${nextBtn}</div>`;
     const evs=state.events.filter(ev=>!(ev.hiddenFromDaughter && ddayRole==='daughter') && fmtDate(eventOccurrence(ev))===d)
-      .map(ev=>({id:'evt-dday-'+ev.id, title:ev.name, memo:ev.memo, ddayCommon:ddayRole!=='daughter'}));
+      .map(ev=>({id:'evt-dday-'+ev.id, title:(isEventCompleted(ev)?'(完) ':'')+ev.name, memo:ev.memo, ddayCommon:ddayRole!=='daughter'}));
     const ddayHtml=`<div class="dt-cell dtp-edge">${evs.map(ev=>dtChip(ev)).join('')}</div>`;
     return `${i>0?'<div class="dtp-gap"></div>':''}<div class="dtp-daycol">${headHtml}${dtDayColInnerHtml(d, itemsByDay[i])}${ddayHtml}</div>`;
   }).join('');
