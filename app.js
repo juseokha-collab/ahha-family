@@ -4647,6 +4647,39 @@ function budgetCarryoverFor(key){
   if(!state.budgetCarryover[key]) state.budgetCarryover[key]={KRW:0,GBP:0};
   return state.budgetCarryover[key];
 }
+function budgetNetForMonth(myBudget, ym){
+  const monthItems=myBudget.filter(b=>b.date.startsWith(ym));
+  const expenseByCur={KRW:0,GBP:0}, incomeByCur={KRW:0,GBP:0};
+  monthItems.filter(b=>b.type!=='income' && b.category!=='환전').forEach(b=>{
+    const cur=b.currency||'KRW'; expenseByCur[cur]=(expenseByCur[cur]||0)+Number(b.amount||0);
+  });
+  monthItems.filter(b=>b.type==='income' && b.category!=='환전').forEach(b=>{
+    const cur=b.currency||'KRW'; incomeByCur[cur]=(incomeByCur[cur]||0)+Number(b.amount||0);
+  });
+  const exchangeItems=monthItems.filter(b=>b.category==='환전');
+  const exchangedKRW=exchangeItems.filter(b=>(b.currency||'KRW')==='KRW').reduce((s,b)=>s+Number(b.amount||0),0);
+  const exchangedGBP=exchangeItems.filter(b=>b.currency==='GBP').reduce((s,b)=>s+Number(b.amount||0),0);
+  return {
+    KRW: incomeByCur.KRW - expenseByCur.KRW - exchangedKRW,
+    GBP: incomeByCur.GBP - expenseByCur.GBP + exchangedGBP
+  };
+}
+function budgetCarryoverForMonth(myBudget, key, ym){
+  // "전월 이월금액" used to be one flat, manually-edited number shown
+  // identically on every month - so a month's actual leftover balance
+  // never carried forward to the next one. Now it's the flat pre-app
+  // starting balance (still set via openCarryoverModal) PLUS the running
+  // net of every earlier month this person has entries for, so each
+  // month picks up where the previous one actually ended.
+  const base=budgetCarryoverFor(key);
+  const priorMonths=new Set(myBudget.map(b=>b.date.slice(0,7)).filter(m=>m<ym));
+  let KRW=base.KRW, GBP=base.GBP;
+  priorMonths.forEach(m=>{
+    const net=budgetNetForMonth(myBudget, m);
+    KRW+=net.KRW; GBP+=net.GBP;
+  });
+  return {KRW, GBP};
+}
 function openCarryoverModal(){
   const key=currentAuthorKey();
   const c=budgetCarryoverFor(key);
@@ -4816,7 +4849,7 @@ function renderBudget(){
     });
   }
   const [y,m]=budgetMonth.split('-');
-  const carryover=budgetCarryoverFor(myKey);
+  const carryover=budgetCarryoverForMonth(myBudget, myKey, budgetMonth);
   const exchangeItemsThisMonth = monthItems.filter(b=>b.category==='환전');
   const exchangedKRWThisMonth = exchangeItemsThisMonth.filter(b=>(b.currency||'KRW')==='KRW').reduce((s,b)=>s+Number(b.amount||0),0);
   const exchangedGBPThisMonth = exchangeItemsThisMonth.filter(b=>b.currency==='GBP').reduce((s,b)=>s+Number(b.amount||0),0);
