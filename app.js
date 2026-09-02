@@ -2818,7 +2818,12 @@ function monthNoteRowHtml(idx, value){
 function monthDdayHtml(y, m){
   const monthStartStr=fmtDate(new Date(y,m,1)), monthEndStr=fmtDate(new Date(y,m+1,0));
   const role=effectiveRole();
-  const scoped = role==='daughter' ? state.events.filter(ev=>ev.ownerRole==='daughter') : state.events;
+  // Match the calendar grid's own visibility rule (anything not explicitly
+  // hidden from daughter), not "owned by daughter" - the grid above this
+  // summary already shows other roles' D-days to daughter, so restricting
+  // this line to daughter-owned-only made it contradict what's visibly on
+  // screen right above it.
+  const scoped = state.events.filter(ev=>!(ev.hiddenFromDaughter && role==='daughter'));
   const inMonth = scoped.map(ev=>{
     const isRecurring = ev.recurring || ev.recurringMonthly;
     const occDateStr = isRecurring ? computeEventOccurrenceBase(ev, monthStartStr) : ev.date;
