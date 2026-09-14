@@ -3471,6 +3471,17 @@ function mealEntryLineHtml(m){
   const drinkHtml = m.drinkBottles ? ` · 🍶 반주 ${m.drinkBottles}병` : '';
   return `${escapeHtml(m.mealType)} · ${escapeHtml(statusText)}${showContent?' · '+escapeHtml(m.content):''}${drinkHtml}${pointsHtml}`;
 }
+function mealEntryEmojiLineHtml(m){
+  const hasContent = !!m.content;
+  const basePoints = hasContent ? mealAmountPoints(m.mealType, m.amount) : (m.fasted ? MEAL_FAST_POINTS : null);
+  const drinkPts = mealDrinkPoints(m.drinkBottles);
+  const points = (basePoints==null && !drinkPts) ? null : (basePoints||0)+drinkPts;
+  const pointsHtml = points!=null ? ` <span style="color:${points<0?'var(--bad)':'var(--good)'};font-weight:700;">${points>0?'+':''}${points}점</span>` : '';
+  const showContent = hasContent && !isMobileViewport();
+  const drinkHtml = m.drinkBottles ? ` · 🍶 반주 ${m.drinkBottles}병` : '';
+  const contentText = showContent ? escapeHtml(m.content) : '';
+  return {emoji: MEAL_ICONS[m.mealType]||'', rest: `${contentText}${drinkHtml}${pointsHtml}`};
+}
 function openMealDayModal(dateStr){
   const meals=(state.daily[dateStr] && state.daily[dateStr].health && state.daily[dateStr].health[healthPerson] && state.daily[dateStr].health[healthPerson].meals) || [];
   const dLabel=`${dateStr.slice(5)}(${parseDate(dateStr).toLocaleDateString('ko-KR',{weekday:'short'})})`;
@@ -4107,15 +4118,19 @@ function renderHealth(){
           ${mealGroups.map(g=>{
             const wc=weekdayColor(g.date);
             const dateLabel=`${g.date.slice(5)}(${parseDate(g.date).toLocaleDateString('ko-KR',{weekday:'short'})})`;
-            const lines = g.entries.length ? g.entries.map(mealEntryLineHtml) : ['기록 없음'];
-            const gridRows = lines.map((line,i)=>`
-              <div style="font-weight:700;font-size:12.5px;white-space:nowrap;${wc?'color:'+wc+';':''}">${i===0?dateLabel:''}</div>
-              <div class="content-text">${line}</div>`).join('');
+            const gridRows = g.entries.length ? g.entries.map(mealEntryEmojiLineHtml).map(({emoji,rest})=>`
+              <div>${emoji}</div>
+              <div class="content-text">${rest}</div>`).join('') : `
+              <div></div>
+              <div class="content-text">기록 없음</div>`;
             const actions = g.entries.length ? `<button class="btn small" style="font-size:11px;padding:3px 8px;" data-edit-meal-day="${g.date}" title="수정">✏️</button> <button class="btn small danger" style="font-size:11px;padding:3px 8px;" data-del-meal-day="${g.date}" title="삭제">✕</button>` : '';
             return `<div class="list-item" style="align-items:flex-start;">
               <div class="row" style="gap:8px;align-items:flex-start;flex:1;min-width:0;">
                 ${mealMoodImgHtml(g.entries)}
-                <div class="meal-history-grid">${gridRows}</div>
+                <div style="min-width:0;flex:1;">
+                  <div style="font-weight:700;font-size:12.5px;white-space:nowrap;${wc?'color:'+wc+';':''}">${dateLabel}</div>
+                  <div class="meal-history-grid" style="margin-top:2px;">${gridRows}</div>
+                </div>
               </div>
               <div class="row" style="flex-shrink:0;">${actions}</div>
             </div>`;
