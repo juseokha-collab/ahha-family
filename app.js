@@ -4121,15 +4121,15 @@ function renderHealth(){
             const actions = g.entries.length ? `<button class="btn small" style="font-size:11px;padding:3px 8px;" data-edit-meal-day="${g.date}" title="수정">✏️</button> <button class="btn small danger" style="font-size:11px;padding:3px 8px;" data-del-meal-day="${g.date}" title="삭제">✕</button>` : '';
             let bodyHtml;
             if(isMobileViewport()){
-              const gridRows = g.entries.length ? g.entries.map(mealEntryEmojiLineHtml).map(({emoji,rest})=>`
-                <div>${emoji}</div>
-                <div class="content-text">${rest}</div>`).join('') : `
-                <div></div>
-                <div class="content-text">기록 없음</div>`;
-              bodyHtml = `<div style="min-width:0;flex:1;">
-                <div style="font-weight:700;font-size:12.5px;white-space:nowrap;${wc?'color:'+wc+';':''}">${dateLabel}</div>
-                <div class="meal-history-grid" style="margin-top:2px;">${gridRows}</div>
-              </div>`;
+              // Date sits in the grid's own left column on row 0 (alongside
+              // the first entry's full emoji+content line, same as PC did
+              // with mealType text); every later row's left column is just
+              // that entry's emoji, landing directly under the date.
+              const emojiLines = g.entries.length ? g.entries.map(mealEntryEmojiLineHtml) : [{emoji:'',rest:'기록 없음'}];
+              const gridRows = emojiLines.map((ln,i)=>`
+                <div style="${i===0?`font-weight:700;font-size:12.5px;white-space:nowrap;${wc?'color:'+wc+';':''}`:''}">${i===0?dateLabel:ln.emoji}</div>
+                <div class="content-text">${i===0?(ln.emoji?ln.emoji+' ':'')+ln.rest:ln.rest}</div>`).join('');
+              bodyHtml = `<div class="meal-history-grid">${gridRows}</div>`;
             } else {
               const lines = g.entries.length ? g.entries.map(mealEntryLineHtml) : ['기록 없음'];
               const gridRows = lines.map((line,i)=>`
