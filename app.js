@@ -4119,22 +4119,38 @@ function renderHealth(){
             const wc=weekdayColor(g.date);
             const dateLabel=`${g.date.slice(5)}(${parseDate(g.date).toLocaleDateString('ko-KR',{weekday:'short'})})`;
             const actions = g.entries.length ? `<button class="btn small" style="font-size:11px;padding:3px 8px;" data-edit-meal-day="${g.date}" title="수정">✏️</button> <button class="btn small danger" style="font-size:11px;padding:3px 8px;" data-del-meal-day="${g.date}" title="삭제">✕</button>` : '';
-            // Same wrapper on mobile and PC: mood avatar on the left, then
-            // a 2-column grid (icon/date | content) stacking each meal
-            // below the next, all left-aligned under each other. Mobile
-            // and PC only differ in how each grid row's text is built.
-            let gridRows;
             if(isMobileViewport()){
-              const emojiLines = g.entries.length ? g.entries.map(mealEntryEmojiLineHtml) : [{emoji:'',rest:'기록 없음'}];
-              gridRows = emojiLines.map((ln,i)=>`
-                <div style="${i===0?`font-weight:700;font-size:12.5px;white-space:nowrap;${wc?'color:'+wc+';':''}`:''}">${i===0?dateLabel:ln.emoji}</div>
-                <div class="content-text">${i===0?(ln.emoji?ln.emoji+' ':'')+ln.rest:ln.rest}</div>`).join('');
-            } else {
-              const lines = g.entries.length ? g.entries.map(mealEntryLineHtml) : ['기록 없음'];
-              gridRows = lines.map((line,i)=>`
-                <div style="font-weight:700;font-size:12.5px;white-space:nowrap;${wc?'color:'+wc+';':''}">${i===0?dateLabel:''}</div>
-                <div class="content-text">${line}</div>`).join('');
+              // Top row: date + first entry (emoji+content) on one line,
+              // actions at the far right. Below that: mood avatar on the
+              // left, remaining entries stacked to its right in a 2-column
+              // grid so every later emoji lines up under the one above it.
+              const emojiLines = g.entries.map(mealEntryEmojiLineHtml);
+              const first = emojiLines[0];
+              const rest = emojiLines.slice(1);
+              const firstLineHtml = first
+                ? `<span class="content-text">${first.emoji} ${first.rest}</span>`
+                : `<span class="content-text">기록 없음</span>`;
+              const restGridRows = rest.map(ln=>`
+                <div>${ln.emoji}</div>
+                <div class="content-text">${ln.rest}</div>`).join('');
+              return `<div class="list-item" style="flex-direction:column;align-items:stretch;gap:4px;">
+                <div class="row" style="justify-content:space-between;align-items:baseline;gap:8px;">
+                  <div class="row" style="gap:8px;align-items:baseline;flex-wrap:wrap;">
+                    <span style="font-weight:700;font-size:12.5px;white-space:nowrap;${wc?'color:'+wc+';':''}">${dateLabel}</span>
+                    ${firstLineHtml}
+                  </div>
+                  <div class="row" style="flex-shrink:0;">${actions}</div>
+                </div>
+                <div class="row" style="gap:8px;align-items:flex-start;">
+                  ${mealMoodImgHtml(g.entries)}
+                  ${rest.length?`<div class="meal-history-grid">${restGridRows}</div>`:''}
+                </div>
+              </div>`;
             }
+            const lines = g.entries.length ? g.entries.map(mealEntryLineHtml) : ['기록 없음'];
+            const gridRows = lines.map((line,i)=>`
+              <div style="font-weight:700;font-size:12.5px;white-space:nowrap;${wc?'color:'+wc+';':''}">${i===0?dateLabel:''}</div>
+              <div class="content-text">${line}</div>`).join('');
             return `<div class="list-item" style="align-items:flex-start;">
               <div class="row" style="gap:8px;align-items:flex-start;flex:1;min-width:0;">
                 ${mealMoodImgHtml(g.entries)}
