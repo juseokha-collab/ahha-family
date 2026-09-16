@@ -3466,10 +3466,11 @@ function mealEntryLineHtml(m){
   const drinkPts = mealDrinkPoints(m.drinkBottles);
   const points = (basePoints==null && !drinkPts) ? null : (basePoints||0)+drinkPts;
   const pointsHtml = points!=null ? ` <span style="color:${points<0?'var(--bad)':'var(--good)'};font-weight:700;">${points>0?'+':''}${points}점</span>` : '';
-  const statusText = hasContent ? m.amount : (m.fasted ? MEAL_FAST_TEXT[m.mealType] : '');
+  // Amount/fasted status words ("쫌많이", "단식했어요" etc.) are dropped -
+  // the points already convey that, so the word was redundant.
   const showContent = hasContent && !isMobileViewport();
   const drinkHtml = m.drinkBottles ? ` · 🍶 반주 ${m.drinkBottles}병` : '';
-  return `${escapeHtml(m.mealType)} · ${escapeHtml(statusText)}${showContent?' · '+escapeHtml(m.content):''}${drinkHtml}${pointsHtml}`;
+  return `${escapeHtml(m.mealType)}${showContent?' · '+escapeHtml(m.content):''}${drinkHtml}${pointsHtml}`;
 }
 function mealEntryEmojiLineHtml(m){
   const hasContent = !!m.content;
