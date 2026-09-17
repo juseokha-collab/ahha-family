@@ -779,7 +779,6 @@ function attachRealtimeSync(){
       const fn=GROUP_RENDER_FNS[name];
       if(fn) fn(); else renderAll();
       updateHeartIcon();
-      if(!viewAsOverride) checkWeightPaceNudge(effectiveRole());
     }, e=>{ console.warn(e); });
     realtimeUnsubs.push(unsub);
   });
@@ -1283,6 +1282,9 @@ document.getElementById('tabs').addEventListener('click', e=>{
   const btn=e.target.closest('button[data-tab]'); if(!btn) return;
   activeTab=btn.dataset.tab;
   renderTabs();
+  // Weight-pace nudge now only fires when the Activity(건강) tab is opened,
+  // not on every app load/refresh.
+  if(activeTab==='health' && !viewAsOverride) checkWeightPaceNudge(effectiveRole());
 });
 
 function todayPillBtn(id){
@@ -5965,7 +5967,6 @@ function renderAll(){
   renderTabs();
   renderHome(); renderSchedule(); renderHealth(); renderBudget(); renderVehicle(); renderEvents(); renderStudy();
   updateHeartIcon();
-  if(!viewAsOverride) checkWeightPaceNudge(effectiveRole());
 }
 initTheme();
 initViewAs();
