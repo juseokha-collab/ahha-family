@@ -382,7 +382,9 @@ function defaultState(){
     letters:[],
     daughterActivity:[],
     momActivity:[],
-    shoppingList:[]
+    shoppingList:[],
+    reflections:[],
+    reflectionComments:[]
   };
 }
 function markDeleted(id){
@@ -529,7 +531,7 @@ let saveTimer=null;
 let sessionLoggedRoles={};
 let currentSessionActivityEntries={};
 const ACTIVITY_STATE_KEYS={daughter:'daughterActivity', mom:'momActivity'};
-const TAB_LOG_NAMES={home:'홈',schedule:'일정',health:'건강',budget:'가계부',study:'Learning'};
+const TAB_LOG_NAMES={home:'홈',schedule:'일정',health:'건강',budget:'가계부',study:'Learning',reflection:'Reflection'};
 function activityContentFor(tab){
   try{
     const d=todayStr();
@@ -618,6 +620,7 @@ const STATE_GROUPS={
   study:['study','studyBlocks'],
   habits:['habits','habitLog'],
   vehicle:['vehicle'],
+  reflection:['reflections','reflectionComments'],
   misc:['healthSchedule','calendarDayColors','deletedIds','monthNotes','letters','daughterActivity','momActivity','weightGoals']
 };
 const STATE_GROUP_NAMES=Object.keys(STATE_GROUPS);
@@ -760,7 +763,8 @@ const GROUP_RENDER_FNS={
   // fighting an in-progress click here.
   study:()=>{},
   habits:()=>{ renderHome(); renderSchedule(); },
-  vehicle:()=>{ renderVehicle(); }
+  vehicle:()=>{ renderVehicle(); },
+  reflection:()=>{ renderReflection(); }
 };
 function attachRealtimeSync(){
   detachAllRealtimeSync();
@@ -1056,6 +1060,7 @@ function mergeHabitsField(localVal, cloudVal, deletedSet){
 const KEY_MERGE_FN={
   schedule:mergeById, budget:mergeById, events:mergeById, study:mergeById,
   letters:mergeById, daughterActivity:mergeById, momActivity:mergeById, shoppingList:mergeById,
+  reflections:mergeById, reflectionComments:mergeById,
   todos:mergeKeyedArrays, healthSchedule:mergeKeyedArrays,
   budgetCategories:mergeCategoryLists,
   daily:(l,c)=>mergeDaily(l,c),
@@ -1247,7 +1252,7 @@ function showToast(msg){
 }
 
 /* ---------- tabs ---------- */
-const ALL_TAB_KEYS=['home','schedule','health','budget','vehicle','events','study'];
+const ALL_TAB_KEYS=['home','schedule','health','budget','vehicle','events','study','reflection'];
 let activeTab='home';
 function getVisibleTabs(){
   if(effectiveRole()==='daughter'){
@@ -1257,7 +1262,8 @@ function getVisibleTabs(){
       {key:'study',label:'📚',title:'Learning'},
       {key:'health',label:'🏃',title:'Activity'},
       {key:'events',label:'⏳',title:'D-day'},
-      {key:'budget',label:'💰',title:'Account'}
+      {key:'budget',label:'💰',title:'Account'},
+      {key:'reflection',label:'💭',title:'Reflection'}
     ];
   }
   return [
@@ -1266,7 +1272,8 @@ function getVisibleTabs(){
     {key:'health',label:'🏃',title:'Health'},
     {key:'budget',label:'💰',title:'Budget'},
     {key:'vehicle',label:'🚗',title:'Vehicle'},
-    {key:'events',label:'⏳',title:'D-day'}
+    {key:'events',label:'⏳',title:'D-day'},
+    {key:'reflection',label:'💭',title:'Reflection'}
   ];
 }
 function renderTabs(){
@@ -5846,6 +5853,108 @@ function openEventModal(existing){
   };
 }
 
+/* ---------- REFLECTION ---------- */
+function fmtReflectionTs(ms){
+  const d=new Date(ms);
+  return `${pad2(d.getMonth()+1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
+function reflectionAuthorHtml(authorKey){
+  const role=authorRoleOf(authorKey);
+  const label=role?memberLabel(role):authorKey;
+  return `${authorBadge(authorKey)}<b>${escapeHtml(label)}</b>`;
+}
+function renderReflection(){
+  const el=document.getElementById('tab-reflection');
+  if(!el) return;
+  const posts=[...(state.reflections||[])].sort((a,b)=>b.createdAt-a.createdAt);
+  const myKey=currentAuthorKey();
+  el.innerHTML=`
+    <div class="card">
+      <h3 style="margin:0 0 10px;">💭 Reflection</h3>
+      <div class="field">
+        <textarea id="newReflectionText" placeholder="가족에게 남기고 싶은 이야기를 적어보세요" style="min-height:70px;"></textarea>
+      </div>
+      <div class="row" style="justify-content:flex-end;margin-top:6px;">
+        <button class="btn primary" id="postReflectionBtn">남기기</button>
+      </div>
+    </div>
+    ${posts.length? posts.map(p=>{
+      const comments=(state.reflectionComments||[]).filter(c=>c.postId===p.id).sort((a,b)=>a.createdAt-b.createdAt);
+      const canDeletePost = p.author===myKey;
+      return `
+      <div class="card">
+        <div class="row" style="justify-content:space-between;align-items:flex-start;">
+          <div class="row" style="gap:6px;align-items:center;">${reflectionAuthorHtml(p.author)}<span class="meta">${fmtReflectionTs(p.createdAt)}</span></div>
+          ${canDeletePost?`<button class="btn small danger" style="font-size:11px;padding:3px 8px;" data-del-post="${p.id}" title="삭제">✕</button>`:''}
+        </div>
+        <div class="content-text" style="margin-top:6px;white-space:pre-wrap;">${escapeHtml(p.text)}</div>
+        ${comments.length?`<div style="margin-top:10px;padding-left:12px;border-left:2px solid var(--border);">${comments.map(c=>{
+          const canDeleteComment = c.author===myKey;
+          return `<div class="row" style="justify-content:space-between;align-items:flex-start;margin-bottom:6px;gap:6px;">
+            <div style="min-width:0;">
+              <div class="row" style="gap:6px;align-items:center;">${reflectionAuthorHtml(c.author)}<span class="meta">${fmtReflectionTs(c.createdAt)}</span></div>
+              <div class="content-text" style="white-space:pre-wrap;">${escapeHtml(c.text)}</div>
+            </div>
+            ${canDeleteComment?`<button class="btn small danger" style="font-size:11px;padding:3px 8px;flex-shrink:0;" data-del-comment="${c.id}" title="삭제">✕</button>`:''}
+          </div>`;
+        }).join('')}</div>`:''}
+        <div class="row" style="gap:6px;margin-top:8px;">
+          <input type="text" class="reflection-comment-input" data-post-id="${p.id}" placeholder="댓글 남기기" style="flex:1;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:13px;">
+          <button class="btn small" data-comment-post="${p.id}">등록</button>
+        </div>
+      </div>`;
+    }).join('') : `<div class="card"><div class="empty">아직 남겨진 글이 없어요</div></div>`}
+  `;
+  document.getElementById('postReflectionBtn').onclick=()=>{
+    const ta=document.getElementById('newReflectionText');
+    const text=ta.value.trim();
+    if(!text) return;
+    if(!state.reflections) state.reflections=[];
+    state.reflections.push({id:uid(), author:myKey, text, createdAt:Date.now()});
+    queueSave(); renderReflection();
+  };
+  el.querySelectorAll('[data-del-post]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      if(!confirm('이 글을 삭제할까요? 댓글도 함께 삭제돼요.')) return;
+      const id=btn.dataset.delPost;
+      const relatedComments=(state.reflectionComments||[]).filter(c=>c.postId===id);
+      state.reflections=state.reflections.filter(p=>p.id!==id);
+      state.reflectionComments=(state.reflectionComments||[]).filter(c=>c.postId!==id);
+      markDeleted(id);
+      relatedComments.forEach(c=>markDeleted(c.id));
+      queueSave(); renderReflection();
+    });
+  });
+  el.querySelectorAll('[data-del-comment]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      if(!confirm('댓글을 삭제할까요?')) return;
+      const id=btn.dataset.delComment;
+      state.reflectionComments=(state.reflectionComments||[]).filter(c=>c.id!==id);
+      markDeleted(id);
+      queueSave(); renderReflection();
+    });
+  });
+  el.querySelectorAll('[data-comment-post]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const postId=btn.dataset.commentPost;
+      const input=el.querySelector(`.reflection-comment-input[data-post-id="${postId}"]`);
+      const text=input.value.trim();
+      if(!text) return;
+      if(!state.reflectionComments) state.reflectionComments=[];
+      state.reflectionComments.push({id:uid(), postId, author:myKey, text, createdAt:Date.now()});
+      queueSave(); renderReflection();
+    });
+  });
+  el.querySelectorAll('.reflection-comment-input').forEach(input=>{
+    input.addEventListener('keydown', e=>{
+      if(e.key==='Enter'){
+        e.preventDefault();
+        el.querySelector(`[data-comment-post="${input.dataset.postId}"]`).click();
+      }
+    });
+  });
+}
+
 /* ---------- theme ---------- */
 const THEME_KEY='ahha-family-theme';
 function applyTheme(theme){
@@ -5965,7 +6074,7 @@ function updateHeartIcon(){
 /* ---------- init ---------- */
 function renderAll(){
   renderTabs();
-  renderHome(); renderSchedule(); renderHealth(); renderBudget(); renderVehicle(); renderEvents(); renderStudy();
+  renderHome(); renderSchedule(); renderHealth(); renderBudget(); renderVehicle(); renderEvents(); renderStudy(); renderReflection();
   updateHeartIcon();
 }
 initTheme();
