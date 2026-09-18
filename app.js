@@ -5883,7 +5883,7 @@ function sanitizeReflectionHtml(html){
       }
       Array.from(child.attributes).forEach(attr=>{
         if(child.tagName==='SPAN' && attr.name==='style'){
-          const m=/color:\s*(#[0-9a-fA-F]{3,6}|[a-zA-Z]+)/.exec(attr.value);
+          const m=/color:\s*(#[0-9a-fA-F]{3,6}|rgba?\([^)]+\)|[a-zA-Z]+)/.exec(attr.value);
           if(m) child.setAttribute('style', `color:${m[1]}`); else child.removeAttribute('style');
         } else child.removeAttribute(attr.name);
       });
@@ -5917,8 +5917,14 @@ function bindReflectionFmtButtons(el){
       if(!editor) return;
       editor.focus();
       if(btn.dataset.cmd==='bold') document.execCommand('bold');
-      else if(btn.dataset.cmd==='red') document.execCommand('foreColor', false, '#e53e3e');
-      else if(btn.dataset.cmd==='blue') document.execCommand('foreColor', false, '#3b82f6');
+      else if(btn.dataset.cmd==='red' || btn.dataset.cmd==='blue'){
+        // styleWithCSS forces foreColor to produce <span style="color:...">
+        // instead of a <font color> tag, which sanitizeReflectionHtml's
+        // tag whitelist would otherwise strip back out on save.
+        document.execCommand('styleWithCSS', false, true);
+        document.execCommand('foreColor', false, btn.dataset.cmd==='red' ? '#e53e3e' : '#3b82f6');
+        document.execCommand('styleWithCSS', false, false);
+      }
     });
   });
 }
@@ -5945,7 +5951,7 @@ function renderReflection(){
              <button class="btn small" data-cancel-post-edit="${p.id}">취소</button>
              <button class="btn small primary" data-save-post-edit="${p.id}">저장</button>
            </div>`
-        : `<div class="content-text" style="margin-top:6px;">${p.text}</div>`;
+        : `<div class="content-text" style="margin-top:6px;white-space:pre-wrap;">${p.text}</div>`;
       return `
       <div class="card">
         <div class="row" style="justify-content:space-between;align-items:flex-start;">
@@ -5962,7 +5968,7 @@ function renderReflection(){
                  <button class="btn small" data-cancel-comment-edit="${c.id}">취소</button>
                  <button class="btn small primary" data-save-comment-edit="${c.id}">저장</button>
                </div>`
-            : `<div class="content-text">${c.text}</div>`;
+            : `<div class="content-text" style="white-space:pre-wrap;">${c.text}</div>`;
           return `<div style="margin-bottom:6px;">
             <div class="row" style="justify-content:space-between;align-items:flex-start;gap:6px;">
               <div style="min-width:0;flex:1;">
