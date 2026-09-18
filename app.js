@@ -5854,6 +5854,8 @@ function openEventModal(existing){
 }
 
 /* ---------- REFLECTION ---------- */
+let reflectionEditPostId=null;
+let reflectionEditCommentId=null;
 function fmtReflectionTs(ms){
   const d=new Date(ms);
   return `${pad2(d.getMonth()+1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
@@ -5863,6 +5865,63 @@ function reflectionAuthorHtml(authorKey){
   const label=role?memberLabel(role):authorKey;
   return `${authorBadge(authorKey)}<b>${escapeHtml(label)}</b>`;
 }
+// Posts/comments store a small sanitized HTML subset (bold + red text) so
+// the rich-text toolbar below can work, instead of plain escaped strings.
+// sanitizeReflectionHtml strips everything outside that whitelist before
+// anything typed here is saved, so a pasted <script> etc. can't survive
+// into stored state and later get rendered unescaped.
+function sanitizeReflectionHtml(html){
+  const wrap=document.createElement('div');
+  wrap.innerHTML=html;
+  const allowedTags=new Set(['B','STRONG','SPAN','BR','DIV']);
+  (function clean(node){
+    Array.from(node.childNodes).forEach(child=>{
+      if(child.nodeType===Node.TEXT_NODE) return;
+      if(child.nodeType!==Node.ELEMENT_NODE || !allowedTags.has(child.tagName)){
+        node.replaceChild(document.createTextNode(child.textContent||''), child);
+        return;
+      }
+      Array.from(child.attributes).forEach(attr=>{
+        if(child.tagName==='SPAN' && attr.name==='style'){
+          const m=/color:\s*(#[0-9a-fA-F]{3,6}|[a-zA-Z]+)/.exec(attr.value);
+          if(m) child.setAttribute('style', `color:${m[1]}`); else child.removeAttribute('style');
+        } else child.removeAttribute(attr.name);
+      });
+      clean(child);
+    });
+  })(wrap);
+  return wrap.innerHTML;
+}
+function reflectionIsBlank(html){
+  const wrap=document.createElement('div');
+  wrap.innerHTML=html;
+  return !(wrap.textContent||'').trim().length;
+}
+function reflectionEditorHtml(idPrefix, initialHtml){
+  return `
+    <div class="row" style="gap:4px;margin-bottom:4px;">
+      <button type="button" class="btn small reflection-fmt-btn" data-cmd="bold" data-target="${idPrefix}" title="굵게" style="font-weight:700;padding:2px 8px;">B</button>
+      <button type="button" class="btn small reflection-fmt-btn" data-cmd="red" data-target="${idPrefix}" title="빨간색" style="color:#e53e3e;font-weight:700;padding:2px 8px;">A</button>
+      <button type="button" class="btn small reflection-fmt-btn" data-cmd="blue" data-target="${idPrefix}" title="파란색" style="color:#3b82f6;font-weight:700;padding:2px 8px;">A</button>
+    </div>
+    <div id="${idPrefix}" class="reflection-editor" contenteditable="true" style="background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px 10px;font-size:13px;min-height:56px;white-space:pre-wrap;">${initialHtml||''}</div>
+  `;
+}
+function bindReflectionFmtButtons(el){
+  el.querySelectorAll('.reflection-fmt-btn').forEach(btn=>{
+    // mousedown+preventDefault (not click) so the button never steals the
+    // text selection out of the contenteditable before execCommand runs.
+    btn.addEventListener('mousedown', e=>{
+      e.preventDefault();
+      const editor=document.getElementById(btn.dataset.target);
+      if(!editor) return;
+      editor.focus();
+      if(btn.dataset.cmd==='bold') document.execCommand('bold');
+      else if(btn.dataset.cmd==='red') document.execCommand('foreColor', false, '#e53e3e');
+      else if(btn.dataset.cmd==='blue') document.execCommand('foreColor', false, '#3b82f6');
+    });
+  });
+}
 function renderReflection(){
   const el=document.getElementById('tab-reflection');
   if(!el) return;
@@ -5871,48 +5930,84 @@ function renderReflection(){
   el.innerHTML=`
     <div class="card">
       <h3 style="margin:0 0 10px;">💭 Reflection</h3>
-      <div class="field">
-        <textarea id="newReflectionText" placeholder="가족에게 남기고 싶은 이야기를 적어보세요" style="min-height:70px;"></textarea>
-      </div>
+      ${reflectionEditorHtml('newReflectionEditor','')}
       <div class="row" style="justify-content:flex-end;margin-top:6px;">
         <button class="btn primary" id="postReflectionBtn">남기기</button>
       </div>
     </div>
     ${posts.length? posts.map(p=>{
       const comments=(state.reflectionComments||[]).filter(c=>c.postId===p.id).sort((a,b)=>a.createdAt-b.createdAt);
-      const canDeletePost = p.author===myKey;
+      const isMinePost = p.author===myKey;
+      const postEditing = reflectionEditPostId===p.id;
+      const postBodyHtml = postEditing
+        ? `${reflectionEditorHtml('postEdit_'+p.id, p.text)}
+           <div class="row" style="justify-content:flex-end;gap:6px;margin-top:6px;">
+             <button class="btn small" data-cancel-post-edit="${p.id}">취소</button>
+             <button class="btn small primary" data-save-post-edit="${p.id}">저장</button>
+           </div>`
+        : `<div class="content-text" style="margin-top:6px;">${p.text}</div>`;
       return `
       <div class="card">
         <div class="row" style="justify-content:space-between;align-items:flex-start;">
           <div class="row" style="gap:6px;align-items:center;">${reflectionAuthorHtml(p.author)}<span class="meta">${fmtReflectionTs(p.createdAt)}</span></div>
-          ${canDeletePost?`<button class="btn small danger" style="font-size:11px;padding:3px 8px;" data-del-post="${p.id}" title="삭제">✕</button>`:''}
+          ${(isMinePost && !postEditing)?`<div class="row" style="flex-shrink:0;"><button class="btn small" style="font-size:11px;padding:3px 8px;" data-edit-post="${p.id}" title="수정">✏️</button> <button class="btn small danger" style="font-size:11px;padding:3px 8px;" data-del-post="${p.id}" title="삭제">✕</button></div>`:''}
         </div>
-        <div class="content-text" style="margin-top:6px;white-space:pre-wrap;">${escapeHtml(p.text)}</div>
+        ${postBodyHtml}
         ${comments.length?`<div style="margin-top:10px;padding-left:12px;border-left:2px solid var(--border);">${comments.map(c=>{
-          const canDeleteComment = c.author===myKey;
-          return `<div class="row" style="justify-content:space-between;align-items:flex-start;margin-bottom:6px;gap:6px;">
-            <div style="min-width:0;">
-              <div class="row" style="gap:6px;align-items:center;">${reflectionAuthorHtml(c.author)}<span class="meta">${fmtReflectionTs(c.createdAt)}</span></div>
-              <div class="content-text" style="white-space:pre-wrap;">${escapeHtml(c.text)}</div>
+          const isMineComment = c.author===myKey;
+          const commentEditing = reflectionEditCommentId===c.id;
+          const commentBodyHtml = commentEditing
+            ? `${reflectionEditorHtml('commentEdit_'+c.id, c.text)}
+               <div class="row" style="justify-content:flex-end;gap:6px;margin-top:4px;">
+                 <button class="btn small" data-cancel-comment-edit="${c.id}">취소</button>
+                 <button class="btn small primary" data-save-comment-edit="${c.id}">저장</button>
+               </div>`
+            : `<div class="content-text">${c.text}</div>`;
+          return `<div style="margin-bottom:6px;">
+            <div class="row" style="justify-content:space-between;align-items:flex-start;gap:6px;">
+              <div style="min-width:0;flex:1;">
+                <div class="row" style="gap:6px;align-items:center;">${reflectionAuthorHtml(c.author)}<span class="meta">${fmtReflectionTs(c.createdAt)}</span></div>
+                ${commentBodyHtml}
+              </div>
+              ${(isMineComment && !commentEditing)?`<div class="row" style="flex-shrink:0;"><button class="btn small" style="font-size:11px;padding:3px 8px;" data-edit-comment="${c.id}" title="수정">✏️</button> <button class="btn small danger" style="font-size:11px;padding:3px 8px;" data-del-comment="${c.id}" title="삭제">✕</button></div>`:''}
             </div>
-            ${canDeleteComment?`<button class="btn small danger" style="font-size:11px;padding:3px 8px;flex-shrink:0;" data-del-comment="${c.id}" title="삭제">✕</button>`:''}
           </div>`;
         }).join('')}</div>`:''}
-        <div class="row" style="gap:6px;margin-top:8px;">
-          <input type="text" class="reflection-comment-input" data-post-id="${p.id}" placeholder="댓글 남기기" style="flex:1;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:13px;">
-          <button class="btn small" data-comment-post="${p.id}">등록</button>
+        <div style="margin-top:8px;">
+          ${reflectionEditorHtml('newComment_'+p.id, '')}
+          <div class="row" style="justify-content:flex-end;margin-top:4px;">
+            <button class="btn small" data-comment-post="${p.id}">등록</button>
+          </div>
         </div>
       </div>`;
     }).join('') : `<div class="card"><div class="empty">아직 남겨진 글이 없어요</div></div>`}
   `;
+  bindReflectionFmtButtons(el);
   document.getElementById('postReflectionBtn').onclick=()=>{
-    const ta=document.getElementById('newReflectionText');
-    const text=ta.value.trim();
-    if(!text) return;
+    const editor=document.getElementById('newReflectionEditor');
+    if(reflectionIsBlank(editor.innerHTML)) return;
+    const html=sanitizeReflectionHtml(editor.innerHTML);
     if(!state.reflections) state.reflections=[];
-    state.reflections.push({id:uid(), author:myKey, text, createdAt:Date.now()});
+    state.reflections.push({id:uid(), author:myKey, text:html, createdAt:Date.now()});
     queueSave(); renderReflection();
   };
+  el.querySelectorAll('[data-edit-post]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{ reflectionEditPostId=btn.dataset.editPost; renderReflection(); });
+  });
+  el.querySelectorAll('[data-cancel-post-edit]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{ reflectionEditPostId=null; renderReflection(); });
+  });
+  el.querySelectorAll('[data-save-post-edit]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const id=btn.dataset.savePostEdit;
+      const editor=document.getElementById('postEdit_'+id);
+      if(reflectionIsBlank(editor.innerHTML)) return;
+      const post=(state.reflections||[]).find(p=>p.id===id);
+      if(post) post.text=sanitizeReflectionHtml(editor.innerHTML);
+      reflectionEditPostId=null;
+      queueSave(); renderReflection();
+    });
+  });
   el.querySelectorAll('[data-del-post]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       if(!confirm('이 글을 삭제할까요? 댓글도 함께 삭제돼요.')) return;
@@ -5922,6 +6017,23 @@ function renderReflection(){
       state.reflectionComments=(state.reflectionComments||[]).filter(c=>c.postId!==id);
       markDeleted(id);
       relatedComments.forEach(c=>markDeleted(c.id));
+      queueSave(); renderReflection();
+    });
+  });
+  el.querySelectorAll('[data-edit-comment]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{ reflectionEditCommentId=btn.dataset.editComment; renderReflection(); });
+  });
+  el.querySelectorAll('[data-cancel-comment-edit]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{ reflectionEditCommentId=null; renderReflection(); });
+  });
+  el.querySelectorAll('[data-save-comment-edit]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const id=btn.dataset.saveCommentEdit;
+      const editor=document.getElementById('commentEdit_'+id);
+      if(reflectionIsBlank(editor.innerHTML)) return;
+      const comment=(state.reflectionComments||[]).find(c=>c.id===id);
+      if(comment) comment.text=sanitizeReflectionHtml(editor.innerHTML);
+      reflectionEditCommentId=null;
       queueSave(); renderReflection();
     });
   });
@@ -5937,20 +6049,12 @@ function renderReflection(){
   el.querySelectorAll('[data-comment-post]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const postId=btn.dataset.commentPost;
-      const input=el.querySelector(`.reflection-comment-input[data-post-id="${postId}"]`);
-      const text=input.value.trim();
-      if(!text) return;
+      const editor=document.getElementById('newComment_'+postId);
+      if(reflectionIsBlank(editor.innerHTML)) return;
+      const html=sanitizeReflectionHtml(editor.innerHTML);
       if(!state.reflectionComments) state.reflectionComments=[];
-      state.reflectionComments.push({id:uid(), postId, author:myKey, text, createdAt:Date.now()});
+      state.reflectionComments.push({id:uid(), postId, author:myKey, text:html, createdAt:Date.now()});
       queueSave(); renderReflection();
-    });
-  });
-  el.querySelectorAll('.reflection-comment-input').forEach(input=>{
-    input.addEventListener('keydown', e=>{
-      if(e.key==='Enter'){
-        e.preventDefault();
-        el.querySelector(`[data-comment-post="${input.dataset.postId}"]`).click();
-      }
     });
   });
 }
