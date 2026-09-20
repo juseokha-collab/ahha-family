@@ -4385,7 +4385,7 @@ function openHealthSchedModal(existing){
   };
 }
 function renderWeightChart(keys, goalProjections){
-  const pastDays=62, futureDays=10;
+  const pastDays=100, futureDays=10;
   const totalDays=pastDays+futureDays;
   const todayIdx=pastDays-1;
   const midIdx=todayIdx+Math.round(futureDays/2);
