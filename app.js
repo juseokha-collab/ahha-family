@@ -2610,7 +2610,7 @@ function renderHome(){
       <h3>📅 ${Number(homeDate.slice(5,7))}.${Number(homeDate.slice(8,10))}${homeDate===todayStr()?'(오늘)':''} 일정</h3>
       ${todaySchedule.length? todaySchedule.map(s=>{
         const badge = authorBadge(s.createdBy);
-        return `<div class="list-item"><div><div style="font-size:14px;">${timeRangeLabel(s)?`<b>${timeRangeLabel(s)}</b> `:''}${badge}${escapeHtml(s.title)}</div>${s.memo?`<div class="content-text" style="font-size:12px;">${escapeHtml(s.memo)}</div>`:''}</div></div>`;
+        return `<div class="list-item"><div><div style="font-size:14px;">${timeRangeLabel(s)?`<b>${timeRangeLabel(s)}</b> `:''}${badge}${escapeHtml(s.title)}</div>${s.contacts?`<div class="content-text" style="font-size:12px;color:var(--muted);">📍 ${escapeHtml(s.contacts)}</div>`:''}${s.memo?`<div class="content-text" style="font-size:12px;">${escapeHtml(s.memo)}</div>`:''}</div></div>`;
       }).join('') : `<div class="empty">등록된 일정이 없어요</div>`}
     </div>`:''}
   `;
@@ -3286,7 +3286,7 @@ function openScheduleModal(existing, prefill, occurDate){
       </div>
     </div>
     <div class="field" style="gap:2px;margin-top:16px;"><label>제목</label><input id="mTitle" value="${escapeHtml(s.title)}"></div>
-    <div class="field" style="gap:2px;margin-top:16px;"><label>인맥 (쉼표로 구분, 예: 홍길동, 김철수)</label><input id="mContacts" value="${escapeHtml(s.contacts)}"></div>
+    <div class="field" style="gap:2px;margin-top:16px;"><label>장소</label><input id="mContacts" placeholder="예: 강남역 스타벅스" value="${escapeHtml(s.contacts)}"></div>
     <div class="field" style="gap:2px;margin-top:16px;"><label>메모</label><textarea id="mMemo">${escapeHtml(s.memo)}</textarea></div>
     <div id="repeatOptions" style="display:${curRepeat!=='none'?'':'none'};margin-top:10px;padding-top:10px;border-top:1px solid var(--border);">
       <div class="field"><label>반복</label>
