@@ -4498,7 +4498,7 @@ function renderWeightChart(keys, goalProjections){
       if(val==null) return '';
       const ex=x(idx), ey=useBrokenAxis?y(val,g.key):y(val);
       const dLabel=dateStr?fmtSlashMD(dateStr.slice(5)):'';
-      return `<circle cx="${ex}" cy="${ey}" r="4" fill="var(--panel)" stroke="${g.color}" stroke-width="2"/><text x="${ex}" y="${ey-10}" font-size="8" fill="${g.color}" text-anchor="middle">${escapeHtml(dLabel)} ${prefix} ${val.toFixed(1)}kg</text>`;
+      return `<circle cx="${ex}" cy="${ey}" r="4" fill="var(--panel)" stroke="${g.color}" stroke-width="2"/><text x="${ex}" y="${ey-18}" font-size="8" fill="${g.color}" text-anchor="middle"><tspan x="${ex}" dy="0">${prefix} ${escapeHtml(dLabel)}</tspan><tspan x="${ex}" dy="11">${val.toFixed(1)}kg</tspan></text>`;
     };
     svg += pointLabelAbove(midIdx, g.pts[midIdx], g.midDate, '1차');
     return svg;
