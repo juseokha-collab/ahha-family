@@ -1469,6 +1469,7 @@ function packOverlaps(prop){
 }
 const ROLE_EMOJI={dad:'🍷',mom:'💐',daughter:'🍼'};
 const ROLE_BADGE_COLOR={dad:'#4d7fe0',mom:'#e0538f',daughter:'#9a5be0'};
+const ROLE_AVATAR_IMG={dad:'badge-dad.png',mom:'badge-mom.png',daughter:'badge-daughter.png'};
 function authorRoleOf(key){
   if(!key) return null;
   if(key==='daughter') return 'daughter';
@@ -1478,6 +1479,12 @@ function authorBadge(key){
   const role=authorRoleOf(key);
   if(!role) return '';
   return `<span class="author-badge" style="background:#fff;border:1px solid rgba(0,0,0,0.15);">${ROLE_EMOJI[role]}</span>`;
+}
+function authorAvatar(key){
+  const role=authorRoleOf(key);
+  if(!role) return '';
+  const img=ROLE_AVATAR_IMG[role];
+  return img ? `<img class="author-avatar" src="${img}" alt="">` : authorBadge(key);
 }
 function dtChip(it, extraStyle, dayDate){
   const isVirtual = typeof it.id==='string' && it.id.startsWith('evt-');
@@ -5863,7 +5870,7 @@ function fmtReflectionTs(ms){
 function reflectionAuthorHtml(authorKey){
   const role=authorRoleOf(authorKey);
   const label=role?memberLabel(role):authorKey;
-  return `${authorBadge(authorKey)}<b>${escapeHtml(label)}</b>`;
+  return `${authorAvatar(authorKey)}<b>${escapeHtml(label)}</b>`;
 }
 // Posts/comments store a small sanitized HTML subset (bold + red text) so
 // the rich-text toolbar below can work, instead of plain escaped strings.
