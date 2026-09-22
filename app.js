@@ -4222,11 +4222,8 @@ function renderHealth(){
   const hWeightEl=document.getElementById('hWeight');
   if(hWeightEl) hWeightEl.addEventListener('change',e=>{
     const newVal=e.target.value?Number(e.target.value):'';
-    const prevWeight=latestWeightFor(healthPerson);
-    const prevDate=(goals.finalTarget && goals.weeklyLoss) ? projectedAchievementDate(prevWeight, goals.finalTarget, goals.weeklyLoss) : null;
     save('weight', newVal);
-    const reachedGoal = newVal ? checkWeightGoalReached(healthPerson, newVal) : false;
-    if(newVal && !reachedGoal) checkWeightDateChange(healthPerson, prevDate, newVal, goals);
+    if(newVal) checkWeightGoalReached(healthPerson, newVal);
     weightEditing=false;
     renderHealth();
   });
@@ -5341,36 +5338,6 @@ function checkWeightGoalReached(key, newWeight){
   }
   return false;
 }
-function checkWeightDateChange(key, prevDate, curWeight, goals){
-  if(!goals.finalTarget || !goals.weeklyLoss || !prevDate) return;
-  const newDate=projectedAchievementDate(curWeight, goals.finalTarget, goals.weeklyLoss);
-  if(!newDate) return;
-  const diffDays=Math.round((parseDate(newDate)-parseDate(prevDate))/86400000);
-  let icon, title, message;
-  if(diffDays<0){
-    icon='🎉';
-    title='목표달성일이 앞당겨졌어요!';
-    message=`축하합니다! 목표달성일이 ${-diffDays}일 줄었습니다`;
-  } else if(diffDays>0){
-    icon='💪';
-    title='목표달성일이 늘었어요';
-    message=`목표달성일이 ${diffDays}일 늘었군요. 다시 화이팅!!`;
-  } else {
-    icon='♥';
-    title='잘 하고 있어요';
-    message='잘 하고 있습니다. 오늘도 행복하세용 ♥';
-  }
-  openModal(`
-    <div style="text-align:center;padding:20px 10px;">
-      <div style="font-size:36px;">${icon}</div>
-      <h3 style="margin:10px 0 4px;">${title}</h3>
-      <div style="font-size:14px;color:var(--text);">${escapeHtml(message)}</div>
-      <div style="font-size:12px;color:var(--muted);margin-top:8px;">${fmtKoreanDate(newDate)} 최종목표 달성 예상</div>
-      <button class="btn primary" style="margin-top:16px;" id="wtDateCloseBtn">확인</button>
-    </div>
-  `);
-  document.getElementById('wtDateCloseBtn').onclick=closeModal;
-}
 function weeklyWeightTrend(key){
   const today=todayStr();
   const weekAgo=fmtDate(addDays(parseDate(today),-7));
@@ -5386,6 +5353,7 @@ function checkWeightPaceNudge(key){
   if(!key) return;
   const goals=weightGoalsFor(key);
   if(!goals.weeklyLoss) return;
+  if(new Date().getDay()!==0) return;   // 매주 일요일에만
   const flags=gamificationFlags(key);
   const today=todayStr();
   if(flags.lastNudgeDate===today) return;
@@ -5393,10 +5361,14 @@ function checkWeightPaceNudge(key){
   if(!trend) return;
   flags.lastNudgeDate=today;
   queueSave();
-  if(trend.changeGrams < Number(goals.weeklyLoss)*0.5){
-    const changeText = trend.changeGrams>=0 ? Math.round(trend.changeGrams)+'g 감량' : Math.round(-trend.changeGrams)+'g 증가';
-    const weightText = `(${trend.startW.toFixed(1)}kg → ${trend.endW.toFixed(1)}kg)`;
-    encourageNudge('조금만 더 힘내요! 💪', `최근 일주일간 ${changeText}했어요 ${weightText}<br>목표까지 조금 더 힘내봐요!`);
+  const lostG=Math.round(trend.changeGrams);
+  const weightText = `(${trend.startW.toFixed(1)}kg → ${trend.endW.toFixed(1)}kg)`;
+  if(lostG>0){
+    celebrate('이번 주도 잘했어요! 🎉', `일주일간 ${lostG}g 감량했어요 ${weightText}<br>정말 잘하고 있어요, 이 페이스로 계속 화이팅!`);
+  } else if(lostG<0){
+    encourageNudge('다시 힘내볼까요? 💪', `일주일간 ${-lostG}g 늘었어요 ${weightText}<br>이번 주는 다시 빼서 더 예뻐져봐요!`);
+  } else {
+    encourageNudge('이번 주는 유지했어요', `일주일간 몸무게 변화가 없었어요 ${weightText}<br>다음 주엔 감량으로 화이팅!`);
   }
 }
 function currentStreak(key){
